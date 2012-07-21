@@ -13,3 +13,6 @@
 
 # sdk folder for downloaded archives
 /sdk
+
+# build output folders
+build-*
