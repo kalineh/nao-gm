@@ -10,3 +10,6 @@
 *.lai
 *.la
 *.a
+
+# sdk folder for downloaded archives
+/sdk
