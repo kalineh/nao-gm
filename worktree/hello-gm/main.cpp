@@ -405,10 +405,7 @@ int main(int argc, char** argv)
 
     try
     {
-        //AL::ALModule::createModule<Bumper>(broker, "Bumper");
         auto hvc = AL::ALModule::createModule<HandVoiceControl>(broker, "HandVoiceControl");
-
-        //HandVoiceControl hvc(broker, "HandVoiceControl");
         hvc->startRecognition();
 
         AL::ALMotionProxy motion(broker);
