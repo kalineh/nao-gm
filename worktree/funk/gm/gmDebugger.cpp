@@ -9,6 +9,9 @@
 
 */
 
+#if 0
+
+
 #include <string.h>
 #include "gmDebugger.h"
 
@@ -320,64 +323,4 @@ void gmMachineQuit(gmDebuggerSession * a_session)
   a_session->Pack(ID_mend).Send();
 }
 
-// HACK: need for link symbols
-
-#include "gm/gmDebug.h"
-
-void gmDebuggerBreak(gmDebuggerSession * a_session, int a_threadId, int a_sourceId, int a_lineNumber) {
-  a_session->Pack(ID_dbrk).Pack(a_threadId).Pack(a_sourceId).Pack(a_lineNumber).Send();
-}
-void gmDebuggerException(gmDebuggerSession * a_session, int a_threadId) {
-  a_session->Pack(ID_dexc).Pack(a_threadId).Send();
-}
-void gmDebuggerRun(gmDebuggerSession * a_session, int a_threadId) {
-  a_session->Pack(ID_drun).Pack(a_threadId).Send();
-}
-void gmDebuggerStop(gmDebuggerSession * a_session, int a_threadId) {
-  a_session->Pack(ID_dstp).Pack(a_threadId).Send();
-}
-void gmDebuggerSource(gmDebuggerSession * a_session, int a_sourceId, const char * a_sourceName, const char * a_source) {
-  a_session->Pack(ID_dsrc).Pack(a_sourceId).Pack(a_sourceName).Pack(a_source).Send();
-}
-void gmDebuggerBeginContext(gmDebuggerSession * a_session, int a_threadId, int a_callFrame) {
-  a_session->Pack(ID_dctx).Pack(a_threadId).Pack(a_callFrame);
-}
-void gmDebuggerContextCallFrame(gmDebuggerSession * a_session, int a_callFrame, const char * a_functionName, int a_sourceId, int a_lineNumber, const char * a_thisSymbol, const char * a_thisValue, gmptr a_thisId) {
-  a_session->Pack(ID_call).Pack(a_callFrame).Pack(a_functionName).Pack(a_sourceId).Pack(a_lineNumber).Pack(a_thisSymbol).Pack(a_thisValue).Pack(a_thisId);
-}
-void gmDebuggerContextVariable(gmDebuggerSession * a_session, const char * a_varSymbol, const char * a_varValue, gmptr a_varId) {
-  a_session->Pack(ID_vari).Pack(a_varSymbol).Pack(a_varValue).Pack(a_varId);
-}
-void gmDebuggerEndContext(gmDebuggerSession * a_session) {
-  a_session->Pack(ID_done).Send();
-}
-void gmDebuggerBeginSourceInfo(gmDebuggerSession * a_session) {
-  a_session->Pack(ID_dsri);
-}
-void gmDebuggerSourceInfo(gmDebuggerSession * a_session, int a_sourceId, const char * a_sourceName) {
-  a_session->Pack(ID_srci).Pack(a_sourceId).Pack(a_sourceName);
-}
-void gmDebuggerEndSourceInfo(gmDebuggerSession * a_session) {
-  a_session->Pack(ID_done).Send();
-}
-void gmDebuggerBeginThreadInfo(gmDebuggerSession * a_session) {
-  a_session->Pack(ID_dthi);
-}
-void gmDebuggerThreadInfo(gmDebuggerSession * a_session, int a_threadId, int a_threadState) {
-  a_session->Pack(ID_thri).Pack(a_threadId).Pack(a_threadState);
-}
-void gmDebuggerEndThreadInfo(gmDebuggerSession * a_session) {
-  a_session->Pack(ID_done).Send();
-}
-void gmDebuggerError(gmDebuggerSession * a_session, const char * a_error) {
-  a_session->Pack(ID_derr).Pack(a_error).Send();
-}
-void gmDebuggerMessage(gmDebuggerSession * a_session, const char * a_message) {
-  a_session->Pack(ID_dmsg).Pack(a_message).Send();
-}
-void gmDebuggerAck(gmDebuggerSession * a_session, int a_response, int a_posNeg) {
-  a_session->Pack(ID_dack).Pack(a_response).Pack(a_posNeg).Send();
-}
-void gmDebuggerQuit(gmDebuggerSession * a_session) {
-  a_session->Pack(ID_dend).Send();
-}
+#endif

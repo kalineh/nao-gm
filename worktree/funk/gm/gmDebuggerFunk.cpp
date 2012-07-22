@@ -8,8 +8,14 @@
 #include <gm/gmConfig.h>
 #include <vm/VirtualMachine.h>
 
-// disabled for nao
-//#define USE_VISUAL_DEBUGGER
+#include <imgui/Imgui.h>
+#include <imgui/ImguiGM.h>
+#include <imgui/ImguiManager.h>
+
+#include <common/Window.h>
+#include <common/Input.h>
+
+#include <gfx/Renderer.h>
 
 using namespace funk;
 
@@ -57,7 +63,6 @@ const char * ConvertStateToStr( gmThread::State state )
 
 bool ThreadImgui(gmThread * a_thread, void * a_context)
 {
-#ifdef USE_VISUAL_DEBUGGER
 	if ( a_thread->GetState() == gmThread::EXCEPTION ) 
 	{
 		return true;
@@ -83,8 +88,6 @@ bool ThreadImgui(gmThread * a_thread, void * a_context)
 	{
 		Imgui::Print(buffer);
 	}
-
-#endif
 	
 	return true;
 }
@@ -116,18 +119,16 @@ void gmDebuggerFunk::Open( gmMachine * machine )
 	m_debugState.ResetTableSelector();
 
 	// debug rendering
-#ifdef USE_VISUAL_DEBUGGER
 	const v2i dimen = Window::Get()->Sizei();
 	m_texBG = new Texture( dimen.x, dimen.y );
 	m_cam2d.InitScreenSpace();
-#endif
 }
 
 void gmDebuggerFunk::BreakIntoRunningThread()
 {
 	if ( IsDebugging() ) 
 	{
-		printf("Cannot break while debugger is running");
+		VirtualMachine::Get()->GetConsole().Log("Cannot break while debugger is running");
 		return;
 	}
 
@@ -149,12 +150,10 @@ void gmDebuggerFunk::Update()
 {
 	gmMachine * machine = m_debugSesh.GetMachine();
 
-#if USE_VISUAL_DEBUGGER
 	if ( Input::Get()->DidKeyJustGoDown(DEBUG_KEY) )
 	{
 		BreakIntoRunningThread();
 	}
-#endif
 
 	// run debug thread
 	if( IsDebugging() )
@@ -169,6 +168,9 @@ void gmDebuggerFunk::Update()
 
 void gmDebuggerFunk::Close()
 {
+	VirtualMachine::Get()->GetConsole().Enable(false);
+
+	m_texBG = NULL;
 	m_debugState.tableTraverse.Destruct(m_debugSesh.GetMachine());
 	m_debugSesh.Close();
 }
@@ -180,7 +182,6 @@ void gmDebuggerFunk::BeginSession()
 
 	m_debugState.jumpToLineNumber = true;
 
-#ifdef VISUAL_DEBUGGER
 	const v2i dimen = Window::Get()->Sizei();
 	int numBytes = sizeof(unsigned int)*dimen.x*dimen.y;
 	unsigned char * buffer = new unsigned char[numBytes];
@@ -194,7 +195,9 @@ void gmDebuggerFunk::BeginSession()
 	m_texBG->Unbind();
 
 	delete [] buffer;
-#endif
+
+	VirtualMachine::Get()->GetConsole().Enable(true);
+	VirtualMachine::Get()->GetConsole().Log("Begin debugger session");
 }
 
 void gmDebuggerFunk::EndSession()
@@ -204,11 +207,16 @@ void gmDebuggerFunk::EndSession()
 
 	m_debugState.threadId = GM_INVALID_THREAD;
 	m_debugState.sourceId = 0;
+
+	VirtualMachine::Get()->GetConsole().Enable(false);
+	VirtualMachine::Get()->GetConsole().Log("End debugger session");
 }
 
 void gmDebuggerFunk::HandleRenderException()
 {
-#ifdef USE_VISUAL_DEBUGGER
+	VirtualMachine::Get()->GetConsole().Log("Exception occurred during rendering");
+	VirtualMachine::Get()->GetConsole().Log("Render bugs will most likely crash the game");
+
 	Renderer::Get()->HandleErrorDraw();
 
 	// handle Imgui error
@@ -216,16 +224,14 @@ void gmDebuggerFunk::HandleRenderException()
 	{
 		char buffer[128];
 		sprintf_s( buffer, "Exception occurred between Imgui::Begin('%s')", ImguiManager::Get()->state.workingWindowTitle.c_str() );
-		printf(buffer);
+		VirtualMachine::Get()->GetConsole().Log(buffer);	
 
 		Imgui::End();
 	}
-#endif
 }
 
 void gmDebuggerFunk::ReceiveMsg( const void * a_command, int &a_len )
 {
-#if USE_VISUAL_DEBUGGER
 	if ( !a_command ) return;
 
 	gmMachine* machine = m_debugSesh.GetMachine();
@@ -292,7 +298,7 @@ void gmDebuggerFunk::ReceiveMsg( const void * a_command, int &a_len )
 
 			char buffer[64];
 			sprintf_s( buffer, "Exception in Thread %d", threadId );
-			printf(buffer);
+			VirtualMachine::Get()->GetConsole().Log(buffer);
 
 			break;
 		}
@@ -301,12 +307,10 @@ void gmDebuggerFunk::ReceiveMsg( const void * a_command, int &a_len )
 			// Nothing.
 		}
 	}
-#endif
 }
 
 void gmDebuggerFunk::DrawBG()
 {
-#ifdef USE_VISUAL_DEBUGGER
 	const v2 dimen = Window::Get()->Sizef();
 
 	m_cam2d.Begin();
@@ -349,12 +353,10 @@ void gmDebuggerFunk::DrawBG()
 
 	m_cam2d.End();
 	Renderer::Get()->EndDefaultShader();
-#endif
 }
 
 void gmDebuggerFunk::Gui()
 {
-#ifdef USE_VISUAL_DEBUGGER
 	if ( IsDebugging() )
 	{
 		DrawBG();
@@ -362,12 +364,10 @@ void gmDebuggerFunk::Gui()
 		GuiThread();
 		GuiThreadsViewer();
 	}
-#endif
 }
 
 void gmDebuggerFunk::GuiSource()
 {
-#ifdef USE_VISUAL_DEBUGGER
 	if ( !IsDebugging() ) return;
 
 	const char *source;
@@ -425,7 +425,6 @@ void gmDebuggerFunk::GuiSource()
 	}
 
 	Imgui::End();
-#endif
 }
 
 bool gmDebuggerFunk::IsDebugging() const
@@ -435,7 +434,6 @@ bool gmDebuggerFunk::IsDebugging() const
 
 void gmDebuggerFunk::GuiThread()
 {
-#ifdef USE_VISUAL_DEBUGGER
 	gmThread * thr = m_debugSesh.GetMachine()->GetThread( m_debugState.threadId );
 	
 	// occurs when you continue from breakpoint
@@ -572,12 +570,10 @@ void gmDebuggerFunk::GuiThread()
 	Imgui::PrintParagraph(buffer);
 
 	Imgui::End();
-#endif
 }
 
 void gmDebuggerFunk::GuiThreadsViewer()
 {
-#ifdef USE_VISUAL_DEBUGGER
 	gmMachine* machine = m_debugSesh.GetMachine();
 
 	const v2i windowDimen = Window::Get()->Sizei();
@@ -608,7 +604,6 @@ void gmDebuggerFunk::GuiThreadsViewer()
 	}
 
 	Imgui::End();
-#endif
 }
 
 const gmDebuggerFunk::DataPacket & gmDebuggerFunk::GetPacket()

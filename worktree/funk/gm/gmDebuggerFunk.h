@@ -5,6 +5,8 @@
 
 #include <gm/gmDebug.h>
 #include <gm/gmArrayLib.h>
+#include <gfx/Texture.h>
+#include <gfx/Cam2d.h>
 
 class gmMachine;
 
@@ -54,6 +56,9 @@ private:
 	bool m_showFunctions;
 
 	// background
+	funk::StrongHandle<funk::Texture> m_texBG;
+	funk::Cam2d m_cam2d;
+
 	struct DebugState
 	{
 		int threadId;

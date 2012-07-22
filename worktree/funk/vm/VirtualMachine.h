@@ -6,8 +6,11 @@
 
 #include <gm/gmVariable.h>
 #include <gm/gmDebuggerFunk.h>
+#include <gfx/LineGraph.h>
 
 #include <map>
+
+#include "VirtualConsole.h"
 
 class gmMachine;
 
@@ -17,10 +20,13 @@ namespace funk
 	{
 	public:
 		void Update();
+		void Render();
 		void RunMain();
-		void Tick();
+		void GuiStats();
+		void Gui();
 
 		gmMachine & GetVM () { return *m_vm; }
+		VirtualConsole &GetConsole() { return m_console; }
 
 		bool IsUsingByteCode() const { return m_bUseGmByteCode; }
 
@@ -33,8 +39,23 @@ namespace funk
 		gmMachine *m_vm;
 		int m_threadId;
 
-		gmFunctionObject* m_tickFunc;
+		// draw manager
+		gmFunctionObject* m_drawFunc;
+		gmFunctionObject* m_clearFunc;
+		gmVariable m_drawManager;
 		gmDebuggerFunk m_debugger;
+
+		// settings gui
+		bool m_showSettingsGui;
+		StrongHandle<LineGraph> m_lineGraphUpdate;
+		StrongHandle<LineGraph> m_lineGraphMemory;
+		void InitGuiSettings();
+		void GuiSettings();
+
+		// thread allocations gui
+		bool m_showThreadAllocationsGui;
+		void InitGuiThreadAllocations();
+		void GuiThreadAllocations();
 
 		struct ThreadAllocationItem
 		{
@@ -43,6 +64,8 @@ namespace funk
 		};
 		std::map<const gmFunctionObject*, ThreadAllocationItem> m_threadAllocationsHistory;
 		bool m_freezeThreadAllocationsGui;
+
+		VirtualConsole m_console;
 
 		void HandleErrors();
 		void ResetVM();

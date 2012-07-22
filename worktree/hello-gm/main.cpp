@@ -27,6 +27,7 @@
 
 #include "gm/gmMachine.h"
 
+
 // no exception mode
 //#define MODULE_ERROR(description) do { printf(description); qi::os::exit(1); } while (0)
 
