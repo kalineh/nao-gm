@@ -1,0 +1,93 @@
+
+Installation Guide for VS2010
+
+* Install Rapid Environment Editor (optional) (http://www.rapidee.com/download/RapidEE_setup.exe)
+* Install CMake (http://www.cmake.org/files/v2.8/cmake-2.8.8-win32-x86.exe)
+* Install Python 2.7.3 (http://www.python.org/ftp/python/2.7.3/python-2.7.3.msi)
+* Install Git for Windows (http://msysgit.googlecode.com/files/Git-1.7.11-preview20120710.exe)
+
+* Download Naoqi SDK (http://developer.aldebaran-robotics.com/resources/file/1.12.5/naoqi-sdk-1.12.5-win32-vs2008.zip)
+* Download Naoqi Docs (http://developer.aldebaran-robotics.com/resources/file/1.12.5/aldebaran-documentation-1.12.5.zip)
+* Download Choregraphe (http://developer.aldebaran-robotics.com/resources/file/1.12.5/choregraphe-suite-1.12.5-win32-setup.exe)
+* Download qibuild (https://nodeload.github.com/aldebaran/qibuild/zipball/master).
+
+# Note you will need a CD-key for your choregraphe installation. :(
+# The docs are not necessary, but might as well grab a local copy now.
+
+* Setup vimrc for git bash, into $HOME/_vimrc (http://phuzz.org/vimrc.html)
+* Comment out colorscheme=elflord line in _vimrc, it does not seem to exist.
+
+
+Now setup the necessary %PATH% values for our local script environment. Using the default installed directories:
+
+#!/bin/bash
+
+export NAO_ROOT=c:\nao
+export PATH=$(PATH);C:\Python27
+export PATH=$(PATH);C:\Program Files (x86)\CMake 2.8\bin
+export PATH=$(PATH);C:\Program Files (x86)\Git\cmd
+export PATH=$(PATH);C:\Program Files (x86)\Git\bin
+
+export NAOQI_SDK_DIR=$NAO_ROOT\naoqi-sdk-1.12.5-win32-vs2010
+export QIBUILD_DIR=$NAO_ROOT\aldebaran-qibuild-34d2153
+
+export PATH=$(PATH);$(QIBUILD_DIR)\python\bin
+
+
+Now configure the qibuild settings for the local user. Configuration file will be output to: C:\Users\$USER\.config\qi\qibuild.xml
+
+* $QIBUILD_DIR/python/bin/qibuild config --wizard
+
+
+Preparing the workspace:
+
+* export QIBUILD_WORKTREE=$NAO_ROOT\worktree
+* mkdir $QIBUILD_WORKTREE
+* cd $QIBUILD_WORKTREE
+* qibuild init
+
+This creates a .qi dir in the $QIBUILD_WORKTREE directory. This is now the root of a qi build worktree.
+
+* export QIBUILD_TOOLCHAIN=vs2010
+* qitoolchain create $(QIBUILD_TOOLCHAIN) --default
+
+Configuration is output into: C:\Users\$USER\.cache\qi\toolchains\$QIBUILD_TOOLCHAIN
+
+Extract helloworld sample code into worktree:
+
+* unzip $NAOQI_SDK_DIR\doc\_downloads\helloworld.zip -d $QIBUILD_WORKTREE
+
+Create a new project:
+
+* cd $QIBUILD_WORKTREE
+* qibuild create testproject
+* qibuild configure testproject
+* qibuild make testproject
+
+Should be successfully built!
+
+* Open testproject/build-vs2010/testproject.sln.
+* Right-click test_testproject in Solution Explorer and Set as StartUp Project.
+* F5 and run project.
+
+
+Now we can create a project to run on Nao. First we modify the CMakeLists.txt to add some naoqi libs:
+
+* echo qi_use_lib(testproject ALCOMMON) >> $QIBUILD_WORKTREE/testproject/CMakeLists.txt
+
+# It seems that more libs than just ALCOMMON are accessible after using this (not sure why!).
+
+
+We have configured the build with the default config, now use the naoqi-sdk and test it.
+
+* qitoolchain create naoqi-sdk $NAOQI_SDK_DIR/toolchain.xml
+* qibuild configure -c naoqi-sdk testproject
+* qibuild make -c naoqi-sdk testproject
+
+Now we are successfully running a project built with naoqi sdk. We can now run some code like:
+
+#include <alproxies/altexttospeechproxy.h>
+
+AL::ALTextToSpeechProxy tts("tts", "192.168.1.2", 9559);
+tts.say("hello");
+
