@@ -1,3 +1,4 @@
 <worktree>
   <project src="hello" />
+  <project src="hello-gm" />
 </worktree>

@@ -4,10 +4,17 @@
  * found in the COPYING file.
  */
 #include <iostream>
+
 #include <alcommon/alproxy.h>
+
+#include "gm/gmMachine.h"
+
+void RegisterProjectLibs(gmMachine* vm)
+{
+}
 
 int main()
 {
-  std::cout << "Hello, world" << std::endl;
-  return 0;
+    std::pro
+    return 0;
 }
