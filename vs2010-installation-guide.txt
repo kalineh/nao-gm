@@ -9,7 +9,7 @@ Installation Guide for VS2010
 * Download Naoqi SDK (http://developer.aldebaran-robotics.com/resources/file/1.12.5/naoqi-sdk-1.12.5-win32-vs2008.zip)
 * Download Naoqi Docs (http://developer.aldebaran-robotics.com/resources/file/1.12.5/aldebaran-documentation-1.12.5.zip)
 * Download Choregraphe (http://developer.aldebaran-robotics.com/resources/file/1.12.5/choregraphe-suite-1.12.5-win32-setup.exe)
-* Download qibuild (https://nodeload.github.com/aldebaran/qibuild/zipball/master).
+* Download qibuild (https://github.com/aldebaran/qibuild/zipball/34d21534d169e10a0355f93639fd890d04cdbfdb).
 
 # Note you will need a CD-key for your choregraphe installation. :(
 # The docs are not necessary, but might as well grab a local copy now.
