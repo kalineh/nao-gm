@@ -1,0 +1,26 @@
+
+In the folder which contains the .lib files you want to link, add a foo-config.cmake file. The contents should contain something like this:
+
+	include(FindPackageHandleStandardArgs)
+	get_filename_component(LOCAL_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
+
+	set(FOO_INCLUDE_DIRS "${LOCAL_DIR}/foo/include;" CACHE STRING "" FORCE)
+	set(FOO_DEPENDS "" CACHE STRING "" FORCE)
+	set(FOO_DEFINITIONS "" CACHE STRING "" FORCE)
+	set(FOO_LIBRARIES "${LOCAL_DIR}/foo/lib/foo.lib" "${LOCAL_DIR}/foo/lib/foo-extra.lib")
+	FIND_PACKAGE_HANDLE_STANDARD_ARGS(FOO DEFAULT_MSG FOO_LIBRARIES FOO_INCLUDE_DIRS)
+	set(FOO_PACKAGE_FOUND ${FOO_FOUND} CACHE INTERNAL "" FORCE)
+
+We can duplicate this section for each library we want to link under this one configuration name.
+
+In the CMakeLists.txt file of your actual project:
+
+	set(foo_DIR ../foo)			# shows cmake where to find the foo package's foo-config.cmake file.
+
+	find_package(foo REQUIRED)	# finds the 'foo' package
+
+	qi_use_lib(project FOO)		# use the 'FOO' library created in the foo package
+	qi_use_lib(project BAR)		# use the 'BAR' library created in the foo package
+
+
+That should be all!
