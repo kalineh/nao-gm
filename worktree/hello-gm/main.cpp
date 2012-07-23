@@ -19,7 +19,7 @@
 using namespace funk;
 
 #define ASSERT(condition) \
-    assert(false)//if (!condition) { __asm { int 3; } }
+    if (!condition) { __asm { int 3; } }
 
 class GMALProxy
     : public HandledObj<GMALProxy>
@@ -29,35 +29,70 @@ public:
 
     GMALProxy(const char* type, const char* ip, int port)
         : _proxy(std::string(type), std::string(ip), port)
+        , _current_call(-1)
     {
+    }
+
+    float CallReturnFloat(const char* function, gmVariable arg)
+    {
+        const std::string function_string = std::string(function);
+
+        switch (arg.m_type)
+        {
+        case GM_INT: return _proxy.call<float>(function_string, arg.GetInt());
+        case GM_FLOAT: return _proxy.call<float>(function_string, arg.GetFloat());
+        case GM_VEC2: return _proxy.call<float>(function_string, arg.GetVec2().x, arg.GetVec2().y);
+        case GM_STRING: return _proxy.call<float>(function_string, std::string(arg.GetCStringSafe()));
+        default: return _proxy.call<float>(function_string);
+        }
+
+        return 0.0f;
     }
 
     void CallVoid(const char* function, gmVariable arg)
     {
         const std::string function_string = std::string(function);
 
-        int result = -1;
+        switch (arg.m_type)
+        {
+        case GM_INT: _proxy.callVoid(function_string, arg.GetInt()); break;
+        case GM_FLOAT: _proxy.callVoid(function_string, arg.GetFloat()); break;
+        case GM_VEC2: _proxy.callVoid(function_string, arg.GetVec2().x, arg.GetVec2().y); break;
+        case GM_STRING: _proxy.callVoid(function_string, std::string(arg.GetCStringSafe())); break;
+        default: _proxy.callVoid(function_string); break;
+        }
+    }
 
-        try
+    void PostCall(const char* function, gmVariable arg)
+    {
+        const std::string function_string = std::string(function);
+
+        int id = -1;
+
+        switch (arg.m_type)
         {
-            switch (arg.m_type)
-            {
-            case GM_INT: _proxy.callVoid(function_string, arg.GetInt()); break;
-            case GM_FLOAT: _proxy.callVoid(function_string, arg.GetFloat()); break;
-            case GM_VEC2: _proxy.callVoid(function_string, arg.GetVec2().x, arg.GetVec2().y); break;
-            case GM_STRING: _proxy.callVoid(function_string, std::string(arg.GetCStringSafe())); break;
-            default: _proxy.callVoid(function_string); break;
-            }
+        case GM_INT: id = _proxy.pCall(function_string, arg.GetInt()); break;
+        case GM_FLOAT: id = _proxy.pCall(function_string, arg.GetFloat()); break;
+        case GM_VEC2: id = _proxy.pCall(function_string, arg.GetVec2().x, arg.GetVec2().y); break;
+        case GM_STRING: id = _proxy.pCall(function_string, std::string(arg.GetCStringSafe())); break;
+        default: id = _proxy.pCall(function_string); break;
         }
-        catch (const AL::ALError& e)
-        {
-            printf("error: %s\n", e.what());
-        }
+
+        _current_call = id;
+    }
+
+    bool IsRunning()
+    {
+        return _proxy.isRunning(_current_call);
     }
 
 private:
     AL::ALProxy _proxy;
+    int _current_call;
 };
+
+#define GM_AL_EXCEPTION_WRAPPER(code) \
+    try { code ; } catch (const AL::ALError& e) { GM_EXCEPTION_MSG(e.what()); return GM_OK; }
 
 GM_BIND_DECL(GMALProxy);
 
@@ -69,9 +104,20 @@ GM_REG_NAMESPACE(GMALProxy)
         GM_CHECK_STRING_PARAM(type, 0);
         GM_CHECK_STRING_PARAM(ip, 1);
         GM_CHECK_INT_PARAM(port, 2);
-		GM_PUSH_USER_HANDLED( GMALProxy, new GMALProxy(type, ip, port) );
+		GM_AL_EXCEPTION_WRAPPER(GM_PUSH_USER_HANDLED( GMALProxy, new GMALProxy(type, ip, port) ));
 		return GM_OK;
 	}
+
+    GM_MEMFUNC_DECL(CallReturnFloat)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_STRING_PARAM(function, 0);
+        //GM_CHECK_STRING_PARAM(str, 1);
+
+		GM_GET_THIS_PTR(GMALProxy, self);
+		GM_AL_EXCEPTION_WRAPPER(a_thread->PushFloat(self->CallReturnFloat(function, a_thread->Param(1))));
+        return GM_OK;
+    }
 
     GM_MEMFUNC_DECL(CallVoid)
     {
@@ -80,13 +126,35 @@ GM_REG_NAMESPACE(GMALProxy)
         //GM_CHECK_STRING_PARAM(str, 1);
 
 		GM_GET_THIS_PTR(GMALProxy, self);
-		self->CallVoid(function, a_thread->Param(1));
+		GM_AL_EXCEPTION_WRAPPER(self->CallVoid(function, a_thread->Param(1)));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(PostCall)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_STRING_PARAM(function, 0);
+        //GM_CHECK_STRING_PARAM(str, 1);
+
+		GM_GET_THIS_PTR(GMALProxy, self);
+		GM_AL_EXCEPTION_WRAPPER(self->PostCall(function, a_thread->Param(1)));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(IsRunning)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMALProxy, self);
+		GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->IsRunning() ? 1 : 0));
         return GM_OK;
     }
 }
 
 GM_REG_MEM_BEGIN(GMALProxy)
+GM_REG_MEMFUNC( GMALProxy, CallReturnFloat )
 GM_REG_MEMFUNC( GMALProxy, CallVoid )
+GM_REG_MEMFUNC( GMALProxy, PostCall )
+GM_REG_MEMFUNC( GMALProxy, IsRunning )
 //GM_REG_MEMFUNC( Cam2d, End )
 //GM_REG_MEMFUNC( Cam2d, InitScreenSpace )
 //GM_REG_MEMFUNC( Cam2d, InitScreenSpaceSize )
