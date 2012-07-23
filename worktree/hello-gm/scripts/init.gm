@@ -1,0 +1,22 @@
+
+// init.gm
+
+print("init.gm initilaized");
+Log("foo");
+
+
+local ip = "192.168.11.9";
+local port = 9559;
+
+
+fork {
+    local proxy = GMALProxy("ALMotion", ip, port);
+
+    while (true)
+    {
+        proxy.CallVoid("openHand", "RHand");
+        yield();
+        proxy.CallVoid("closeHand", "RHand");
+        yield();
+    }
+}

@@ -5,6 +5,7 @@ local CreateCore = function()
 	//Core.gameFile		= "game/stella/gm/Game.gm";
 	//Core.gameFile		= "game/waves/gm/Game.gm";
 	//Core.gameFile		= "game/psychotropic/gm/Game.gm";
+	Core.gameFile		= g_resourcePathPrefix + "scripts/init.gm";
 	Core.frame			= 0;
 	Core.screenDimen	= Window.GetDimen();
 	Core.monitorDimen	= Window.GetMonitorDimen();
@@ -83,7 +84,7 @@ local CreateCore = function()
 		global g_game = null;
 		sysCollectGarbage(true);
 		
-		//system.DoFile(.gameFile);
+		system.DoFile(.gameFile);
 	};
 	
 	return Core;

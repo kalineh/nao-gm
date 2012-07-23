@@ -1,0 +1,13 @@
+
+FUNK
+
+* Replace funklibs with a module for each library (SDL, DevIL, etc).
+* Replace funk src code inclusion with a funk-config.cmake style module.
+* Include headers and gm files into vcproj with correct path structure.
+* Copy DLLS into output folder.
+
+MODULES
+
+* Setup a module-only build which does not include win32 stuff.
+* Setup a way to build/run gm code without funkengine calls.
+* Seperate funk related script access from module code if possible.
