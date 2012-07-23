@@ -8,10 +8,23 @@ find_package(funklibs REQUIRED)
 
 include_directories(../funk)
 
-qi_submodule_create(funk SRC ../funk/*/*.cpp)
-		
+# hackery to put all the funk source into vcproj
+file(GLOB_RECURSE FUNK_SRCS ../funk/*.cpp)
+file(GLOB_RECURSE FUNK_HDRS ../funk/*.h)
+file(GLOB_RECURSE FUNK_GM ../funk/*.gm)
+
+file(GLOB_RECURSE SRCS *.cpp)
+file(GLOB_RECURSE HDRS *.h)
+file(GLOB_RECURSE GMS *.gm)
+
+add_custom_target(AUX_FILES SOURCES ${FUNK_HDRS} ${FUNK_GM} ${HDRS} ${GMS})
+
+# TODO: copy the dlls to output somehow!
+
+qi_submodule_create(funk SRC ${FUNK_SRCS})
+
 qi_create_bin(hello-gm
-	*.cpp
+	${SRCS}
 	# */*.cpp  # for subtrees, but will fail without at least one folder
 	SUBMODULE funk
 )
@@ -21,4 +34,3 @@ qi_use_lib(hello-gm SDL)
 qi_use_lib(hello-gm GLEW)
 qi_use_lib(hello-gm FMOD)
 qi_use_lib(hello-gm DEVIL)
-
