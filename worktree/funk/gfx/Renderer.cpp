@@ -5,6 +5,7 @@
 #include <il/il.h>
 #include <il/ilu.h>
 
+#include <common/ResourcePath.h>
 #include <common/IniReader.h>
 #include <common/Debug.h>
 #include <common/Window.h>
@@ -17,7 +18,7 @@ const int SHADER_DEFAULT = -1;
 
 Renderer::Renderer()
 {
-	IniReader reader( "common/ini/main.ini" );
+	IniReader reader( RESOURCE_PATH("common/ini/main.ini") );
 	m_bCheckerror = reader.GetInt( "Window", "GLCheckError" ) != 0;
 
 	GLenum err = glewInit();

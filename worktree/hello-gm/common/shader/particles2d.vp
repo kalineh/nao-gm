@@ -1,0 +1,31 @@
+#version 120
+
+varying vec2 uv;
+varying vec4 color;
+
+void main()
+{
+	vec2 pos = gl_MultiTexCoord0.xy;
+	vec2 scale = gl_MultiTexCoord0.zw;
+	float rot = gl_Vertex.z;
+	
+	vec2 finalPos = gl_Vertex.xy;
+	
+	// scale
+	finalPos *= scale;
+	
+	// rotation
+	float cos_val = cos(rot);
+	float sin_val = sin(rot);
+	float new_x = finalPos.x*cos_val - finalPos.y*sin_val;
+	float new_y = finalPos.y*cos_val + finalPos.x*sin_val;
+	finalPos = vec2(new_x, new_y);
+	
+	// transform
+	finalPos += pos;
+	
+	gl_Position = gl_ModelViewProjectionMatrix * vec4(finalPos, 0.0f, 1.0f);
+	
+	uv = gl_Vertex.xy*0.5f + vec2(0.5f);
+	color = gl_Color;
+} 

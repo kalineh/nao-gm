@@ -1,6 +1,7 @@
 #include "ImguiManager.h"
 #include "Imgui.h"
 
+#include <common/ResourcePath.h>
 #include <common/Window.h>
 #include <assert.h>
 
@@ -12,7 +13,7 @@ const int DEAD_WINDOW_NUM_FRAMES = 10000;
 
 ImguiManager::ImguiManager()
 {
-	m_font.Init( "common/img/font/droid_10.png", 10 );
+	m_font.Init( RESOURCE_PATH("common/img/font/droid_10.png"), 10 );
 	Imgui::FONT_WIDTH = m_font.GetCharWidth('B');
 	Imgui::FONT_HEIGHT = m_font.GetHeight();
 

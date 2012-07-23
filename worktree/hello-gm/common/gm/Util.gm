@@ -1,0 +1,42 @@
+global IsPtInRect = function( pt, rectPos, rectDimen )
+{
+	return pt.x > rectPos.x && pt.x < rectPos.x+rectDimen.x
+		&& pt.y > rectPos.y && pt.y < rectPos.y+rectDimen.y;
+};
+
+// used with Gui.DisplayTable()
+global MakeGuiTableSelector = function(numLevels)
+{
+	if ( !?numLevels )
+	{
+		numLevels = 8;
+	}
+
+	local tableSelector = array(numLevels);
+	for( i = 0; i < numLevels; i+=1 )
+	{
+		tableSelector[i] = -1;
+	}
+
+	return tableSelector;
+};
+
+global TableNthKey = function(table_, n)
+{
+	foreach (key and value in table_)
+	{
+		n -= 1;
+		if (n <= 0)
+		{
+			return key;
+		}
+	}
+
+	return null;
+};
+
+global TableRandomValue = function(table_)
+{
+	return table_[TableNthKey(table_, randint(0, tableCount(table_)))];
+};
+

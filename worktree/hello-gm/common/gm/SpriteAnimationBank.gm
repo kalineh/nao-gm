@@ -1,0 +1,225 @@
+global FACING =
+{
+	LEFT = 0,
+	RIGHT= 1,
+};
+
+global MakeSpriteAnimationBank = function(resourceFile)
+{
+	AnimationBank = 
+	{
+		file = resourceFile,
+		data = null,
+		textures = {}
+	};
+
+	AnimationBank.Init = function()
+	{
+		.data = system.LoadTableFromFile(.file);
+		assert(?.data);
+
+		foreach( key and entity in .data.entities )
+		{
+			// texture
+			local tex = Texture( .data.folder + entity.texturePath );
+			assert(?tex);
+
+			tex.Bind();
+			tex.SetWrap(entity.textureWrap, entity.textureWrap);
+			tex.SetFilter(entity.textureMinMagFilter, entity.textureMinMagFilter);
+			tex.Unbind();
+			.textures[key] = tex;
+		}
+
+		.tableSelector = MakeGuiTableSelector();
+	};
+
+	AnimationBank.Gui = function()
+	{
+		Gui.Begin("Animation Bank (" + .file.GetFilename() + ")");
+		Gui.Print("Folder: " +  .data.folder );
+		Gui.Separator();
+		Gui.DisplayTable(.data.entities, .tableSelector);
+		Gui.End();
+	};
+
+	AnimationBank.Release = function()
+	{
+		.textures = null;
+		.data = null;
+	};
+
+	AnimationBank.Init();	
+	return AnimationBank;
+};
+
+global MakeSpriteAnimation = function( animBank, entityName )
+{
+	local Animation = 
+	{
+		entityName = entityName,
+		shader = null,
+
+		// current state
+		currAnimName = "",
+		currFrameIndex = 0,
+		currFrameTime = 0.0f,
+
+		// setable
+		facing = FACING.LEFT,		
+		paused = false,
+		finished = false,
+	};
+
+	// anim data
+	Animation.animData = animBank.data.entities[entityName];
+	assert(?Animation.animData);
+
+	// texture
+	Animation.tex = animBank.textures[entityName];
+	assert(?Animation.tex);
+
+	Animation._Init = function()
+	{
+		fork id 
+		{
+			// Go idle by default!
+			.ChangeTo("idle");
+
+			while( true )
+			{
+				.Update();
+				yield();
+			}
+		}
+
+		.threadId = id;
+	};
+
+	Animation.Update = function()
+	{
+		if (.paused)
+		{
+			return;
+		}
+
+		.currFrameTime += g_dt;
+
+		local currAnim = .animData.animations[.currAnimName];
+
+		local frameTimeIndex = min(.currFrameIndex, tableCount(currAnim.times)-1);
+		local frameTime = currAnim.times[frameTimeIndex];
+		local numFrames = tableCount( currAnim.tileIndex );
+
+		// next frame?
+		if ( (currAnim.looping || .currFrameIndex < numFrames )
+			&&  .currFrameTime > frameTime )
+		{
+			.currFrameTime = 0.0f;
+			.currFrameIndex = .currFrameIndex+1;
+
+			// finished
+			if ( .currFrameIndex >= numFrames )
+			{
+				if ( currAnim.looping )
+				{
+					._OnLoop();
+					.currFrameIndex = .currFrameIndex % numFrames;
+				}
+				else
+				{
+					._OnFinishAnimation();
+				}
+			}
+
+			else
+			{
+				.currFrameIndex = min(.currFrameIndex, numFrames);
+				._OnEnterFrame(.currFrameIndex);
+			}
+		}
+	};
+
+	Animation.IsFinished = function()
+	{
+		return .finished;
+	};
+
+	Animation._OnFinishAnimation = function()
+	{
+		.finished = true;
+	};
+
+
+	Animation._OnEnterFrame = function(frame)
+	{
+		// TODO
+		// callbacks?
+	};
+
+	Animation._OnLoop = function()
+	{
+		// TODO
+		// callbacks?
+	};
+
+	Animation.ChangeTo = function( animName )
+	{
+		assert(?animName);
+		assert(?.animData.animations[animName]);
+
+		.currAnimName = animName;
+		.currFrameTime = 0.0f;
+		.currFrameIndex = 0;
+	};
+
+	Animation.DrawFrame = function( animName, frameIndex,  pos )
+	{
+		local anim = .animData.animations[animName];
+
+		local dimen = .animData.tileSize;
+		local uvDimen = dimen / .tex.Dimen();
+		local currFrameTileIndex = anim.tileIndex[frameIndex];
+		
+		// figure out uvs
+		local numTilesDimen = .animData.textureEffectiveSize / dimen;
+		local numTilesX = numTilesDimen.x.Int();
+		local numTilesY = numTilesDimen.y.Int();
+		local tileX = currFrameTileIndex % numTilesX;
+		local tileY = currFrameTileIndex / numTilesX;
+		local percentEffective = .animData.textureEffectiveSize / .tex.Dimen();
+
+		// draw uvs
+		local uv0 = v2( tileX.Float() / numTilesX, tileY.Float() / numTilesY ) * percentEffective;
+		local uv1 = uv0+uvDimen;
+
+		// handle facing direction
+		if ( .facing == FACING.RIGHT )
+		{
+			// flip uvs
+			local temp = uv0;
+			uv0 = v2(uv1.x, uv0.y);
+			uv1 = v2(temp.x, uv1.y);
+		}
+
+		//Gfx.Color(Gfx.WHITE);
+		Gfx.BeginDefaultShader();
+		.tex.Bind(0);
+		Gfx.DrawRectTexCoords( pos, dimen, uv0, uv1 );
+		.tex.Unbind();
+		Gfx.EndDefaultShader();
+	};
+
+	Animation.Draw = function(pos)
+	{
+		.DrawFrame(.currAnimName, .currFrameIndex, pos);
+	};
+
+	Animation.Release = function()
+	{
+		threadKill(.threadId);
+	};
+
+	Animation._Init();
+	return Animation;
+};

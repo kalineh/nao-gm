@@ -1,0 +1,11 @@
+global g_debug = true;
+global g_showDebugGui = true;
+global g_logEnabled = true;
+
+global Log = function(text, newLine)
+{
+	if ( !g_logEnabled ) { return; }
+
+	if ( !?newLine ) { newLine = true; }
+	Console.Log(text, newLine);
+};

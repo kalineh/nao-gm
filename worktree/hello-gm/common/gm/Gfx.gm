@@ -1,0 +1,73 @@
+global PI = 3.14159265f;
+
+// Colors
+Gfx.WHITE	= v3(1,1,1);
+Gfx.GREY	= v3(0.5,0.5,0.5);
+Gfx.BLACK	= v3(0,0,0);
+Gfx.RED		= v3(1,0,0);
+Gfx.GREEN	= v3(0,1,0);
+Gfx.BLUE	= v3(0,0,1);
+Gfx.YELLOW	= v3(1,1,0);
+Gfx.MAGENTA	= v3(1,0,1);
+Gfx.CYAN	= v3(0,1,1);
+Gfx.ORANGE	= v3(1,0.5,0);
+
+// Draw primitives
+Gfx.POINTS = 0x0000;
+Gfx.LINES = 0x0001;
+Gfx.LINE_LOOP = 0x0002;
+Gfx.LINE_STRIP = 0x0003;
+Gfx.TRIANGLES = 0x0004;
+Gfx.TRIANGLE_STRIP = 0x0005;
+Gfx.TRIANGLE_FAN = 0x0006;
+Gfx.QUADS = 0x0007;
+Gfx.QUAD_STRIP = 0x0008;
+Gfx.POLYGON = 0x0009;
+
+// Clear
+Gfx.COLOR_BUFFER_BIT	= 0x00004000;
+Gfx.DEPTH_BUFFER_BIT	= 0x00000100;
+Gfx.ACCUM_BUFFER_BIT	= 0x00000200;
+Gfx.STENCIL_BUFFER_BIT	= 0x00000400;
+
+// Render states
+Gfx.BLEND			= 0x0BE2;
+Gfx.DEPTH_TEST		= 0x0B71;
+Gfx.SCISSOR_TEST	= 0x0C11;
+Gfx.ALPHA_TEST		= 0x0BC0;
+Gfx.TEXTURE_2D		= 0x0DE1;
+Gfx.MODELVIEW		= 0x1700;
+Gfx.PROJECTION		= 0x1701;
+Gfx.POINT_SMOOTH	= 0x0B10;
+Gfx.LINE_SMOOTH		= 0x0B20;
+Gfx.CULL_FACE		= 0x0B44;
+
+// Culling
+Gfx.FRONT			= 0x0404;
+Gfx.BACK			= 0x0405;
+Gfx.FRONT_AND_BACK	= 0x0408;
+
+// Blending
+Gfx.ZERO 					= 0;
+Gfx.ONE 					= 1;
+Gfx.SRC_COLOR 				= 0x0300;
+Gfx.ONE_MINUS_SRC_COLOR 	= 0x0301;
+Gfx.SRC_ALPHA 				= 0x0302;
+Gfx.ONE_MINUS_SRC_ALPHA 	= 0x0303;
+Gfx.DST_ALPHA 				= 0x0304;
+Gfx.ONE_MINUS_DST_ALPHA 	= 0x0305;
+Gfx.DST_COLOR 				= 0x0306;
+Gfx.ONE_MINUS_DST_COLOR 	= 0x0307;
+Gfx.SRC_ALPHA_SATURATE 		= 0x0308;
+Gfx.FUNC_ADD				= 0x8006;
+Gfx.FUNC_SUBTRACT			= 0x800A;
+
+// Textures
+Gfx.CLAMP			= 0x2900;
+Gfx.CLAMP_TO_EDGE	= 0x812F;
+Gfx.REPEAT			= 0x2901;
+Gfx.LINEAR 			= 0x2601;
+Gfx.NEAREST 			= 0x2600;
+
+// Shaders
+Gfx.DefaultFboShader		= CreateShaderProgramFromFilename(g_resourcePathPrefix + "common/shader/fboDefault.vp", g_resourcePathPrefix + "common/shader/fboDefault.fp" );

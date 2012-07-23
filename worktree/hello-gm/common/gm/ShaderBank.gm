@@ -1,0 +1,74 @@
+global MakeShaderBank = function()
+{
+	local ShaderBank = 
+	{
+		programs = {},
+		vertexShaders = {},
+		fragShaders = {},
+	};
+
+	ShaderBank.Add = function( a_programName, a_vpName, a_fpName )
+	{
+		assert( !?.programs[a_programName] );
+
+		local vp = ._GetVP(a_vpName);
+		local fp = ._GetFP(a_fpName);
+
+		local program = CreateShaderProgram(vp, fp);
+		.programs[a_programName] = program;
+
+		Log("Shader Bank added shader '" + a_programName + "' (" + a_vpName + ", " + a_fpName + ")" );
+
+		return program;
+	};
+
+	ShaderBank.Get = function( a_programName )
+	{
+		local program = .programs[a_programName];
+		assert( ?program );
+
+		return program;
+	};
+
+	ShaderBank._GetVP = function( a_vpName )
+	{
+		if ( !?.vertexShaders[a_vpName] )
+		{
+			.vertexShaders[a_vpName] = VertexShader(a_vpName);
+		}
+
+		return .vertexShaders[a_vpName];
+	};
+
+	ShaderBank._GetFP = function( a_fpName )
+	{
+		if ( !?.fragShaders[a_fpName] )
+		{
+			.fragShaders[a_fpName] = FragShader(a_fpName);
+		}
+
+		return .fragShaders[a_fpName];
+	};
+
+	ShaderBank.Gui = function()
+	{
+		Gui.Begin("Shader Bank");
+		Gui.Print("Count: " + tableCount(.programs) );
+		Gui.Header("Shaders");
+		Gui.DisplayTable(.programs, .tableSelector);
+		Gui.End();
+	};
+
+	ShaderBank.Release = function()
+	{
+		.programs = {};
+	};
+
+	ShaderBank._Init = function()
+	{
+		.tableSelector = MakeGuiTableSelector();
+	};
+
+	ShaderBank._Init();
+	return ShaderBank;
+};

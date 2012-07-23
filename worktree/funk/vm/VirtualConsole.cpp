@@ -15,6 +15,8 @@
 
 #include "VirtualMachine.h"
 
+#include <common/ResourcePath.h>
+
 namespace funk
 {
 const float CONSOLE_WIDTH = 0.4f;
@@ -28,7 +30,7 @@ const char * LOG_FILE = "LOG.txt";
 VirtualConsole::VirtualConsole() : m_enable(false), m_queueScrollBottom(false), m_lastCmdThread(0)
 {
 	// determine if need to log
-	IniReader ini("common/ini/main.ini");
+	IniReader ini(RESOURCE_PATH("common/ini/main.ini"));
 	if ( ini.GetInt("VirtualMachine", "LogConsoleToFile") )
 	{
 		m_logFile.open(LOG_FILE);

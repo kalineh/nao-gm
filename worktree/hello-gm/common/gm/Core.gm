@@ -1,0 +1,93 @@
+local CreateCore = function()
+{
+	local Core = {};
+	
+	//Core.gameFile		= "game/stella/gm/Game.gm";
+	//Core.gameFile		= "game/waves/gm/Game.gm";
+	//Core.gameFile		= "game/psychotropic/gm/Game.gm";
+	Core.frame			= 0;
+	Core.screenDimen	= Window.GetDimen();
+	Core.monitorDimen	= Window.GetMonitorDimen();
+	Core.mousePos		= v2(0,0);
+	Core.mousePrev		= v2(0,0);
+	Core.mouseRelPos	= v2(0,0);
+
+	Core.screenCam2d	= Cam2d();
+	Core.screenCam2d.InitScreenSpace();
+
+	Core.queueRestartGame = false;
+
+	Core.Update = function()
+	{
+		while( true )
+		{
+			if ( g_debug && Input.DidKeyJustGoDown("F1") )
+			{
+				.ResetGame();
+			}
+
+			if (  Input.DidKeyJustGoDown("F2") )
+			{
+				global g_showDebugGui;
+				g_showDebugGui = !g_showDebugGui;
+			}
+
+			// if user queued restart game
+			if ( .queueRestartGame )
+			{	
+				.queueRestartGame = false;
+				threadKillAll(false);
+				.StartGame();
+			}
+
+			.mousePosPrev = .mousePos;
+			.mousePos = Input.GetMousePos();
+			.mouseRelPos = Input.GetMousePosRel();
+			.frame += 1;
+
+			yield();
+		}
+	};
+
+	Core.ResetGame = function()
+	{
+		.queueRestartGame = true;
+	};
+
+	Core.Log = function()
+	{
+		Log("Monitor Resolution: " + .monitorDimen);
+		Log("Window Resolution: " + .screenDimen);
+		Log("Debug Mode: " + g_debug );
+	};
+
+	Core.Init = function()
+	{	
+		system.DoFile(g_resourcePathPrefix + "common/gm/Includes.gm");
+		.Log();
+		.threadId = this:thread(.Update);
+
+		// Splash screen
+		if ( !g_debug )
+		{
+			local splash = CreateSplashScreen();
+			splash.Go();
+		}
+
+		.StartGame();
+	};
+
+	Core.StartGame = function()
+	{
+		g_drawManager.Clear();
+		global g_game = null;
+		sysCollectGarbage(true);
+		
+		//system.DoFile(.gameFile);
+	};
+	
+	return Core;
+};
+
+global g_core = CreateCore();
+g_core.Init();

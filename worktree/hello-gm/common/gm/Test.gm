@@ -1,0 +1,11 @@
+global foo = function()
+{
+	fork
+	{
+		sleep ( 0.1f );
+		print("killed" + threadId() );
+		foo();
+	}
+};
+
+foo();

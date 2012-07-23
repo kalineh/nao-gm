@@ -390,8 +390,19 @@ void Bumper::onRightBumperPressed() {
   }
 }
 
+#include "Core.h"
+
 int main(int argc, char** argv)
 {
+	funk::Core app;
+	//app.AddChild( new funk::AppReflection );
+	app.HandleArgs(argc,argv);
+	app.Init();
+	app.Run();
+	app.Deinit();
+
+    return 0;
+
     std::string ip = "192.168.11.9";
     std::string port = "9559";
 

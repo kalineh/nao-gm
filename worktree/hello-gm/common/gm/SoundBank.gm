@@ -1,0 +1,327 @@
+global MakeSoundBank = function(resourceFile)
+{
+	local SoundBank = 
+	{
+		guiSelectedIndex = -1,
+		resourceFile = resourceFile,
+		missingFile = "common/snd/missing.ogg",
+		queuedSounds = {}
+	};
+
+	SoundBank.Get = function(name)
+	{
+		assert(?name);
+		
+		local sound = .sounds[name];
+		
+		// missing sound
+		if (!?sound)
+		{
+			MessageBox( "Sound Not Found", name + " not defined!");
+			return Sound(.missingFile);
+		}
+			
+		return sound;
+	};
+
+	SoundBank.Release = function()
+	{
+		.queuedSounds = null;
+		.sounds = null;
+		.resources = null;
+	};
+
+	SoundBank.MuteAll = function()
+	{
+		Log("Muting all sounds");
+
+		foreach( sound in .sounds )
+		{
+			sound.SetVolume(0.0f);
+		}
+	};
+
+	// sounds get queued each frame
+	// will play them and release the queue
+	SoundBank.PlayAllQueued = function()
+	{
+		foreach( name and queueCount in .queuedSounds)
+		{
+			.PlayNow(name);
+		}
+
+		.queuedSounds = {};
+	};
+
+	// queues the sound, call PlayAllQueued() to play
+	// handles when same sound is being played in one frame
+	SoundBank.Play = function(name) 
+	{
+		if ( ?!.queuedSounds[name] )
+		{
+			.queuedSounds[name] = 0; 
+		}
+
+		.queuedSounds[name] += 1;
+	};
+
+	// play right now
+	SoundBank.PlayNow = function(name)
+	{
+		// sound not found
+		if ( !?.sounds[name] )
+		{
+			MessageBox("Error", name + " not in sound bank." );
+			return;
+		}
+
+		else if ( .resources[name].filename == .missingFile )
+		{
+			Log("Missing sound file for sound '" + name + "'!");
+		}
+
+		.sounds[name].Play();
+		.sounds[name].SetVolume(.resources[name].volume);
+	};
+
+	SoundBank._GuiPlayFile = function(data)
+	{
+		local sound = ._GetSoundByFilename(data.filename);
+
+		if ( ?sound )
+		{
+			fork
+			{
+				sound.SetVolume(data.volume);
+				sound.Play();
+				sleep( sound.GetTotalLenMillisec()/1000.0f );
+			}
+		}
+	};
+
+	SoundBank._GetSoundByFilename = function(file)
+	{
+		if ( !system.FileExists(file) )
+		{
+			return null;
+		}
+
+		return Sound(file);
+	};
+
+	SoundBank.Gui = function() // need to call RegisterGui(..) on this to show
+	{
+		Gui.Begin("Sound Bank (" + .resourceFile.GetFilename() + ")", 300, 500, 350, 400 );
+
+		if ( Gui.Button("Save") ) { ._SaveResourceFile(); }
+		Gui.SameLine();
+		if ( Gui.Button("Revert") ) 
+		{ 
+			Log("Reverting sound bank...");
+			._LoadSounds(); 
+		}
+		Gui.SameLine();
+		if ( Gui.Button("Add Sound") ) { ._GuiAddSound(); }
+		Gui.SameLine();
+		if ( Gui.Button("Mute All") ) { .MuteAll(); }
+
+		Gui.Header("Sounds (" + tableCount(.sounds) + " total)");
+
+		local i = 0;
+		foreach( key and val in .resources )
+		{
+			local selected = .guiSelectedIndex == i;
+			local dropdown = Gui.DropDown( key, .guiSelectedIndex == i );
+
+			if ( !selected && dropdown )
+			{
+				.guiSelectedIndex = i;
+			}
+			else if ( selected && !dropdown )
+			{
+				.guiSelectedIndex = -1;
+			}
+
+			if ( .guiSelectedIndex == i )
+			{
+				Gui.Tab();
+				if ( Gui.Button("Rename") )	{ ._GuiRenameSound(key); }
+				Gui.SameLine();
+				if ( Gui.Button("Delete") ) 
+				{ 
+					.resources[key] = null;	
+					.guiSelectedIndex = -1;
+				}
+
+				// can play non-loops (because you can't stop)
+				if ( !val.loop )
+				{
+					Gui.SameLine();
+					if ( Gui.Button("Play") ) {	._GuiPlayFile(val); }
+				}
+
+				val.volume = Gui.SliderFloat("Volume", val.volume, 0.0f, 1.0f );
+
+				// file
+				val.filename = Gui.TextInput("File", val.filename, 250 );
+				if ( !system.FileExists(val.filename) )
+				{
+					Gui.SameLine();
+					Gui.Print("Not found!");
+				}
+				
+				val.stream = Gui.CheckBox("Streaming", val.stream );
+				val.loop = Gui.CheckBox("Looping", val.loop );
+
+				Gui.Untab();
+				//Gui.Separator();
+			}
+
+			i += 1;
+
+			if ( .guiSelectedIndex == i )
+			{
+				//Gui.Separator();
+			}
+		}
+
+		// show missing files
+		Gui.Header("Missing Files");
+		local missingFound = false;
+		foreach( key and val in .resources )
+		{
+			if ( val.filename == .missingFile || !system.FileExists(val.filename) )
+			{
+				Gui.Print(key);
+				missingFound = true;
+			}
+		}
+
+		if ( !missingFound )
+		{
+			Gui.Print("(None)");
+		}
+
+		Gui.End();
+	};
+
+	SoundBank.ReloadAll = function()
+	{
+		foreach( sound in .sounds )
+		{
+			sound.Stop();
+			sound.Reload();
+		}
+	};
+
+	SoundBank._Init = function()
+	{
+		Log("Initializing Sound Bank...", false );
+		._LoadSounds();		
+	};
+
+	SoundBank._LoadSounds = function()
+	{
+		.guiSelectedIndex = -1;
+		.resources = system.LoadTableFromFile(.resourceFile);
+		.sounds = {};
+
+		// load and validate each sound
+		foreach( key and val in .resources )
+		{
+			local sound;
+
+			if ( system.FileExists(val.filename) )
+			{
+				sound = Sound(val.filename, val.loop, val.stream);
+				sound.SetVolume(val.volume);
+			}
+			else
+			{
+				MessageBox("Error", val.filename + " does not exist!");
+				sound = Sound(.missingFile);
+			}
+
+			.sounds[key] = sound;
+		}
+
+		Log("Loaded " + tableCount(.sounds) + " sounds from file '"  + .resourceFile + "'");
+	};
+
+	SoundBank._SaveResourceFile = function()
+	{
+		// check to see validity of each file
+		foreach( key and val in .resources )
+		{
+			if ( !system.FileExists(val.filename) )
+			{
+				MessageBox("Error", val.filename + " does not exist! File did not save.");
+				return;
+			}
+		}
+
+		// save file
+		system.SaveTableToFile(.resources, .resourceFile);
+		Log("Sound bank saved to '" + .resourceFile + "'.");
+	};
+
+	SoundBank._GuiAddSound = function()
+	{
+		fork
+		{
+			Gui.Lock("Sound Bank");
+			local name = TextInputBox("Add Sound", "Sound Name");
+			if ( name != null )
+			{
+				if ( ?.resources[name] )
+				{
+					MessageBox("Sound Exists", name + " already exists!" );
+				}
+				else
+				{
+					// add it!
+					.resources[name] =
+					{
+						loop = 0,
+						volume = 1.0f,
+						stream = 0,
+						filename = .missingFile
+					};
+
+					Log( "Added new sound '" + name + "'" );
+				}
+			}
+			Gui.Unlock("Sound Bank");
+		}
+	};
+
+	SoundBank._GuiRenameSound = function(name)
+	{
+		fork
+		{
+			Gui.Lock("Sound Bank");
+
+			local newName = TextInputBox("Rename Sound", "Sound Name", name );
+			if ( newName != null )
+			{
+				// already exists
+				if ( ?.resources[newName] )
+				{
+					MessageBox("Sound Exists", newName + " already exists!" );
+				}
+				else
+				{
+					Log("Sound renamed from '" + name+ "' to" + "'" + newName + "'" );
+
+					.resources[newName] = .resources[name];
+					.resources[name] = null;
+				}
+			}
+
+			Gui.Unlock("Sound Bank");
+		}
+	};
+
+	SoundBank._Init();
+	return SoundBank;
+};

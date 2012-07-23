@@ -1,0 +1,237 @@
+global RegisterGui = function( a_func, a_obj, a_func_arg = null )
+{
+	if ( g_debug && g_showDebugGui )
+	{
+		RegisterDraw( DrawLayers.Imgui, a_func, a_obj, a_func_arg );
+	}
+};
+
+global TextInputBox = function( title, textInputCaption, defaultText )
+{
+	if ( !?title ) { title = "UNTITLED"; }
+	if ( !?textInputCaption ) { textInputCaption = "Name"; }
+	if ( !?defaultText ) { defaultText = ""; }
+
+	local params =
+	{
+		title = title,
+		textInputCaption = textInputCaption,
+		finished = false,
+		result = defaultText
+	};
+
+	local DrawGui = function(params)
+	{
+		Gui.Begin(params.title);
+		
+		params.result = Gui.TextInput( params.textInputCaption, params.result );
+
+		if ( Gui.Button("OK") || (Gui.IsWindowActive() && Input.DidKeyJustGoDown("RETURN")) )
+		{
+			params.finished = true;
+
+			if ( params.result == "" ) 
+			{
+				params.result = null;
+				params.finished = true;
+			}
+		}
+		Gui.SameLine();
+		if ( Gui.Button("Cancel") )
+		{
+			params.finished = true;
+			params.result = null;
+		}
+		Gui.End();
+	};
+
+	while(!params.finished)
+	{
+		RegisterGui( DrawGui, null, params );
+		yield();
+	}
+
+	return params.result;
+};
+
+global FileChooser = function(title, directory)
+{
+	assert( title && directory );
+
+	local params =
+	{
+		title = title,
+		finished = false,
+		directory = directory,
+		result = null
+	};
+
+	local DrawGui = function(params)
+	{
+		Gui.Begin(params.title);
+		
+		local file = system.FileFindFirst(params.directory + "*.*" );
+
+		while ( file )
+		{
+			local filename = file.filename;
+			file = system.FileFindNext(file);
+
+			// ignore weird files
+			if  ( filename == ".svn" || filename == "." || filename == ".." )
+			{
+				continue;
+			}
+
+			if ( Gui.Button(filename) )
+			{
+				params.result = filename;
+				params.finished = true;
+				break;
+			}
+		}
+
+		Gui.Separator();
+		
+		if ( Gui.Button("Cancel") )
+		{
+			params.result = null;
+			params.finished = true;
+		}
+
+		Gui.End();
+	};
+
+	while(!params.finished)
+	{
+		RegisterGui( DrawGui, null, params );
+		yield();
+	}
+
+	return params.result;
+};
+
+
+global TableKeyChooser = function(title, a_table)
+{
+	assert( ?title && ?a_table );
+
+	local params =
+	{
+		title = title,
+		finished = false,
+		tble = a_table,
+		result = null
+	};
+
+	local DrawGui = function(params)
+	{
+		Gui.Begin(params.title);
+		
+		foreach( key and val in params.tble )
+		{
+			if ( Gui.Button(key) )
+			{
+				params.result = key;
+				params.finished = true;
+				break;
+			}
+		}
+
+		Gui.Separator();
+		
+		if ( Gui.Button("Cancel") )
+		{
+			params.result = null;
+			params.finished = true;
+		}
+
+		Gui.End();
+	};
+
+	while(!params.finished)
+	{
+		RegisterGui( DrawGui, null, params );
+		yield();
+	}
+
+	return params.result;
+};
+
+
+global TableValueChooser = function(title, a_table)
+{
+	assert( ?title && ?a_table );
+
+	local params =
+	{
+		title = title,
+		finished = false,
+		tble = a_table,
+		result = null
+	};
+
+	local DrawGui = function(params)
+	{
+		Gui.Begin(params.title);
+		
+		foreach( key and val in params.tble )
+		{
+			if ( Gui.Button(val) )
+			{
+				params.result = val;
+				params.finished = true;
+				break;
+			}
+		}
+
+		Gui.Separator();
+		
+		if ( Gui.Button("Cancel") )
+		{
+			params.result = null;
+			params.finished = true;
+		}
+
+		Gui.End();
+	};
+
+	while(!params.finished)
+	{
+		RegisterGui( DrawGui, null, params );
+		yield();
+	}
+
+	return params.result;
+};
+
+
+global MessageBox = function(title, msg)
+{
+	assert( title && msg );
+	print("MessageBox: " + title);
+
+	fork
+	{
+		local DrawGui = function(params)
+		{
+			Gui.Begin(params.title);
+			Gui.Print(params.msg);
+			if ( Gui.Button("OK") ) { params.finished = true; }
+			Gui.End();
+		};
+	
+		local params =
+		{
+			title = title,
+			finished = false,
+			msg = msg
+		};
+
+		while(!params.finished)
+		{
+			RegisterGui( DrawGui, null, params );
+			yield();
+		}
+	}
+};

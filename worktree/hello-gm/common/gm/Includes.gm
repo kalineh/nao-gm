@@ -1,0 +1,20 @@
+system.DoFile(g_resourcePathPrefix + "common/gm/ThreadGroups.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Debug.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Util.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/ShaderProgram.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/ShaderBank.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Gfx.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Imgui.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/DrawManager.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/SysUtil.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Fader.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/SplashScreen.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Particles2d.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/SoundBank.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Tween.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/TweenTimeline.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/TweenTask.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/Ease.gm");
+system.DoFile(g_resourcePathPrefix + "common/gm/SpriteAnimationBank.gm");
+
+if ( g_debug ) { system.DoFile(g_resourcePathPrefix + "common/gm/Tools.gm"); }

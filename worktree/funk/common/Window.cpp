@@ -6,13 +6,14 @@
 #include <windows.h>
 #endif
 
+#include <common/ResourcePath.h>
 #include <common/IniReader.h>
 
 namespace funk
 {
 	Window::Window()
 	{
-		IniReader reader( "common/ini/main.ini" );
+		IniReader reader( RESOURCE_PATH("common/ini/main.ini") );
 		m_dimen.x = reader.GetInt( "Window", "WindowWidth" );
 		m_dimen.y = reader.GetInt( "Window", "WindowHeight" );
 		int fps = reader.GetInt( "Window", "FPS" );
@@ -81,7 +82,7 @@ namespace funk
 	{
 		const int iconWidth = 32;
 
-		SDL_Surface* image = SDL_LoadBMP("common/img/icon.bmp");
+		SDL_Surface* image = SDL_LoadBMP(RESOURCE_PATH("common/img/icon.bmp"));
 		assert(image);
 		
 		// mask

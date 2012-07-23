@@ -1,0 +1,16 @@
+system.LoadTableFromFile = function ( file )
+{
+	// cannot be anything in g_fileData
+	assert( !?g_fileData );
+	assert( system.FileExists(file) );
+
+	system.DoFile( file );
+
+	// grabs from g_fileData
+	assert( ?g_fileData );
+
+	local result = g_fileData;
+	global g_fileData = null;
+
+	return result;
+};

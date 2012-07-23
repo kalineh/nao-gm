@@ -1,0 +1,7 @@
+global ThreadGroups =
+{
+	MAIN = 0, // undeletable
+	KYOTO_SCENE = 1,
+
+	STELLA_STATE = 2,
+};

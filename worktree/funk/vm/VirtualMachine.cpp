@@ -9,6 +9,7 @@
 #include <gm/gmDebuggerFunk.h>
 #include <gm/gmUtilEx.h>
 #include <imgui/Imgui.h>
+#include <common/ResourcePath.h>
 #include <common/IniReader.h>
 #include <common/Timer.h>
 #include <common/Window.h>
@@ -19,7 +20,7 @@
 
 namespace funk
 {
-const char * kEntryFile = "common/gm/Core.gm";
+const char * kEntryFile = RESOURCE_PATH("common/gm/Core.gm");
 
 VirtualMachine::VirtualMachine()
 {
@@ -46,7 +47,7 @@ VirtualMachine::~VirtualMachine()
 
 void VirtualMachine::Update()
 {
-#ifndef FNK_FINAL
+#ifndef FUNK_FINAL
 	if( Input::Get()->DidKeyJustGoDown("F5") ) ResetVM();
 #endif
 	
@@ -106,7 +107,7 @@ void VirtualMachine::Render()
 
 void VirtualMachine::RunMain()
 {
-	IniReader ini("common/ini/main.ini");
+	IniReader ini(RESOURCE_PATH("common/ini/main.ini"));
 
 	int debugMode = 1;
 	int runGmLibs = 0;
@@ -147,6 +148,7 @@ void VirtualMachine::RunMain()
 	// set dt
 	m_vm->GetGlobals()->Set( m_vm, "g_dt", gmVariable(m_dt) );
 	m_vm->GetGlobals()->Set( m_vm, "g_rendering", gmVariable(0) );
+    m_vm->GetGlobals()->Set( m_vm, "g_resourcePathPrefix", gmVariable(m_vm->AllocStringObject(RESOURCE_PATH(""))) );
 
 	m_threadId = gmCompileStr(m_vm, kEntryFile);	
 	printf("'%s' Main thread: %d\n", kEntryFile, m_threadId );
