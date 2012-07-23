@@ -1,22 +1,196 @@
 
 // init.gm
 
-print("init.gm initilaized");
-Log("foo");
-
+Log("init.gm: Initializing...");
 
 local ip = "192.168.11.9";
 local port = 9559;
 
 
-fork {
-    local proxy = GMALProxy("ALMotion", ip, port);
+local MakeSoundLooker = function()
+{
+    local SoundLooker = table();
 
-    while (true)
+    SoundLooker.Update = function()
     {
-        proxy.CallVoid("openHand", "RHand");
-        yield();
-        proxy.CallVoid("closeHand", "RHand");
-        yield();
-    }
-}
+        while (true)
+        {
+            yield();
+        }
+    };
+
+    return SoundLooker;
+};
+
+global MakeALProxy = function(type, ip, port)
+{
+    assert(?type);
+    assert(?ip);
+    assert(?port);
+
+    local ALProxy = table();
+
+    ALProxy.type = type;
+    ALProxy.ip = ip;
+    ALProxy.port = port;
+    ALProxy.proxy = GMALProxy(type, ip, port);
+    ALProxy.next = null;
+
+    ALProxy.Init = function()
+    {
+        .update_id = this:thread(.Update);
+    };
+
+    ALProxy.Release = function()
+    {
+        threadKill(.update_id);
+    };
+
+    ALProxy.CallReturnFloat = function(f, a)
+    {
+        return .proxy.CallReturnFloat(f, a);
+    };
+
+    ALProxy.CallVoid = function(f, a)
+    {
+        .proxy.CallVoid(f, a);
+    };
+
+    ALProxy.PostCall = function(f, a)
+    {
+        .proxy.PostCall(f, a);
+
+        while (.proxy.IsRunning())
+        {
+            yield();
+        }
+    };
+
+    ALProxy.Update = function()
+    {
+        while (true)
+        {
+            if (.next != null)
+            {
+                local fun = .next.fun;
+                local arg = .next.arg;
+                .next = null;
+                .Call(fun, arg);
+            }
+
+            yield();
+        }
+    };
+
+    ALProxy.Queue = function(f, a)
+    {
+        .next = { fun=f, arg=a };
+    };
+
+    ALProxy.Init();
+    return ALProxy;
+};
+
+global MakeMain = function(ip, port)
+{
+    local Main = {
+        ip = ip,
+        port = port,
+    };
+
+    Main.Init = function()
+    {
+        .update_id = this:thread(.Update);
+
+        .motion = MakeALProxy("ALMotion", .ip, .port);
+        .speech = MakeALProxy("ALTextToSpeech", .ip, .port);
+        .memory = MakeALProxy("ALMemory", .ip, .port);
+
+        .speech_text = "hello";
+    };
+
+    Main.Release = function()
+    {
+        .motion.Release();
+        .speech.Release();
+        threadKill(.update_id);
+    };
+
+    Main.ClearScreen = function()
+    {
+		Gfx.ClearColor( Gfx.BLUE * v3(0.1f), 1.0f );
+		Gfx.ClearDepth(1.0f);
+		Gfx.Clear( Gfx.COLOR_BUFFER_BIT | Gfx.DEPTH_BUFFER_BIT );
+    };
+
+    Main.Gui = function()
+    {
+        Gui.Begin("Robot", g_core.screenDimen.x.Int()-230, g_core.screenDimen.y.Int() - 5);
+
+        if (Gui.Button("Open Hand"))
+        {
+            .motion.Queue("openHand", "RHand");
+        }
+
+        if (Gui.Button("Close Hand"))
+        {
+            .motion.Queue("closeHand", "RHand");
+        }
+
+        .speech_text = Gui.TextInput("Speech", .speech_text);
+        if (Gui.Button("Say"))
+        {
+            .speech.Queue("say", .speech_text);
+        }
+
+        if (.motion.next != null)
+        {
+            Gui.Print("Pending: " + .motion.next.fun);
+        }
+        else
+        {
+            Gui.Print("Pending: None");
+        }
+
+        Gui.End();
+    };
+
+    Main.GuiStatus = function()
+    {
+        Gui.Begin("Status", g_core.screenDimen.x.Int()-450, g_core.screenDimen.y.Int() - 5);
+       
+        local display = function(name, key)
+        {
+            local value = .memory.CallReturnFloat("getData", key);
+            local str = name + ": " + value.String();
+            Gui.Print(str);
+        };
+
+        this:display("Battery", "Device/SubDeviceList/Battery/Temperature/Sensor/Value");
+        this:display("Head", "Device/SubDeviceList/Head/Temperature/Sensor/Value");
+
+        Gui.End();
+    };
+
+    Main.Update = function()
+    {
+        while (true)
+        {
+    		RegisterDraw( DrawLayers.Clear, .ClearScreen, this );
+    		RegisterGui( .Gui, this );			
+    		RegisterGui( .GuiStatus, this );			
+
+            yield();
+        }
+    };
+
+    Main.Init();
+    return Main;
+};
+
+local ip = "192.168.11.9";
+local port = 9559;
+
+global g_main = MakeMain(ip, port);
+
+Log("init.gm: done!");
