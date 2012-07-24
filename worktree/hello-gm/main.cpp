@@ -13,6 +13,7 @@
 #include "Core.h"
 #include <common/StrongHandle.h>
 #include <common/HandledObj.h>
+#include <vm/VirtualMachine.h>
 
 #include <alcommon/alproxy.h>
 
@@ -31,6 +32,37 @@ public:
         : _proxy(std::string(type), std::string(ip), port)
         , _current_call(-1)
     {
+    }
+
+    gmVariable CallReturnVariable(const char* function, gmVariable arg)
+    {
+        const std::string function_string = std::string(function);
+
+        AL::ALValue result = AL::ALValue();
+
+        switch (arg.m_type)
+        {
+        case GM_INT: result = _proxy.call<AL::ALValue>(function_string, arg.GetInt()); break;
+        case GM_FLOAT: result = _proxy.call<AL::ALValue>(function_string, arg.GetFloat()); break;
+        case GM_VEC2: result = _proxy.call<AL::ALValue>(function_string, arg.GetVec2().x, arg.GetVec2().y); break;
+        case GM_STRING: result = _proxy.call<AL::ALValue>(function_string, std::string(arg.GetCStringSafe())); break;
+        default: result = _proxy.call<AL::ALValue>(function_string); break;
+        }
+
+        gmVariable result_variable;
+        result_variable.Nullify();
+
+        switch (result.getType())
+        {
+        case AL::ALValue::TypeBool: result_variable = gmVariable(int(result.operator bool &() ? 1 : 0)); break;
+        case AL::ALValue::TypeInt: result_variable = gmVariable(int(result.operator int &())); break;
+        case AL::ALValue::TypeFloat: result_variable = gmVariable(float(result.operator float &())); break;
+        case AL::ALValue::TypeString: result_variable = gmVariable(VirtualMachine::Get()->GetVM().AllocStringObject(result.toString().c_str())); break;
+        default:
+            break;
+        }
+
+        return result_variable;
     }
 
     float CallReturnFloat(const char* function, gmVariable arg)
@@ -108,6 +140,17 @@ GM_REG_NAMESPACE(GMALProxy)
 		return GM_OK;
 	}
 
+    GM_MEMFUNC_DECL(CallReturnVariable)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_STRING_PARAM(function, 0);
+        //GM_CHECK_STRING_PARAM(str, 1);
+
+		GM_GET_THIS_PTR(GMALProxy, self);
+		GM_AL_EXCEPTION_WRAPPER(a_thread->Push(self->CallReturnVariable(function, a_thread->Param(1))));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(CallReturnFloat)
     {
         GM_CHECK_NUM_PARAMS(1);
@@ -151,6 +194,7 @@ GM_REG_NAMESPACE(GMALProxy)
 }
 
 GM_REG_MEM_BEGIN(GMALProxy)
+GM_REG_MEMFUNC( GMALProxy, CallReturnVariable )
 GM_REG_MEMFUNC( GMALProxy, CallReturnFloat )
 GM_REG_MEMFUNC( GMALProxy, CallVoid )
 GM_REG_MEMFUNC( GMALProxy, PostCall )

@@ -46,6 +46,11 @@ global MakeALProxy = function(type, ip, port)
         threadKill(.update_id);
     };
 
+    ALProxy.CallReturnVariable = function(f, a)
+    {
+        return .proxy.CallReturnVariable(f, a);
+    };
+
     ALProxy.CallReturnFloat = function(f, a)
     {
         return .proxy.CallReturnFloat(f, a);
@@ -53,11 +58,13 @@ global MakeALProxy = function(type, ip, port)
 
     ALProxy.CallVoid = function(f, a)
     {
+        Log("CallVoid: " + f);
         .proxy.CallVoid(f, a);
     };
 
     ALProxy.PostCall = function(f, a)
     {
+        Log("PostCall: " + f);
         .proxy.PostCall(f, a);
 
         while (.proxy.IsRunning())
@@ -75,7 +82,7 @@ global MakeALProxy = function(type, ip, port)
                 local fun = .next.fun;
                 local arg = .next.arg;
                 .next = null;
-                .Call(fun, arg);
+                .PostCall(fun, arg);
             }
 
             yield();
@@ -91,28 +98,122 @@ global MakeALProxy = function(type, ip, port)
     return ALProxy;
 };
 
-global MakeMain = function(ip, port)
+global MakeStatusDisplay = function()
 {
-    local Main = {
+    local StatusDisplay = {
+        show = {
+            LHand = false,
+            RHand = false,
+            Head = false,
+            Battery = false,
+        },
+    };
+
+    StatusDisplay.Init = function()
+    {
+        .update_id = this:thread(.Update);
+    };
+
+    StatusDisplay.Update = function()
+    {
+        while (true)
+        {
+    		RegisterGui( .Gui, this );			
+            yield();
+        }
+    };
+
+    StatusDisplay.Gui = function()
+    {
+        Gui.Begin("Status", g_core.screenDimen.x.Int()-450, g_core.screenDimen.y.Int() - 5);
+
+        .show.LHand = Gui.CheckBox("Hand - Left", .show.LHand);
+        .show.RHand = Gui.CheckBox("Hand - Right", .show.RHand);
+
+        Gui.Separator();
+            
+        local display = function(name, key)
+        {
+            local value = g_proxies.memory.CallReturnVariable("getData", key);
+            if (!?value) { value = "null"; }
+            local str = name + ": " + value.String();
+            Gui.Print(str);
+        };
+
+        if (.show.LHand)
+        {
+            Gui.Print("Hand - Left");
+            this:display("Current", "Device/SubDeviceList/LHand/ElectricCurrent/Sensor/Value");
+            this:display("Position", "Device/SubDeviceList/LHand/Position/Sensor/Value");
+            this:display("Temperature", "Device/SubDeviceList/LHand/Temperature/Sensor/Value");
+            this:display("Touch - Back", "Device/SubDeviceList/LHand/Touch/Back/Sensor/Value");
+            this:display("Touch - Left", "Device/SubDeviceList/LHand/Touch/Left/Sensor/Value");
+            this:display("Touch - Right", "Device/SubDeviceList/LHand/Touch/Right/Sensor/Value");
+            Gui.Separator();
+        }
+
+        if (.show.RHand)
+        {
+            Gui.Print("Hand - Right");
+            this:display("Current", "Device/SubDeviceList/RHand/ElectricCurrent/Sensor/Value");
+            this:display("Position", "Device/SubDeviceList/RHand/Position/Sensor/Value");
+            this:display("Temperature", "Device/SubDeviceList/RHand/Temperature/Sensor/Value");
+            this:display("Touch - Back", "Device/SubDeviceList/RHand/Touch/Back/Sensor/Value");
+            this:display("Touch - Left", "Device/SubDeviceList/RHand/Touch/Left/Sensor/Value");
+            this:display("Touch - Right", "Device/SubDeviceList/RHand/Touch/Right/Sensor/Value");
+            Gui.Separator();
+        }
+
+        Gui.End();
+    };
+
+    StatusDisplay.Init();
+    return StatusDisplay;
+};
+
+global MakeProxies = function(ip, port)
+{
+    local Proxies = {
         ip = ip,
         port = port,
+    };
+
+    Proxies.Init = function()
+    {
+        .motion = MakeALProxy("ALMotion", .ip, .port);
+        .speech = MakeALProxy("ALTextToSpeech", .ip, .port);
+        .memory = MakeALProxy("ALMemory", .ip, .port);
+    };
+
+    Proxies.Release = function()
+    {
+        .motion.Release();
+        .speech.Release();
+        .memory.Release();
+    };
+
+    Proxies.Init();
+    return Proxies;
+};
+
+global MakeMain = function()
+{
+    local Main = {
+        status = MakeStatusDisplay(),
     };
 
     Main.Init = function()
     {
         .update_id = this:thread(.Update);
 
-        .motion = MakeALProxy("ALMotion", .ip, .port);
-        .speech = MakeALProxy("ALTextToSpeech", .ip, .port);
-        .memory = MakeALProxy("ALMemory", .ip, .port);
-
         .speech_text = "hello";
+
+        .status.Init();
     };
 
     Main.Release = function()
     {
-        .motion.Release();
-        .speech.Release();
+        .status.Release();
         threadKill(.update_id);
     };
 
@@ -129,45 +230,28 @@ global MakeMain = function(ip, port)
 
         if (Gui.Button("Open Hand"))
         {
-            .motion.Queue("openHand", "RHand");
+            g_proxies.motion.Queue("openHand", "RHand");
         }
 
         if (Gui.Button("Close Hand"))
         {
-            .motion.Queue("closeHand", "RHand");
+            g_proxies.motion.Queue("closeHand", "RHand");
         }
 
         .speech_text = Gui.TextInput("Speech", .speech_text);
         if (Gui.Button("Say"))
         {
-            .speech.Queue("say", .speech_text);
+            g_proxies.speech.Queue("say", .speech_text);
         }
 
-        if (.motion.next != null)
+        if (g_proxies.motion.next != null)
         {
-            Gui.Print("Pending: " + .motion.next.fun);
+            Gui.Print("Pending: " + g_proxies.motion.next.fun);
         }
         else
         {
             Gui.Print("Pending: None");
         }
-
-        Gui.End();
-    };
-
-    Main.GuiStatus = function()
-    {
-        Gui.Begin("Status", g_core.screenDimen.x.Int()-450, g_core.screenDimen.y.Int() - 5);
-       
-        local display = function(name, key)
-        {
-            local value = .memory.CallReturnFloat("getData", key);
-            local str = name + ": " + value.String();
-            Gui.Print(str);
-        };
-
-        this:display("Battery", "Device/SubDeviceList/Battery/Temperature/Sensor/Value");
-        this:display("Head", "Device/SubDeviceList/Head/Temperature/Sensor/Value");
 
         Gui.End();
     };
@@ -178,7 +262,6 @@ global MakeMain = function(ip, port)
         {
     		RegisterDraw( DrawLayers.Clear, .ClearScreen, this );
     		RegisterGui( .Gui, this );			
-    		RegisterGui( .GuiStatus, this );			
 
             yield();
         }
@@ -192,5 +275,7 @@ local ip = "192.168.11.9";
 local port = 9559;
 
 global g_main = MakeMain(ip, port);
+global g_proxies = MakeProxies(ip, port);
+
 
 Log("init.gm: done!");
