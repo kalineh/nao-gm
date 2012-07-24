@@ -20,8 +20,78 @@
 using namespace funk;
 
 #define ASSERT(condition) \
-    if (!condition) { __asm { int 3; } }
+    if (!condition) assert(false) //if (!condition) { __asm { int 3; } }
 
+// TODO: move to seperate file
+
+#include <alproxies/alvideodeviceproxy.h>
+#include <alvision/alvisiondefinitions.h>
+
+void GetVideoDataQQVGA(StrongHandle<Texture> tex, const char* ip, int port)
+{
+    AL::ALVideoDeviceProxy camera(std::string(ip), port);
+
+    std::string subscriber = "videograb";
+
+    // remove existing
+    try {
+        camera.unsubscribe(subscriber);
+    } catch (...) { }
+
+    int fps = 1;
+
+    subscriber = camera.subscribe(subscriber, AL::kQQVGA, AL::kRGBColorSpace, fps);
+    AL::ALValue results = camera.getImageRemote(subscriber);
+
+    uint8_t* data = (uint8_t*)(results[6].GetBinary());
+    if (data == NULL)
+    {
+        ASSERT(false);
+        return;
+    }
+
+//[6] : array of size height * width * nblayers containing image data;
+
+    const int video_w = results[0];
+    const int video_h = results[1];
+    const int layers = results[2];
+    const int colorspace = results[3];
+
+    ASSERT(layers == 3);
+    ASSERT(colorspace == AL::kRGBColorSpace);
+
+    uint32_t sub[128 * 128];
+    for (int y = 0; y < 114; ++y)
+    {
+        for (int x = 0; x < 128; ++x)
+        {
+            const int i = x + y * 120;
+            const uint8_t r = data[i * 3 + 0];
+            const uint8_t g = data[i * 3 + 1];
+            const uint8_t b = data[i * 3 + 2];
+            const uint8_t a = 255;
+            sub[x + y * 128] = 
+                (a << 24) |
+                (b << 16) |
+                (g <<  8) |
+                (r <<  0);
+        }
+    }
+
+    //for (int i = 0; i < 128 * 128 * 4; ++i)
+    //{
+        //sub[i] = i % 256;
+    //}
+
+    tex->Bind();
+    tex->SubData(sub, 128, 128);
+    tex->Unbind();
+
+    camera.releaseImage(subscriber);
+    camera.unsubscribe(subscriber);
+}
+
+// end file
 class GMALProxy
     : public HandledObj<GMALProxy>
 {
@@ -191,6 +261,18 @@ GM_REG_NAMESPACE(GMALProxy)
 		GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->IsRunning() ? 1 : 0));
         return GM_OK;
     }
+
+    // TODO: seperate class
+    GM_MEMFUNC_DECL(GetVideoData)
+    {
+        GM_CHECK_NUM_PARAMS(3);
+        GM_GET_USER_PARAM_PTR(Texture, tex, 0);
+        GM_CHECK_STRING_PARAM(ip, 1);
+        GM_CHECK_INT_PARAM(port, 2);
+        GM_GET_THIS_PTR(GMALProxy, self);
+        GM_AL_EXCEPTION_WRAPPER(GetVideoDataQQVGA(tex, ip, port));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMALProxy)
@@ -199,6 +281,7 @@ GM_REG_MEMFUNC( GMALProxy, CallReturnFloat )
 GM_REG_MEMFUNC( GMALProxy, CallVoid )
 GM_REG_MEMFUNC( GMALProxy, PostCall )
 GM_REG_MEMFUNC( GMALProxy, IsRunning )
+GM_REG_MEMFUNC( GMALProxy, GetVideoData ) // temp
 //GM_REG_MEMFUNC( Cam2d, End )
 //GM_REG_MEMFUNC( Cam2d, InitScreenSpace )
 //GM_REG_MEMFUNC( Cam2d, InitScreenSpaceSize )

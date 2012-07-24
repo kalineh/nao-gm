@@ -276,6 +276,8 @@ global MakeMain = function()
         .speech_text = "hello";
 
         .status.Init();
+
+        .videotex = Texture( v2(128.0f, 128.0f) );
     };
 
     Main.Release = function()
@@ -320,7 +322,46 @@ global MakeMain = function()
             Gui.Print("Pending: None");
         }
 
+        if (Gui.Button("Snapshot"))
+        {
+            // dummy proxy
+            g_proxies.memory.proxy.GetVideoData(.videotex, g_ip, g_port);
+        }
+
         Gui.End();
+
+    	//Game.BeginScreenSpace = function()
+    	//{
+    		//.BeginViewport();
+    		//Gfx.Enable(Gfx.LINE_SMOOTH);
+    		//Gfx.Enable(Gfx.BLEND);
+    		//Gfx.Disable(Gfx.DEPTH_TEST);
+
+    		//.camScreen.Begin();
+    	//};
+
+    	//Game.EndScreenSpace = function()
+    	//{
+    		//.camScreen.End();
+    		//.EndViewport();
+    		//Gfx.Disable(Gfx.LINE_SMOOTH);
+    		//Gfx.Disable(Gfx.BLEND);
+    	//};
+
+        // draw tex
+		local dimen = Window.GetMonitorDimen();
+		Gfx.Viewport( g_core.screenDimen*0.5f - dimen*0.5f, dimen );
+		Gfx.BeginDefaultShader();
+
+		Gfx.Color(Gfx.WHITE, 1.0f);
+		.videotex.Bind(0);
+		local dimen = .videotex.Dimen();
+		local pos = v2(0.0f, 0.0f);
+		Gfx.DrawRectTexCoords( pos, v2(0.5f));
+		.videotex.Unbind();
+		Gfx.EndDefaultShader();
+		Gfx.Viewport( v2(0), g_core.screenDimen );
+
     };
 
     Main.Update = function()
@@ -338,11 +379,10 @@ global MakeMain = function()
     return Main;
 };
 
-local ip = "192.168.11.9";
-local port = 9559;
+global g_ip = "192.168.11.9";
+global g_port = 9559;
 
 global g_main = MakeMain(ip, port);
 global g_proxies = MakeProxies(ip, port);
 
-
-Log("init.gm: done!");
+		Gfx.Viewport( v2(0), g_core.screenDimen );
