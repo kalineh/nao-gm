@@ -277,7 +277,7 @@ global MakeMain = function()
 
         .status.Init();
 
-        .videotex = Texture( v2(128.0f, 128.0f) );
+        .videotex = Texture( v2(160.0f, 120.0f) );
     };
 
     Main.Release = function()
@@ -349,19 +349,19 @@ global MakeMain = function()
     	//};
 
         // draw tex
-		local dimen = Window.GetMonitorDimen();
-		Gfx.Viewport( g_core.screenDimen*0.5f - dimen*0.5f, dimen );
+		local dimen = Window.GetDimen();
+
+		Gfx.Viewport( g_core.screenDimen * -0.5f, g_core.screenDimen );
 		Gfx.BeginDefaultShader();
 
 		Gfx.Color(Gfx.WHITE, 1.0f);
 		.videotex.Bind(0);
-		local dimen = .videotex.Dimen();
-		local pos = v2(0.0f, 0.0f);
-		Gfx.DrawRectTexCoords( pos, v2(0.5f));
+		local pos = v2(0.5f, 0.5f);
+		Gfx.DrawRectTexCoords( pos, v2(1.0f) / g_core.screenDimen * .videotex.Dimen() * 4.0f );
 		.videotex.Unbind();
+
 		Gfx.EndDefaultShader();
 		Gfx.Viewport( v2(0), g_core.screenDimen );
-
     };
 
     Main.Update = function()

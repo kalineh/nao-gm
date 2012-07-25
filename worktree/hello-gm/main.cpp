@@ -57,20 +57,29 @@ void GetVideoDataQQVGA(StrongHandle<Texture> tex, const char* ip, int port)
     const int layers = results[2];
     const int colorspace = results[3];
 
-    ASSERT(layers == 3);
-    ASSERT(colorspace == AL::kRGBColorSpace);
+    //ASSERT(layers == 3);
+    //ASSERT(colorspace == AL::kRGBColorSpace);
 
-    uint32_t sub[128 * 128];
-    for (int y = 0; y < 114; ++y)
+    // source data is QQVGA 160x120
+
+    const int w = 160;
+    const int h = 120;
+
+    uint32_t sub[w * h];
+    for (int y = 0; y < h; ++y)
     {
-        for (int x = 0; x < 128; ++x)
+        for (int x = 0; x < w; ++x)
         {
-            const int i = x + y * 120;
-            const uint8_t r = data[i * 3 + 0];
-            const uint8_t g = data[i * 3 + 1];
-            const uint8_t b = data[i * 3 + 2];
+            const int src_index = (x + y * w) * 3;
+            const int dst_index = (x + y * w);
+
+            const uint8_t r = data[src_index + 0];
+            const uint8_t g = data[src_index + 1];
+            const uint8_t b = data[src_index + 2];
             const uint8_t a = 255;
-            sub[x + y * 128] = 
+
+            // wait, why would this need / 4?
+            sub[dst_index] = 
                 (a << 24) |
                 (b << 16) |
                 (g <<  8) |
@@ -78,13 +87,17 @@ void GetVideoDataQQVGA(StrongHandle<Texture> tex, const char* ip, int port)
         }
     }
 
-    //for (int i = 0; i < 128 * 128 * 4; ++i)
-    //{
-        //sub[i] = i % 256;
-    //}
+    // flip
+    for (int y = 0; y < h / 2; ++y)
+    {
+        uint32_t line[w];
+        memcpy(line, sub + y * w, w * sizeof(uint32_t));
+        memcpy(sub + y * w, sub + (h - y - 1) * w, w * sizeof(uint32_t));
+        memcpy(sub + (h - y - 1) * w, line, w * sizeof(uint32_t));
+    }
 
     tex->Bind();
-    tex->SubData(sub, 128, 128);
+    tex->SubData(sub, w, h);
     tex->Unbind();
 
     camera.releaseImage(subscriber);
