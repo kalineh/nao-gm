@@ -27,9 +27,11 @@ using namespace funk;
 #include <alproxies/alvideodeviceproxy.h>
 #include <alvision/alvisiondefinitions.h>
 
-void GetVideoDataQQVGA(StrongHandle<Texture> tex, const char* ip, int port)
+void GetVideoDataQQVGA(StrongHandle<Texture> tex, const char* ip, int port, int which)
 {
     AL::ALVideoDeviceProxy camera(std::string(ip), port);
+
+    camera.setParam(AL::kCameraSelectID, which);
 
     std::string subscriber = "videograb";
 
@@ -278,12 +280,13 @@ GM_REG_NAMESPACE(GMALProxy)
     // TODO: seperate class
     GM_MEMFUNC_DECL(GetVideoData)
     {
-        GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_NUM_PARAMS(4);
         GM_GET_USER_PARAM_PTR(Texture, tex, 0);
         GM_CHECK_STRING_PARAM(ip, 1);
         GM_CHECK_INT_PARAM(port, 2);
+        GM_CHECK_INT_PARAM(which, 3);
         GM_GET_THIS_PTR(GMALProxy, self);
-        GM_AL_EXCEPTION_WRAPPER(GetVideoDataQQVGA(tex, ip, port));
+        GM_AL_EXCEPTION_WRAPPER(GetVideoDataQQVGA(tex, ip, port, which));
         return GM_OK;
     }
 }

@@ -274,10 +274,17 @@ global MakeMain = function()
         .update_id = this:thread(.Update);
 
         .speech_text = "hello";
+        .stream_video0 = false;
+        .stream_video1 = false;
 
         .status.Init();
 
-        .videotex = Texture( v2(160.0f, 120.0f) );
+		.cam2d = Cam2d();
+		.cam2d.InitScreenSpaceSize( Window.GetDimen() );
+		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
+
+        .videotex0 = Texture( v2(160.0f, 120.0f) );
+        .videotex1 = Texture( v2(160.0f, 120.0f) );
     };
 
     Main.Release = function()
@@ -322,43 +329,50 @@ global MakeMain = function()
             Gui.Print("Pending: None");
         }
 
-        if (Gui.Button("Snapshot"))
+        .stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
+        .stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
+        if (.stream_video0)
         {
             // dummy proxy
-            g_proxies.memory.proxy.GetVideoData(.videotex, g_ip, g_port);
+            g_proxies.memory.proxy.GetVideoData(.videotex0, g_ip, g_port, 0);
+        }
+        if (.stream_video1)
+        {
+            // dummy proxy
+            g_proxies.memory.proxy.GetVideoData(.videotex1, g_ip, g_port, 1);
         }
 
         Gui.End();
 
-    	//Game.BeginScreenSpace = function()
-    	//{
-    		//.BeginViewport();
-    		//Gfx.Enable(Gfx.LINE_SMOOTH);
-    		//Gfx.Enable(Gfx.BLEND);
-    		//Gfx.Disable(Gfx.DEPTH_TEST);
-
-    		//.camScreen.Begin();
-    	//};
-
-    	//Game.EndScreenSpace = function()
-    	//{
-    		//.camScreen.End();
-    		//.EndViewport();
-    		//Gfx.Disable(Gfx.LINE_SMOOTH);
-    		//Gfx.Disable(Gfx.BLEND);
-    	//};
-
         // draw tex
-		local dimen = Window.GetDimen();
 
-		Gfx.Viewport( g_core.screenDimen * -0.5f, g_core.screenDimen );
+		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
 		Gfx.BeginDefaultShader();
 
+        .cam2d.Begin();
+
 		Gfx.Color(Gfx.WHITE, 1.0f);
-		.videotex.Bind(0);
-		local pos = v2(0.5f, 0.5f);
-		Gfx.DrawRectTexCoords( pos, v2(1.0f) / g_core.screenDimen * .videotex.Dimen() * 4.0f );
-		.videotex.Unbind();
+
+        local vscale = 2.0f;
+		local vsize = v2(160.0f, 120.0f) * vscale;
+		local vpos = g_core.screenDimen * v2(0.8f, 0.5f) - vsize * 0.5f;
+
+		.videotex0.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+		.videotex0.Unbind();
+        
+        vpos = vpos - v2(0.0f, vsize.y + 8.0f);
+
+		.videotex1.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+		.videotex1.Unbind();
+
+        Gfx.Color(Gfx.RED);
+        Gfx.DrawRect(v2(0.0f), v2(32.0f));
+        Gfx.Color(Gfx.BLUE);
+        Gfx.DrawRect(g_core.screenDimen - v2(32.0f), v2(32.0f));
+
+        .cam2d.End();
 
 		Gfx.EndDefaultShader();
 		Gfx.Viewport( v2(0), g_core.screenDimen );
@@ -384,5 +398,3 @@ global g_port = 9559;
 
 global g_main = MakeMain(ip, port);
 global g_proxies = MakeProxies(ip, port);
-
-		Gfx.Viewport( v2(0), g_core.screenDimen );
