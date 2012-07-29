@@ -17,6 +17,12 @@
 
 using namespace funk;
 
+class Filters
+{
+public:
+    static void Sobel(StrongHandle<Texture> in, StrongHandle<Texture> out);
+};
+
 class GMVideoDisplay
     : public HandledObj<GMVideoDisplay>
 {
@@ -37,6 +43,9 @@ public:
     StrongHandle<Texture> GetTexture();
 
     void Update();
+
+    //void FilterSobel(...);
+    //void FilterBlobs(...);
 
 private:
     void GetRemoteImage();

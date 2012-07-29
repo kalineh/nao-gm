@@ -19,13 +19,63 @@
 
 using namespace funk;
 
+void Filters::Sobel(StrongHandle<Texture> in, StrongHandle<Texture> out)
+{
+    CHECK(in->Sizei() == out->Sizei());
+
+    // ignore edges because simplicity
+
+    int border = 1;
+
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer = new uint32_t[w * h];
+
+    in->Bind();
+    in->ReadPixels(0, 0, w, h, buffer);
+    in->Unbind();
+
+    uint8_t* bytes = (uint8_t*)buffer;
+    for (int y = border; y < h - border; ++y)
+    {
+        for (int x = border; x < w - border; ++x)
+        {
+            const int src_index = (x + y * w) * pixelsize;
+            const int dst_index = (x + y * w);
+
+            const uint8_t r = bytes[src_index + 0];
+            const uint8_t g = bytes[src_index + 1];
+            const uint8_t b = bytes[src_index + 2];
+            const uint8_t a = bytes[src_index + 3];
+
+            buffer[dst_index] = 
+                (a << 24) |
+                (b << 16) | 255 |
+                (g <<  8) |
+                (r <<  0);
+        }
+    }
+
+    out->Bind();
+    out->SubData(buffer, w, h, 0, 0);
+    out->Unbind();
+}
+
+
 const int VideoFPS = 1;
+const v2i SizeQQVGA = v2i(160, 120);
+const v2i SizeQVGA = SizeQQVGA * 2;
+const v2i SizeVGA = SizeQVGA * 2;
+const v2i Size4VGA = SizeVGA * 2;
 
 GMVideoDisplay::GMVideoDisplay(const char* name, const char* ip, int port)
     : _active(false)
     , _proxy(std::string(ip), port)
     , _name(name)
     , _subscriber_id(name)
+	, _texture(new Texture(8, 8))
 {
 }
 
@@ -45,7 +95,8 @@ void GMVideoDisplay::SetActive(bool active)
         _subscriber_id = _proxy.subscribe(_name, AL::kQQVGA, AL::kRGBColorSpace, VideoFPS);
         _active = active;
 
-        _proxy.setParam(AL::kCameraVFlipID, 1);
+        _proxy.setParam(AL::kCameraVFlipID, 0);
+		_texture = new Texture(SizeQQVGA.x, SizeQQVGA.y);
 
         return;
     }
@@ -78,6 +129,14 @@ void GMVideoDisplay::SetResolution(const char* resolution)
     if (which >= 0)
     {
         _proxy.setParam(AL::kCameraColorSpaceID, which);
+
+        switch (which)
+        {
+        case AL::kQQVGA: _texture = new Texture(SizeQQVGA.x, SizeQQVGA.y); break;
+        case AL::kQVGA: _texture = new Texture(SizeQVGA.x, SizeQVGA.y); break;
+        case AL::kVGA: _texture = new Texture(SizeVGA.x, SizeVGA.y); break;
+        case AL::k4VGA: _texture = new Texture(Size4VGA.x, Size4VGA.y); break;
+        }
     }
 }
 
@@ -115,6 +174,9 @@ StrongHandle<Texture> GMVideoDisplay::GetTexture()
 
 void GMVideoDisplay::Update()
 {
+    if (!_active)
+        return;
+
     GetRemoteImage();
 }
 
@@ -122,8 +184,8 @@ void GMVideoDisplay::GetRemoteImage()
 {
     AL::ALValue results = _proxy.getImageRemote(_subscriber_id);
 
-    uint8_t* data = (uint8_t*)(results[6].GetBinary());
-    if (data == NULL)
+    uint8_t* bytes = (uint8_t*)(results[6].GetBinary());
+    if (bytes == NULL)
     {
         CHECK(false);
         return;
@@ -152,14 +214,16 @@ void GMVideoDisplay::GetRemoteImage()
 
     CHECK(layers == 3);
     CHECK(colorspace == AL::kRGBColorSpace);
+    CHECK(_texture->Sizei().x == video_w);
+    CHECK(_texture->Sizei().y == video_h);
 
     // QQVGA = 160x120
     // QVGA = 320x240
     // VGA = 640x480
     // 4VGA = 1280x960
 
-    const int w = std::min<int>(_texture->Sizei().y, video_w);
-    const int h = std::min<int>(_texture->Sizei().x, video_h);
+    const int w = video_w;
+    const int h = video_h;
 
     uint32_t* buffer = new uint32_t[w * h];
     for (int y = 0; y < h; ++y)
@@ -169,9 +233,9 @@ void GMVideoDisplay::GetRemoteImage()
             const int src_index = (x + y * w) * video_pixelsize;
             const int dst_index = (x + y * w);
 
-            const uint8_t r = data[src_index + 0];
-            const uint8_t g = data[src_index + 1];
-            const uint8_t b = data[src_index + 2];
+            const uint8_t r = bytes[src_index + 0];
+            const uint8_t g = bytes[src_index + 1];
+            const uint8_t b = bytes[src_index + 2];
             const uint8_t a = 255;
 
             buffer[dst_index] = 

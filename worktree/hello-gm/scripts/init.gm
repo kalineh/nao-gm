@@ -3,10 +3,6 @@
 
 Log("init.gm: Initializing...");
 
-local ip = "192.168.11.9";
-local port = 9559;
-
-
 local MakeSoundLooker = function()
 {
     local SoundLooker = table();
@@ -248,9 +244,9 @@ global MakeProxies = function(ip, port)
 
     Proxies.Init = function()
     {
-        //.motion = MakeALProxy("ALMotion", .ip, .port);
-        //.speech = MakeALProxy("ALTextToSpeech", .ip, .port);
-        //.memory = MakeALProxy("ALMemory", .ip, .port);
+        .motion = MakeALProxy("ALMotion", .ip, .port);
+        .speech = MakeALProxy("ALTextToSpeech", .ip, .port);
+        .memory = MakeALProxy("ALMemory", .ip, .port);
     };
 
     Proxies.Release = function()
@@ -259,6 +255,12 @@ global MakeProxies = function(ip, port)
         .speech.Release();
         .memory.Release();
     };
+
+    if (g_norobot)
+    {
+        Proxies.Init = function() {};
+        Proxies.Release = function() {};
+    }
 
     Proxies.Init();
     return Proxies;
@@ -356,6 +358,9 @@ global MakeMain = function()
         .video0.SetActive(.stream_video0);
         .video1.SetActive(.stream_video1);
 
+        .video0.Update();
+        .video1.Update();
+
         Gui.End();
     };
 
@@ -408,9 +413,9 @@ global MakeMain = function()
     return Main;
 };
 
-global g_ip = "192.168.11.9";
+global g_ip = "192.168.11.2";
 global g_port = 9559;
-global g_norobot = true;
+global g_norobot = false;
 
-global g_main = MakeMain(ip, port);
-global g_proxies = MakeProxies(ip, port);
+global g_main = MakeMain(g_ip, g_port);
+global g_proxies = MakeProxies(g_ip, g_port);
