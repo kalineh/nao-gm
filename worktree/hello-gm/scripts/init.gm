@@ -277,7 +277,6 @@ global MakeMain = function()
         .speech_text = "hello";
         .stream_video0 = false;
         .stream_video1 = false;
-        .stream_video_layer = 0;
 
         .status.Init();
 
@@ -287,8 +286,19 @@ global MakeMain = function()
 
         //.videotex0 = Texture( v2(160.0f, 120.0f) );
         //.videotex1 = Texture( v2(160.0f, 120.0f) );
-        .videotex0 = Texture( g_resourcePathPrefix + "common/img/video.png" );
-        .videotex1 = Texture( g_resourcePathPrefix + "common/img/video.png" );
+        //.videotex0 = Texture( g_resourcePathPrefix + "common/img/video.png" );
+        //.videotex1 = Texture( g_resourcePathPrefix + "common/img/video.png" );
+
+        if (g_norobot)
+        {
+            .video0 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
+            .video1 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
+        }
+        else
+        {
+            .video0 = GMVideoDisplay("top", g_ip, g_port);
+            .video1 = GMVideoDisplay("bottom", g_ip, g_port);
+        }
     };
 
     Main.Release = function()
@@ -342,17 +352,9 @@ global MakeMain = function()
 
         .stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
         .stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
-        .stream_video_layer = Gui.SliderInt("Layer", .stream_video_layer, 0, 3);
-        if (.stream_video0)
-        {
-            // dummy proxy
-            g_proxies.memory.proxy.GetVideoData(.videotex0, g_ip, g_port, 0, .stream_video_layer);
-        }
-        if (.stream_video1)
-        {
-            // dummy proxy
-            g_proxies.memory.proxy.GetVideoData(.videotex1, g_ip, g_port, 1, .stream_video_layer);
-        }
+
+        .video0.SetActive(.stream_video0);
+        .video1.SetActive(.stream_video1);
 
         Gui.End();
     };
@@ -370,15 +372,15 @@ global MakeMain = function()
 		local vsize = v2(160.0f, 120.0f) * vscale;
 		local vpos = g_core.screenDimen * v2(0.8f, 0.5f) - vsize * 0.5f;
 
-		.videotex0.Bind(0);
+		.video0.GetTexture().Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-		.videotex0.Unbind();
+		.video0.GetTexture().Unbind();
         
         vpos = vpos - v2(0.0f, vsize.y + 8.0f);
 
-		.videotex1.Bind(0);
+		.video1.GetTexture().Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-		.videotex1.Unbind();
+		.video1.GetTexture().Unbind();
 
         Gfx.Color(Gfx.RED);
         Gfx.DrawRect(v2(0.0f), v2(32.0f));
