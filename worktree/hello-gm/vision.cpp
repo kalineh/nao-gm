@@ -76,6 +76,8 @@ GMVideoDisplay::GMVideoDisplay(const char* name, const char* ip, int port)
     , _name(name)
     , _subscriber_id(name)
 	, _texture(new Texture(8, 8))
+    , _resolution(AL::kQQVGA)
+    , _colorspace(AL::kRGBColorSpace)
 {
 }
 
@@ -83,21 +85,8 @@ void GMVideoDisplay::SetActive(bool active)
 {
     if (active && !_active)
     {
-        try
-        {
-            _proxy.unsubscribe(_name);
-        }
-        catch (const AL::ALError&)
-        {
-            // ignore, just attempting to avoid hanging subscriptions
-        }
-
-        _subscriber_id = _proxy.subscribe(_name, AL::kQQVGA, AL::kRGBColorSpace, VideoFPS);
+        Subscribe(_resolution, _colorspace);
         _active = active;
-
-        _proxy.setParam(AL::kCameraVFlipID, 0);
-		_texture = new Texture(SizeQQVGA.x, SizeQQVGA.y);
-
         return;
     }
 
@@ -105,6 +94,7 @@ void GMVideoDisplay::SetActive(bool active)
     {
         _proxy.unsubscribe(_subscriber_id);        
         _active = active;
+        _subscriber_id = _name;
     }
 }
 
@@ -121,23 +111,31 @@ void GMVideoDisplay::SetResolution(const char* resolution)
 {
     int which = -1;
 
-    if (strcmp(resolution, "QQVGA")) which = AL::kQQVGA;
-    if (strcmp(resolution, "QVGA")) which = AL::kQVGA;
-    if (strcmp(resolution, "VGA")) which = AL::kVGA;
-    if (strcmp(resolution, "4VGA")) which = AL::k4VGA;
-
-    if (which >= 0)
+    if (strcmp(resolution, "QQVGA") == 0) which = AL::kQQVGA;
+    else if (strcmp(resolution, "QVGA") == 0) which = AL::kQVGA;
+    else if (strcmp(resolution, "VGA") == 0) which = AL::kVGA;
+    else if (strcmp(resolution, "4VGA") == 0) which = AL::k4VGA;
+    else
     {
-        _proxy.setParam(AL::kCameraColorSpaceID, which);
-
-        switch (which)
-        {
-        case AL::kQQVGA: _texture = new Texture(SizeQQVGA.x, SizeQQVGA.y); break;
-        case AL::kQVGA: _texture = new Texture(SizeQVGA.x, SizeQVGA.y); break;
-        case AL::kVGA: _texture = new Texture(SizeVGA.x, SizeVGA.y); break;
-        case AL::k4VGA: _texture = new Texture(Size4VGA.x, Size4VGA.y); break;
-        }
+        CHECK(false);
+        return;
     }
+
+    if (which == _resolution)
+        return;
+
+    switch (which)
+    {
+    case AL::kQQVGA: _texture = new Texture(SizeQQVGA.x, SizeQQVGA.y); break;
+    case AL::kQVGA: _texture = new Texture(SizeQVGA.x, SizeQVGA.y); break;
+    case AL::kVGA: _texture = new Texture(SizeVGA.x, SizeVGA.y); break;
+    case AL::k4VGA: _texture = new Texture(Size4VGA.x, Size4VGA.y); break;
+    }
+
+    _resolution = which;
+
+    if (_active)
+        Subscribe(_resolution, _colorspace);
 }
 
 void GMVideoDisplay::SetColorspace(const char* colorspace)
@@ -145,26 +143,33 @@ void GMVideoDisplay::SetColorspace(const char* colorspace)
     int which = -1;
 
     // native - use if possible
-    if (strcmp(colorspace, "YUV422")) which = AL::kYUV422ColorSpace;
-
-    if (strcmp(colorspace, "Yuv")) which = AL::kYuvColorSpace;
-    if (strcmp(colorspace, "yUv")) which = AL::kyUvColorSpace;
-    if (strcmp(colorspace, "yuV")) which = AL::kyuVColorSpace;
-    if (strcmp(colorspace, "Rgb")) which = AL::kRgbColorSpace;
-    if (strcmp(colorspace, "rGb")) which = AL::krGbColorSpace;
-    if (strcmp(colorspace, "rgB")) which = AL::krgBColorSpace;
-    if (strcmp(colorspace, "Hsy")) which = AL::kHsyColorSpace;
-    if (strcmp(colorspace, "hSy")) which = AL::khSyColorSpace;
-    if (strcmp(colorspace, "hsY")) which = AL::khsYColorSpace;
-    if (strcmp(colorspace, "YUV")) which = AL::kYUVColorSpace;
-    if (strcmp(colorspace, "RGB")) which = AL::kRGBColorSpace;
-    if (strcmp(colorspace, "HSY")) which = AL::kHSYColorSpace;
-    if (strcmp(colorspace, "BGR")) which = AL::kBGRColorSpace;
-
-    if (which >= 0)
+    if (strcmp(colorspace, "YUV422") == 0) which = AL::kYUV422ColorSpace;
+    else if (strcmp(colorspace, "Yuv") == 0) which = AL::kYuvColorSpace;
+    else if (strcmp(colorspace, "yUv") == 0) which = AL::kyUvColorSpace;
+    else if (strcmp(colorspace, "yuV") == 0) which = AL::kyuVColorSpace;
+    else if (strcmp(colorspace, "Rgb") == 0) which = AL::kRgbColorSpace;
+    else if (strcmp(colorspace, "rGb") == 0) which = AL::krGbColorSpace;
+    else if (strcmp(colorspace, "rgB") == 0) which = AL::krgBColorSpace;
+    else if (strcmp(colorspace, "Hsy") == 0) which = AL::kHsyColorSpace;
+    else if (strcmp(colorspace, "hSy") == 0) which = AL::khSyColorSpace;
+    else if (strcmp(colorspace, "hsY") == 0) which = AL::khsYColorSpace;
+    else if (strcmp(colorspace, "YUV") == 0) which = AL::kYUVColorSpace;
+    else if (strcmp(colorspace, "RGB") == 0) which = AL::kRGBColorSpace;
+    else if (strcmp(colorspace, "HSY") == 0) which = AL::kHSYColorSpace;
+    else if (strcmp(colorspace, "BGR") == 0) which = AL::kBGRColorSpace;
+    else
     {
-        _proxy.setParam(AL::kCameraColorSpaceID, which);
+        CHECK(false);
+        return;
     }
+
+    if (which == _colorspace)
+        return;
+
+    _colorspace = which;
+
+    if (_active)
+        Subscribe(_resolution, _colorspace);
 }
 
 StrongHandle<Texture> GMVideoDisplay::GetTexture()
@@ -178,6 +183,33 @@ void GMVideoDisplay::Update()
         return;
 
     GetRemoteImage();
+}
+
+void GMVideoDisplay::Subscribe(int resolution, int colorspace)
+{
+    try
+    {
+        _proxy.unsubscribe(_subscriber_id);
+    }
+    catch (const AL::ALError&)
+    {
+        // ignore, just attempting to avoid hanging subscriptions
+    }
+
+    CHECK(resolution >= 0);
+    CHECK(colorspace >= 0);
+
+    _subscriber_id = _proxy.subscribe(_name, resolution, colorspace, VideoFPS);
+
+    _proxy.setParam(AL::kCameraVFlipID, 0);
+
+    switch (resolution)
+    {
+    case AL::kQQVGA: _texture = new Texture(SizeQQVGA.x, SizeQQVGA.y); break;
+    case AL::kQVGA: _texture = new Texture(SizeQVGA.x, SizeQVGA.y); break;
+    case AL::kVGA: _texture = new Texture(SizeVGA.x, SizeVGA.y); break;
+    case AL::k4VGA: _texture = new Texture(Size4VGA.x, Size4VGA.y); break;
+    }
 }
 
 void GMVideoDisplay::GetRemoteImage()
@@ -211,8 +243,11 @@ void GMVideoDisplay::GetRemoteImage()
     const int colorspace = results[3];
 
     const int layer_size = video_w * video_h * video_pixelsize;
+    
+    //if (layers != 3) { return; }
+    //if (colorspace != AL::kRGBColorSpace) { return; }
 
-    CHECK(layers == 3);
+    //CHECK(layers == 3);
     CHECK(colorspace == AL::kRGBColorSpace);
     CHECK(_texture->Sizei().x == video_w);
     CHECK(_texture->Sizei().y == video_h);

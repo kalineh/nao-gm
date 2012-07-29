@@ -295,11 +295,19 @@ global MakeMain = function()
         {
             .video0 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
             .video1 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
+
         }
         else
         {
             .video0 = GMVideoDisplay("top", g_ip, g_port);
             .video1 = GMVideoDisplay("bottom", g_ip, g_port);
+
+            .video0.SetColorspace("RGB");
+            .video1.SetColorspace("RGB");
+
+            .video0.SetResolution("QVGA");
+            .video1.SetResolution("4VGA");
+            //.video1.SetActive(.stream_video1);
         }
     };
 
@@ -357,6 +365,9 @@ global MakeMain = function()
 
         .video0.SetActive(.stream_video0);
         .video1.SetActive(.stream_video1);
+
+        .video0.SetColorspace("RGB");
+        .video1.SetColorspace("RGB");
 
         .video0.Update();
         .video1.Update();

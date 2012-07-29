@@ -48,12 +48,16 @@ public:
     //void FilterBlobs(...);
 
 private:
+    void Subscribe(int resolution, int colorspace);
+
     void GetRemoteImage();
 
     bool _active;
     AL::ALVideoDeviceProxy _proxy;
     std::string _name;
     std::string _subscriber_id;
+    int _resolution;
+    int _colorspace;
     StrongHandle<Texture> _texture;
 };
 

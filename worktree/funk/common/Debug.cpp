@@ -25,12 +25,14 @@ namespace funk
 			va_end (args);
 
 			#ifdef _WIN32
-			MessageBoxA(NULL, buffer, "Error", MB_OK );
+			//MessageBoxA(NULL, buffer, "Error", MB_OK );
 			#endif
 			
 		}
-		
-		assert(false);
+
+        __asm { int 3 };
+        //DebugBreak();
+		//assert(false);
 	}
 
 	void WARN( bool cond, const char * format, ... )
