@@ -30,6 +30,7 @@ namespace funk
 
 		void ReadPixels( int x, int y, int width, int height, void* data );
 		void SubData( void* data, int width, int height, int offsetX = 0, int offsetY = 0, int level = 0);		
+		void GetTexImage( void* output );
 
 		void SetWrap( int uType, int vType );
 		void SetFilter( int minFilter, int magFilter );

@@ -144,8 +144,8 @@ void Texture::SubData( void* data, int width, int height, int offsetX, int offse
 {
 	CHECK( m_bound, "Texture not bound!");
 
-	assert( width+offsetX <= m_dimen.x && width >= 0 );
-	assert( height+offsetY <= m_dimen.y && height >= 0 );
+	CHECK( width+offsetX <= m_dimen.x && width >= 0 );
+	CHECK( height+offsetY <= m_dimen.y && height >= 0 );
 
 	glTexSubImage2D( GL_TEXTURE_2D, level, offsetX, offsetY, width, height, m_params.format, m_params.dataType, data );
 }
@@ -154,10 +154,17 @@ void Texture::ReadPixels( int x, int y, int width, int height, void* data )
 {
 	CHECK( m_bound, "Texture not bound!");
 
-	assert( width+x <= m_dimen.x && x >= 0 );
-	assert( height+y <= m_dimen.y && y >= 0 );
+	CHECK( width+x <= m_dimen.x && x >= 0 );
+	CHECK( height+y <= m_dimen.y && y >= 0 );
 
 	glReadPixels( x, y, width, height, m_params.format, m_params.dataType, data );
+}
+
+void Texture::GetTexImage(void* output)
+{
+	CHECK( m_bound, "Texture not bound!");
+
+    glGetTexImage(GL_TEXTURE_2D, 0, m_params.format, m_params.dataType, output);
 }
 
 void Texture::GenMipMaps()

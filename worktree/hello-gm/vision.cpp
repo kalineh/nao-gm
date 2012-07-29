@@ -34,11 +34,10 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
     uint32_t* buffer_in = new uint32_t[w * h];
     uint32_t* buffer_out = new uint32_t[w * h];
 
-    in->Bind();
-    in->ReadPixels(0, 0, w, h, buffer_in);
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
     in->Unbind();
 
-    glFlush();
     glFinish();
 
     // test copy
@@ -55,6 +54,8 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
             const uint32_t a = buffer_in[((x - 1) + (y - 1) * w)];
             const uint32_t b = buffer_in[((x + 0) + (y - 1) * w)];
             const uint32_t c = buffer_in[((x + 1) + (y - 1) * w)];
+            const uint32_t d = buffer_in[((x - 1) + (y + 0) * w)];
+            const uint32_t f = buffer_in[((x + 1) + (y + 0) * w)];
             const uint32_t g = buffer_in[((x - 1) + (y + 1) * w)];
             const uint32_t h = buffer_in[((x + 0) + (y + 1) * w)];
             const uint32_t i = buffer_in[((x + 1) + (y + 1) * w)];
@@ -70,6 +71,14 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
             const uint8_t cr = (c & 0x00FF0000) >> 16;
             const uint8_t cg = (c & 0x0000FF00) >> 8;
             const uint8_t cb = (c & 0x000000FF) >> 0;
+
+            const uint8_t dr = (d & 0x00FF0000) >> 16;
+            const uint8_t dg = (d & 0x0000FF00) >> 8;
+            const uint8_t db = (d & 0x000000FF) >> 0;
+
+            const uint8_t fr = (f & 0x00FF0000) >> 16;
+            const uint8_t fg = (f & 0x0000FF00) >> 8;
+            const uint8_t fb = (f & 0x000000FF) >> 0;
 
             const uint8_t gr = (g & 0x00FF0000) >> 16;
             const uint8_t gg = (g & 0x0000FF00) >> 8;
@@ -88,12 +97,12 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
             // g, h, i
 
             // -1, -2, +1
-            // -2,  0, +2 // not
+            // -2,  0, +2
             // -1, -2, +1
 
-            int sum_r = ar * -1 + br * -2 + cr * +1 + gr * -1 + hr * -2 + ir * +1;
-            int sum_g = ar * -1 + br * -2 + cr * +1 + gr * -1 + hr * -2 + ir * +1;
-            int sum_b = ar * -1 + br * -2 + cr * +1 + gr * -1 + hr * -2 + ir * +1;
+            int sum_r = ar * -1 + br * -2 + cr * +1 + dr * -2 + 0 + fr * +2 + gr * -1 + hr * -2 + ir * +1;
+            int sum_g = ag * -1 + bg * -2 + cg * +1 + dg * -2 + 0 + fg * +2 + gg * -1 + hg * -2 + ig * +1;
+            int sum_b = ab * -1 + bb * -2 + cb * +1 + db * -2 + 0 + fb * +2 + gb * -1 + hb * -2 + ib * +1;
 
             if (sum_r < 0) sum_r = 0;
             if (sum_g < 0) sum_g = 0;
@@ -103,7 +112,11 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
             if (sum_g > 255) sum_g = 255;
             if (sum_b > 255) sum_b = 255;
 
-            const uint32_t pixel = (buffer_in[pixel_index] & 0xFF000000) | sum_r | sum_g | sum_b;
+            const uint32_t pixel =
+                (buffer_in[pixel_index] & 0xFF000000) |
+                (sum_b << 24) |
+                (sum_g << 16) |
+                (sum_r << 8);
 
             buffer_out[pixel_index] = pixel;
         }
