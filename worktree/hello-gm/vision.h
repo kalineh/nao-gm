@@ -20,8 +20,10 @@ using namespace funk;
 class Filters
 {
 public:
-    static void Sobel(StrongHandle<Texture> in, StrongHandle<Texture> out);
+    static void SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out);
 };
+
+void RegisterGmFiltersLib(gmMachine* a_vm);
 
 class GMVideoDisplay
     : public HandledObj<GMVideoDisplay>

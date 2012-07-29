@@ -19,7 +19,7 @@
 
 using namespace funk;
 
-void Filters::Sobel(StrongHandle<Texture> in, StrongHandle<Texture> out)
+void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -31,36 +31,109 @@ void Filters::Sobel(StrongHandle<Texture> in, StrongHandle<Texture> out)
     const int h = in->Sizei().y;
     const int pixelsize = 4;
 
-    uint32_t* buffer = new uint32_t[w * h];
+    uint32_t* buffer_in = new uint32_t[w * h];
+    uint32_t* buffer_out = new uint32_t[w * h];
 
     in->Bind();
-    in->ReadPixels(0, 0, w, h, buffer);
+    in->ReadPixels(0, 0, w, h, buffer_in);
     in->Unbind();
 
-    uint8_t* bytes = (uint8_t*)buffer;
+    glFlush();
+    glFinish();
+
+    // test copy
+    //memcpy(buffer_out, buffer_in, w * h * pixelsize);
+
+    uint8_t* bytes_in = (uint8_t*)buffer_in;
     for (int y = border; y < h - border; ++y)
     {
         for (int x = border; x < w - border; ++x)
         {
-            const int src_index = (x + y * w) * pixelsize;
-            const int dst_index = (x + y * w);
+            const int byte_index = (x + y * w) * pixelsize;
+            const int pixel_index = (x + y * w);
 
-            const uint8_t r = bytes[src_index + 0];
-            const uint8_t g = bytes[src_index + 1];
-            const uint8_t b = bytes[src_index + 2];
-            const uint8_t a = bytes[src_index + 3];
+            const uint32_t a = buffer_in[((x - 1) + (y - 1) * w)];
+            const uint32_t b = buffer_in[((x + 0) + (y - 1) * w)];
+            const uint32_t c = buffer_in[((x + 1) + (y - 1) * w)];
+            const uint32_t g = buffer_in[((x - 1) + (y + 1) * w)];
+            const uint32_t h = buffer_in[((x + 0) + (y + 1) * w)];
+            const uint32_t i = buffer_in[((x + 1) + (y + 1) * w)];
 
-            buffer[dst_index] = 
-                (a << 24) |
-                (b << 16) | 255 |
-                (g <<  8) |
-                (r <<  0);
+            const uint8_t ar = (a & 0x00FF0000) >> 16;
+            const uint8_t ag = (a & 0x0000FF00) >> 8;
+            const uint8_t ab = (a & 0x000000FF) >> 0;
+
+            const uint8_t br = (b & 0x00FF0000) >> 16;
+            const uint8_t bg = (b & 0x0000FF00) >> 8;
+            const uint8_t bb = (b & 0x000000FF) >> 0;
+
+            const uint8_t cr = (c & 0x00FF0000) >> 16;
+            const uint8_t cg = (c & 0x0000FF00) >> 8;
+            const uint8_t cb = (c & 0x000000FF) >> 0;
+
+            const uint8_t gr = (g & 0x00FF0000) >> 16;
+            const uint8_t gg = (g & 0x0000FF00) >> 8;
+            const uint8_t gb = (g & 0x000000FF) >> 0;
+
+            const uint8_t hr = (h & 0x00FF0000) >> 16;
+            const uint8_t hg = (h & 0x0000FF00) >> 8;
+            const uint8_t hb = (h & 0x000000FF) >> 0;
+
+            const uint8_t ir = (i & 0x00FF0000) >> 16;
+            const uint8_t ig = (i & 0x0000FF00) >> 8;
+            const uint8_t ib = (i & 0x000000FF) >> 0;
+
+            // a, b, c
+            // d, e, f
+            // g, h, i
+
+            // -1, -2, +1
+            // -2,  0, +2 // not
+            // -1, -2, +1
+
+            int sum_r = ar * -1 + br * -2 + cr * +1 + gr * -1 + hr * -2 + ir * +1;
+            int sum_g = ar * -1 + br * -2 + cr * +1 + gr * -1 + hr * -2 + ir * +1;
+            int sum_b = ar * -1 + br * -2 + cr * +1 + gr * -1 + hr * -2 + ir * +1;
+
+            if (sum_r < 0) sum_r = 0;
+            if (sum_g < 0) sum_g = 0;
+            if (sum_b < 0) sum_b = 0;
+
+            if (sum_r > 255) sum_r = 255;
+            if (sum_g > 255) sum_g = 255;
+            if (sum_b > 255) sum_b = 255;
+
+            const uint32_t pixel = (buffer_in[pixel_index] & 0xFF000000) | sum_r | sum_g | sum_b;
+
+            buffer_out[pixel_index] = pixel;
         }
     }
 
     out->Bind();
-    out->SubData(buffer, w, h, 0, 0);
+    out->SubData(buffer_out, w, h, 0, 0);
     out->Unbind();
+}
+
+static int GM_CDECL gmfFilterSobelRGBA(gmThread * a_thread)
+{
+	GM_CHECK_NUM_PARAMS(2);
+
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+
+    Filters::SobelRGBA(in, out);
+
+	return GM_OK;
+}
+
+static gmFunctionEntry s_FiltersLib[] = 
+{ 
+	{ "SobelRGBA", gmfFilterSobelRGBA },
+};
+
+void RegisterGmFiltersLib(gmMachine* a_vm)
+{
+	a_vm->RegisterLibrary(s_FiltersLib, sizeof(s_FiltersLib) / sizeof(s_FiltersLib[0]), "Filter");
 }
 
 
@@ -236,19 +309,16 @@ void GMVideoDisplay::GetRemoteImage()
     // [10]: rightAngle (radian);
     // [11]: bottomAngle (radian);
 
-    const int video_pixelsize = 3;
     const int video_w = results[0];
     const int video_h = results[1];
     const int layers = results[2];
     const int colorspace = results[3];
 
-    const int layer_size = video_w * video_h * video_pixelsize;
-    
     //if (layers != 3) { return; }
     //if (colorspace != AL::kRGBColorSpace) { return; }
 
     //CHECK(layers == 3);
-    CHECK(colorspace == AL::kRGBColorSpace);
+    //CHECK(colorspace == AL::kRGBColorSpace);
     CHECK(_texture->Sizei().x == video_w);
     CHECK(_texture->Sizei().y == video_h);
 
@@ -257,31 +327,77 @@ void GMVideoDisplay::GetRemoteImage()
     // VGA = 640x480
     // 4VGA = 1280x960
 
-    const int w = video_w;
-    const int h = video_h;
-
-    uint32_t* buffer = new uint32_t[w * h];
-    for (int y = 0; y < h; ++y)
+    if (colorspace == AL::kRGBColorSpace)
     {
-        for (int x = 0; x < w; ++x)
+        CHECK(layers == 3);
+
+        const int w = video_w;
+        const int h = video_h;
+
+        uint32_t* buffer = new uint32_t[w * h];
+        for (int y = 0; y < h; ++y)
         {
-            const int src_index = (x + y * w) * video_pixelsize;
-            const int dst_index = (x + y * w);
+            for (int x = 0; x < w; ++x)
+            {
+                const int src_index = (x + y * w) * layers;
+                const int dst_index = (x + y * w);
 
-            const uint8_t r = bytes[src_index + 0];
-            const uint8_t g = bytes[src_index + 1];
-            const uint8_t b = bytes[src_index + 2];
-            const uint8_t a = 255;
+                const uint8_t r = bytes[src_index + 0];
+                const uint8_t g = bytes[src_index + 1];
+                const uint8_t b = bytes[src_index + 2];
+                const uint8_t a = 255;
 
-            buffer[dst_index] = 
-                (a << 24) |
-                (b << 16) |
-                (g <<  8) |
-                (r <<  0);
+                buffer[dst_index] = 
+                    (a << 24) |
+                    (b << 16) |
+                    (g <<  8) |
+                    (r <<  0);
+            }
         }
+
+        _texture->Bind();
+        _texture->SubData(buffer, w, h);
+        _texture->Unbind();
+
+        delete buffer;
+    }
+    else if (colorspace == AL::kYUVColorSpace)
+    {
+        CHECK(layers == 3);
+
+        const int w = video_w;
+        const int h = video_h;
+
+        uint32_t* buffer = new uint32_t[w * h];
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                const int src_index = (x + y * w) * 3;
+                const int dst_index = (x + y * w);
+
+                const uint8_t r = bytes[src_index + 0];
+                const uint8_t g = bytes[src_index + 1];
+                const uint8_t b = bytes[src_index + 2];
+                const uint8_t a = 255;
+
+                buffer[dst_index] = 
+                    (a << 24) |
+                    (b << 16) |
+                    (g <<  8) |
+                    (r <<  0);
+            }
+        }
+
+        _texture->Bind();
+        _texture->SubData(buffer, w, h);
+        _texture->Unbind();
+
+        delete buffer;
     }
 
-    // flip
+
+    // flip - handled in camera code now
     //for (int y = 0; y < h / 2; ++y)
     //{
         //uint32_t line[w];
@@ -290,11 +406,6 @@ void GMVideoDisplay::GetRemoteImage()
         //memcpy(buffer + (h - y - 1) * w, line, w * sizeof(uint32_t));
     //}
 
-    _texture->Bind();
-    _texture->SubData(buffer, w, h);
-    _texture->Unbind();
-
-    delete buffer;
 
     _proxy.releaseImage(_subscriber_id);
 }

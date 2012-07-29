@@ -306,8 +306,7 @@ global MakeMain = function()
             .video1.SetColorspace("RGB");
 
             .video0.SetResolution("QVGA");
-            .video1.SetResolution("4VGA");
-            //.video1.SetActive(.stream_video1);
+            .video1.SetResolution("QQVGA");
         }
     };
 
@@ -326,8 +325,6 @@ global MakeMain = function()
 
     Main.Gui = function()
     {
-        .DrawVideo();
-
         if (g_norobot)
         {
             return;
@@ -363,16 +360,27 @@ global MakeMain = function()
         .stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
         .stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
 
+        Gui.End();
+
         .video0.SetActive(.stream_video0);
         .video1.SetActive(.stream_video1);
-
-        .video0.SetColorspace("RGB");
-        .video1.SetColorspace("RGB");
 
         .video0.Update();
         .video1.Update();
 
-        Gui.End();
+        .DrawVideo();
+    };
+
+    Main.GetFilteredImage = function(in_, out)
+    {
+        if (!?out || out.Dimen() != in_.Dimen())
+        {
+            out = Texture(in_.Dimen());
+        }
+
+        Filter.SobelRGBA(in_, out);
+
+        return out;
     };
 
     Main.DrawVideo = function()
@@ -388,9 +396,13 @@ global MakeMain = function()
 		local vsize = v2(160.0f, 120.0f) * vscale;
 		local vpos = g_core.screenDimen * v2(0.8f, 0.5f) - vsize * 0.5f;
 
-		.video0.GetTexture().Bind(0);
+        .video0_sobel = .GetFilteredImage(.video0.GetTexture(), .video0_sobel);
+
+		//.video0.GetTexture().Bind(0);
+        .video0_sobel.Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-		.video0.GetTexture().Unbind();
+        .video0_sobel.Unbind();
+		//.video0.GetTexture().Unbind();
         
         vpos = vpos - v2(0.0f, vsize.y + 8.0f);
 

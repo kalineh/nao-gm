@@ -157,9 +157,7 @@ void Texture::ReadPixels( int x, int y, int width, int height, void* data )
 	assert( width+x <= m_dimen.x && x >= 0 );
 	assert( height+y <= m_dimen.y && y >= 0 );
 
-	Bind();
 	glReadPixels( x, y, width, height, m_params.format, m_params.dataType, data );
-	Unbind();
 }
 
 void Texture::GenMipMaps()

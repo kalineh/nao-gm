@@ -19,6 +19,8 @@ using namespace funk;
 
 void RegisterProjectLibs(gmMachine* vm)
 {
+    RegisterGmFiltersLib(vm);
+
 	GM_BIND_INIT( GMALProxy, vm );
 	GM_BIND_INIT( GMVideoDisplay, vm );
 }
