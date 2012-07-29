@@ -205,6 +205,7 @@ global MakeStatusDisplay = function()
         if (.show.Head)
         {
             Gui.Print("Head");
+            this:display("Temperature", "Device/SubDeviceList/Head/Temperature/Sensor/Value");
             this:display("Pitch - Hardness", "Device/SubDeviceList/HeadPitch/Hardness/Actuator/Value");
             this:display("Pitch - Position", "Device/SubDeviceList/HeadPitch/Position/Actuator/Value");
             this:display("Yaw - Hardness", "Device/SubDeviceList/HeadYaw/Hardness/Actuator/Value");
@@ -247,9 +248,9 @@ global MakeProxies = function(ip, port)
 
     Proxies.Init = function()
     {
-        .motion = MakeALProxy("ALMotion", .ip, .port);
-        .speech = MakeALProxy("ALTextToSpeech", .ip, .port);
-        .memory = MakeALProxy("ALMemory", .ip, .port);
+        //.motion = MakeALProxy("ALMotion", .ip, .port);
+        //.speech = MakeALProxy("ALTextToSpeech", .ip, .port);
+        //.memory = MakeALProxy("ALMemory", .ip, .port);
     };
 
     Proxies.Release = function()
@@ -276,6 +277,7 @@ global MakeMain = function()
         .speech_text = "hello";
         .stream_video0 = false;
         .stream_video1 = false;
+        .stream_video_layer = 0;
 
         .status.Init();
 
@@ -283,8 +285,10 @@ global MakeMain = function()
 		.cam2d.InitScreenSpaceSize( Window.GetDimen() );
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
-        .videotex0 = Texture( v2(160.0f, 120.0f) );
-        .videotex1 = Texture( v2(160.0f, 120.0f) );
+        //.videotex0 = Texture( v2(160.0f, 120.0f) );
+        //.videotex1 = Texture( v2(160.0f, 120.0f) );
+        .videotex0 = Texture( g_resourcePathPrefix + "common/img/video.png" );
+        .videotex1 = Texture( g_resourcePathPrefix + "common/img/video.png" );
     };
 
     Main.Release = function()
@@ -302,6 +306,13 @@ global MakeMain = function()
 
     Main.Gui = function()
     {
+        .DrawVideo();
+
+        if (g_norobot)
+        {
+            return;
+        }
+
         Gui.Begin("Robot", g_core.screenDimen.x.Int()-230, g_core.screenDimen.y.Int() - 5);
 
         if (Gui.Button("Open Hand"))
@@ -331,21 +342,23 @@ global MakeMain = function()
 
         .stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
         .stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
+        .stream_video_layer = Gui.SliderInt("Layer", .stream_video_layer, 0, 3);
         if (.stream_video0)
         {
             // dummy proxy
-            g_proxies.memory.proxy.GetVideoData(.videotex0, g_ip, g_port, 0);
+            g_proxies.memory.proxy.GetVideoData(.videotex0, g_ip, g_port, 0, .stream_video_layer);
         }
         if (.stream_video1)
         {
             // dummy proxy
-            g_proxies.memory.proxy.GetVideoData(.videotex1, g_ip, g_port, 1);
+            g_proxies.memory.proxy.GetVideoData(.videotex1, g_ip, g_port, 1, .stream_video_layer);
         }
 
         Gui.End();
+    };
 
-        // draw tex
-
+    Main.DrawVideo = function()
+    {
 		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
 		Gfx.BeginDefaultShader();
 
@@ -395,6 +408,7 @@ global MakeMain = function()
 
 global g_ip = "192.168.11.9";
 global g_port = 9559;
+global g_norobot = true;
 
 global g_main = MakeMain(ip, port);
 global g_proxies = MakeProxies(ip, port);

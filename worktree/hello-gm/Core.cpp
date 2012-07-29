@@ -16,6 +16,7 @@
 #include <gfx/Renderer.h>
 #include <gfx/TextureManager.h>
 #include <gfx/GpuTimer.h>
+#include <gfx/LineGraph.h>
 
 namespace funk
 {
