@@ -43,6 +43,50 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
     // test copy
     //memcpy(buffer_out, buffer_in, w * h * pixelsize);
 
+    // a, b, c
+    // d, e, f
+    // g, h, i
+
+    const int kernel_x[] = {
+        -1, +0, +1,
+        -2, +0, +2,
+        -1, +0, +1,
+    };
+
+    struct
+    {
+        int compute(const int kernel[], int a, int d, int g, int c, int f, int i)
+        {
+            return 
+                a * kernel[0] +
+                d * kernel[3] +
+                g * kernel[6] +
+                c * kernel[2] +
+                f * kernel[5] +
+                i * kernel[8];
+        }
+    } GX;
+
+    const int kernel_y[] = {
+        -1, -2, -1,
+        +0, +0, +0,
+        -1, +2, +1,
+    };
+
+    struct
+    {
+        int compute(const int kernel[], int a, int b, int c, int g, int h, int i)
+        {
+            return 
+                a * kernel[0] +
+                b * kernel[1] +
+                c * kernel[2] +
+                g * kernel[6] +
+                h * kernel[7] +
+                i * kernel[8];
+        }
+    } GY;
+
     uint8_t* bytes_in = (uint8_t*)buffer_in;
     for (int y = border; y < h - border; ++y)
     {
@@ -100,23 +144,43 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
             // -2,  0, +2
             // -1, -2, +1
 
-            int sum_r = ar * -1 + br * -2 + cr * +1 + dr * -2 + 0 + fr * +2 + gr * -1 + hr * -2 + ir * +1;
-            int sum_g = ag * -1 + bg * -2 + cg * +1 + dg * -2 + 0 + fg * +2 + gg * -1 + hg * -2 + ig * +1;
-            int sum_b = ab * -1 + bb * -2 + cb * +1 + db * -2 + 0 + fb * +2 + gb * -1 + hb * -2 + ib * +1;
+            int sum_rx = GX.compute(kernel_x, ar, dr, gr, cr, fr, ir);
+            int sum_gx = GX.compute(kernel_x, ag, dg, gg, cg, fg, ig);
+            int sum_bx = GX.compute(kernel_x, ab, db, gb, cb, fb, ib);
 
-            if (sum_r < 0) sum_r = 0;
-            if (sum_g < 0) sum_g = 0;
-            if (sum_b < 0) sum_b = 0;
+            if (sum_rx < 0) sum_rx = 0;
+            if (sum_gx < 0) sum_gx = 0;
+            if (sum_bx < 0) sum_bx = 0;
 
-            if (sum_r > 255) sum_r = 255;
-            if (sum_g > 255) sum_g = 255;
-            if (sum_b > 255) sum_b = 255;
+            if (sum_rx > 255) sum_rx = 255;
+            if (sum_gx > 255) sum_gx = 255;
+            if (sum_bx > 255) sum_bx = 255;
 
+            int sum_ry = GY.compute(kernel_y, ar, br, cr, gr, hr, ir);
+            int sum_gy = GY.compute(kernel_y, ag, bg, cg, gg, hg, ig);
+            int sum_by = GY.compute(kernel_y, ab, bb, cb, gb, hb, ib);
+
+            if (sum_ry < 0) sum_ry = 0;
+            if (sum_gy < 0) sum_gy = 0;
+            if (sum_by < 0) sum_by = 0;
+
+            if (sum_ry > 255) sum_ry = 255;
+            if (sum_gy > 255) sum_gy = 255;
+            if (sum_by > 255) sum_by = 255;
+
+            // sum to white
+            int sum = sum_rx + sum_gx + sum_bx + sum_ry + sum_gy + sum_by;
+            if (sum < 0) sum = 0;
+            if (sum > 255) sum = 255;
+
+            //sum = 255 - sum;
+
+            // ABGR
             const uint32_t pixel =
                 (buffer_in[pixel_index] & 0xFF000000) |
-                (sum_b << 24) |
-                (sum_g << 16) |
-                (sum_r << 8);
+                (sum << 16) |
+                (sum << 8) |
+                (sum << 0);
 
             buffer_out[pixel_index] = pixel;
         }
