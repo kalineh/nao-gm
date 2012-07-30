@@ -19,7 +19,7 @@
 
 using namespace funk;
 
-void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
+void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -172,6 +172,7 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
             int sum = sum_rx + sum_gx + sum_bx + sum_ry + sum_gy + sum_by;
             if (sum < 0) sum = 0;
             if (sum > 255) sum = 255;
+            if (sum < threshold) sum = 0;
 
             //sum = 255 - sum;
 
@@ -189,16 +190,20 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out)
     out->Bind();
     out->SubData(buffer_out, w, h, 0, 0);
     out->Unbind();
+
+    delete buffer_in;
+    delete buffer_out;
 }
 
 static int GM_CDECL gmfFilterSobelRGBA(gmThread * a_thread)
 {
-	GM_CHECK_NUM_PARAMS(2);
+	GM_CHECK_NUM_PARAMS(3);
 
 	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
 	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+	GM_CHECK_INT_PARAM(threshold, 2);
 
-    Filters::SobelRGBA(in, out);
+    Filters::SobelRGBA(in, out, threshold);
 
 	return GM_OK;
 }

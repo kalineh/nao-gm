@@ -378,7 +378,8 @@ global MakeMain = function()
             out = Texture(in_.Dimen());
         }
 
-        Filter.SobelRGBA(in_, out);
+        local threshold = 64;
+        Filter.SobelRGBA(in_, out, threshold);
 
         return out;
     };
@@ -398,17 +399,17 @@ global MakeMain = function()
 
         .video0_sobel = .GetFilteredImage(.video0.GetTexture(), .video0_sobel);
 
-		//.video0.GetTexture().Bind(0);
         .video0_sobel.Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
         .video0_sobel.Unbind();
-		//.video0.GetTexture().Unbind();
         
         vpos = vpos - v2(0.0f, vsize.y + 8.0f);
 
-		.video1.GetTexture().Bind(0);
+        .video1_sobel = .GetFilteredImage(.video1.GetTexture(), .video1_sobel);
+
+		.video1_sobel.Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-		.video1.GetTexture().Unbind();
+		.video1_sobel.Unbind();
 
         Gfx.Color(Gfx.RED);
         Gfx.DrawRect(v2(0.0f), v2(32.0f));

@@ -20,7 +20,7 @@ using namespace funk;
 class Filters
 {
 public:
-    static void SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out);
+    static void SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold);
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm);
