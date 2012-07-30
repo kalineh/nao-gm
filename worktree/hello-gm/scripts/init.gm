@@ -94,6 +94,138 @@ global MakeALProxy = function(type, ip, port)
     return ALProxy;
 };
 
+global MakeImageFilters = function()
+{
+    ImageFilters = {
+        chain = table(),
+        final = Texture(v2(8.0f, 8.0f)),
+    };
+
+    ImageFilters.MakeSobelFilter = function()
+    {
+        local filter = {
+            threshold = 32,
+            tex = null,
+        };
+
+        filter.Gui = function()
+        {
+            Gui.Print("Sobel Filter");
+            .threshold = Gui.SliderInt("Threshold", .threshold, 0, 255);
+        };
+
+        filter.Apply = function(in_, out)
+        {
+            Filter.SobelRGBA(in_, out, .threshold);
+        };
+
+        return filter;
+    };
+
+    ImageFilters.Gui = function()
+    {
+        Gui.Begin("Filters", g_core.screenDimen.x.Int()-650, g_core.screenDimen.y.Int() - 5);
+
+        //.sobel_threshold = Gui.SliderInt("Sobel Threshold", .sobel_threshold, 0, 255);
+        //.bilateral_blur_sigma = Gui.SliderFloat("Bilateral Blur Sigma", .bilateral_blur_sigma, 0.0f, 1.0f);
+
+        Gui.Separator();
+
+        if (Gui.Button("Clear")) { .Clear(); }
+        if (Gui.Button("Add Sobel")) { .Add("Sobel"); }
+        //if (Gui.Button("Add Bilateral Blur")) { .Add("_BilateralBlur"); }
+        
+        foreach (filter in .chain)
+        {
+            Gui.Separator();
+            filter.Gui(); 
+        }
+
+        Gui.End();
+    };
+
+    ImageFilters.Update = function(source)
+    {
+        local current = source;
+
+        foreach (item in .chain)
+        {
+            if (!?item.tex || item.tex.Dimen() != current.Dimen())
+            {
+                item.tex = Texture(current.Dimen());
+            }
+
+            item.tex = item.Apply(current, item.tex);
+        }
+
+        .final = current;
+    };
+
+    ImageFilters.Draw = function(x, y, source)
+    {
+		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
+		Gfx.BeginDefaultShader();
+        .cam2d.Begin();
+
+		Gfx.Color(Gfx.WHITE, 1.0f);
+
+        local pos = v2(1.0f / g_core.screenDimen.x * x, 1.0f / g_core.screenDimen.y * y);
+        local size = v2(320.0f, 240.0f);
+
+        foreach (item in .chain)
+        {
+            if (!?item.tex)
+            {
+                continue;
+            }
+
+            item.tex.Bind(0);
+            Gfx.DrawRectTexCoords(pos, size);
+            item.tex.Unbind();
+        }
+
+        .cam2d.End();
+		Gfx.EndDefaultShader();
+		Gfx.Viewport( v2(0), g_core.screenDimen );
+    };
+
+    ImageFilters.GetTexture = function()
+    {
+        return .final;
+    };
+
+    ImageFilters.Add = function(name)
+    {
+        .chain[tableCount(.chain)] = this["Make" + name + "Filter"]();
+    };
+
+    ImageFilters.Clear = function()
+    {
+        .chain = table();
+    };
+
+    ImageFilters.Apply = function(source)
+    {
+        if (.final.Dimen() != source.Dimen())
+        {
+            .final = Texture(source.Dimen());
+        }
+
+        source.CopyInto(.final);
+
+        local last = .final;
+
+        foreach (item in .chain)
+        {
+            item.Apply(source, .final);
+        }
+
+        last.CopyInto(.final);
+    };
+
+    return ImageFilters;
+};
+
 global MakeStatusDisplay = function()
 {
     local StatusDisplay = {
@@ -286,6 +418,8 @@ global MakeMain = function()
 		.cam2d.InitScreenSpaceSize( Window.GetDimen() );
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
+        .filters = MakeImageFilters();
+
         //.videotex0 = Texture( v2(160.0f, 120.0f) );
         //.videotex1 = Texture( v2(160.0f, 120.0f) );
         //.videotex0 = Texture( g_resourcePathPrefix + "common/img/video.png" );
@@ -368,20 +502,10 @@ global MakeMain = function()
         .video0.Update();
         .video1.Update();
 
+        .filters.Apply(.video0.GetTexture());
+        //.filters.Apply(.video1);
+
         .DrawVideo();
-    };
-
-    Main.GetFilteredImage = function(in_, out)
-    {
-        if (!?out || out.Dimen() != in_.Dimen())
-        {
-            out = Texture(in_.Dimen());
-        }
-
-        local threshold = 64;
-        Filter.SobelRGBA(in_, out, threshold);
-
-        return out;
     };
 
     Main.DrawVideo = function()
@@ -397,19 +521,20 @@ global MakeMain = function()
 		local vsize = v2(160.0f, 120.0f) * vscale;
 		local vpos = g_core.screenDimen * v2(0.8f, 0.5f) - vsize * 0.5f;
 
-        .video0_sobel = .GetFilteredImage(.video0.GetTexture(), .video0_sobel);
+        .filters.Apply(.video0.GetTexture());
 
-        .video0_sobel.Bind(0);
+        local video0 = .filters.GetTexture();
+
+        video0.Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-        .video0_sobel.Unbind();
+        video0.Unbind();
         
         vpos = vpos - v2(0.0f, vsize.y + 8.0f);
 
-        .video1_sobel = .GetFilteredImage(.video1.GetTexture(), .video1_sobel);
-
-		.video1_sobel.Bind(0);
-		Gfx.DrawRectTexCoords( vpos, vsize );
-		.video1_sobel.Unbind();
+        //.video1_sobel = .GetFilteredImage(.video1.GetTexture(), .video1_sobel);
+		//.video1_sobel.Bind(0);
+		//Gfx.DrawRectTexCoords( vpos, vsize );
+		//.video1_sobel.Unbind();
 
         Gfx.Color(Gfx.RED);
         Gfx.DrawRect(v2(0.0f), v2(32.0f));
@@ -428,6 +553,7 @@ global MakeMain = function()
         {
     		RegisterDraw( DrawLayers.Clear, .ClearScreen, this );
     		RegisterGui( .Gui, this );			
+    		RegisterGui( .filters.Gui, .filters );			
 
             yield();
         }

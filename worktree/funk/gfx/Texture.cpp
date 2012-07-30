@@ -98,6 +98,31 @@ void Texture::SetFilter( int minFilter, int magFilter )
 	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER, magFilter );
 }
 
+void Texture::CopyInto(StrongHandle<Texture> dst)
+{
+    // TODO: assert no texture is bound (glGet(GL_TEXTURE_BINDING_2D, ...)? but how many params needed)
+    CHECK(dst->m_dimen == m_dimen);
+    CHECK(dst->m_params.dataType == m_params.dataType);
+    CHECK(dst->m_params.format == m_params.format);
+    CHECK(dst->m_params.internalFormat == m_params.internalFormat);
+
+    unsigned int* buffer = new unsigned int[m_dimen.x * m_dimen.y];
+
+    this->Bind(0);
+    this->GetTexImage(buffer);
+    this->Unbind();
+
+    glFinish();
+
+    dst->Bind();
+    dst->SubData(buffer, m_dimen.x, m_dimen.y, 0, 0);
+    dst->Unbind();
+
+    glFinish();
+
+    delete buffer;
+}
+
 void Texture::Init( const char * name, unsigned char * data, int width, int height, int bitsPerPixel )
 {
 	m_filename = name;
@@ -257,6 +282,16 @@ GM_REG_NAMESPACE(Texture)
 
 	GM_GEN_MEMFUNC_VOID_INT_INT( Texture, SetWrap )
 	GM_GEN_MEMFUNC_VOID_INT_INT( Texture, SetFilter )
+
+	GM_MEMFUNC_DECL(CopyInto)
+	{
+        GM_CHECK_NUM_PARAMS(1);
+        GM_GET_USER_PARAM_PTR(Texture, dst, 0);
+		GM_GET_THIS_PTR(Texture, ptr);
+        ptr->CopyInto(dst);
+		return GM_OK;
+	}
+
 }
 
 GM_REG_MEM_BEGIN(Texture)
@@ -270,6 +305,7 @@ GM_REG_MEMFUNC( Texture, GenMipMaps )
 GM_REG_MEMFUNC( Texture, Filename )
 GM_REG_MEMFUNC( Texture, SetWrap )
 GM_REG_MEMFUNC( Texture, SetFilter )
+GM_REG_MEMFUNC( Texture, CopyInto )
 GM_REG_HANDLED_DESTRUCTORS(Texture)
 GM_REG_MEM_END()
 GM_BIND_DEFINE(Texture)

@@ -35,6 +35,8 @@ namespace funk
 		void SetWrap( int uType, int vType );
 		void SetFilter( int minFilter, int magFilter );
 
+        void CopyInto(StrongHandle<Texture> dst);
+
 		GM_BIND_TYPEID(Texture);
 		~Texture();
 
