@@ -122,18 +122,38 @@ global MakeImageFilters = function()
         return filter;
     };
 
+    ImageFilters.MakeBilateralFilter = function()
+    {
+        local filter = {
+            spatial_sigma = 1.0f,
+            edge_sigma = 1.0f,
+            tex = null,
+        };
+
+        filter.Gui = function()
+        {
+            Gui.Print("Bilateral Filter");
+            .spatial_sigma = Gui.SliderFloat("Spatial Sigma", .spatial_sigma, 0.0f, 0.5f);
+            .edge_sigma = Gui.SliderFloat("Edge Sigma", .edge_sigma, 0.0f, 0.5f);
+        };
+
+        filter.Apply = function(in_, out)
+        {
+            Filter.BilateralRGBA(in_, out, .spatial_sigma, .edge_sigma);
+        };
+
+        return filter;
+    };
+
     ImageFilters.Gui = function()
     {
         Gui.Begin("Filters", g_core.screenDimen.x.Int()-650, g_core.screenDimen.y.Int() - 5);
-
-        //.sobel_threshold = Gui.SliderInt("Sobel Threshold", .sobel_threshold, 0, 255);
-        //.bilateral_blur_sigma = Gui.SliderFloat("Bilateral Blur Sigma", .bilateral_blur_sigma, 0.0f, 1.0f);
 
         Gui.Separator();
 
         if (Gui.Button("Clear")) { .Clear(); }
         if (Gui.Button("Add Sobel")) { .Add("Sobel"); }
-        //if (Gui.Button("Add Bilateral Blur")) { .Add("_BilateralBlur"); }
+        if (Gui.Button("Add Bilateral")) { .Add("Bilateral"); }
         
         foreach (filter in .chain)
         {
@@ -213,14 +233,10 @@ global MakeImageFilters = function()
 
         source.CopyInto(.final);
 
-        local last = .final;
-
         foreach (item in .chain)
         {
-            item.Apply(source, .final);
+            item.Apply(.final, .final);
         }
-
-        last.CopyInto(.final);
     };
 
     return ImageFilters;
@@ -439,7 +455,7 @@ global MakeMain = function()
             .video0.SetColorspace("RGB");
             .video1.SetColorspace("RGB");
 
-            .video0.SetResolution("QVGA");
+            .video0.SetResolution("QQVGA");
             .video1.SetResolution("QQVGA");
         }
     };

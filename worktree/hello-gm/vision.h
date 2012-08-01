@@ -21,6 +21,7 @@ class Filters
 {
 public:
     static void SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold);
+    static void BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma);
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm);

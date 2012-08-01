@@ -17,6 +17,8 @@
 #include <alproxies/alvideodeviceproxy.h>
 #include <alvision/alvisiondefinitions.h>
 
+#include <math.h>
+
 using namespace funk;
 
 void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold)
@@ -195,6 +197,130 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int
     delete buffer_out;
 }
 
+void Filters::BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
+{
+    CHECK(in->Sizei() == out->Sizei());
+
+    // ignore edges because simplicity
+
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer_in = new uint32_t[w * h];
+    uint32_t* buffer_out = new uint32_t[w * h];
+    uint8_t* buffer_work = new uint8_t[w * h];
+
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
+    in->Unbind();
+
+    glFinish();
+
+    // filter
+
+    const int window_x = 6;
+    const int window_y = 6;
+
+    struct {
+        inline uint32_t get(uint32_t value)
+        {
+            return ((value & 0x00FF0000) >> 16) +
+                   ((value & 0x0000FF00) >> 8) +
+                   ((value & 0x000000FF) >> 0);
+        }
+    } sum_rgb;
+
+    // horizontal pass
+
+    for (int y = window_y; y < h - window_y; ++y)
+    {
+        for (int x = window_x; x < w - window_x; ++x)
+        {
+            float num = 0.0f;
+            float den = 0.0f;
+
+            for (int i = x - window_x; i < x + window_x; ++i)
+            {
+                const uint32_t src_pixel = buffer_in[x + y * w];
+                const uint32_t src_sum = sum_rgb.get(src_pixel) / 3;
+
+                const uint32_t window_pixel = buffer_in[i + y * w];
+                const uint32_t window_sum = sum_rgb.get(window_pixel) / 3;
+
+                // spatial weight
+                const float sw1 = float(abs(i - x)) / spatial_sigma;
+                const float sw2 = pow(sw1, 2.0f);
+                const float sw = exp(-0.5f * sw2);
+
+                // edge weight
+                const float ew1 = float(window_sum - src_sum);
+                const float ew2 = abs(ew1 / edge_sigma);
+                const float ew3 = pow(ew2, 2.0f);
+                const float ew = exp(-0.5f * ew3);
+
+                num += window_sum * sw * ew;
+                den += sw * ew;
+            }
+
+            buffer_work[x + y * w] = uint8_t(num / den);
+        }
+    }
+
+    // vertical pass
+
+    for (int y = window_y; y < h - window_y; ++y)
+    {
+        for (int x = window_x; x < w - window_x; ++x)
+        {
+            float num = 0.0f;
+            float den = 0.0f;
+
+            for (int i = y - window_y; i < y + window_y; ++i)
+            {
+                const uint32_t src_pixel = buffer_in[x + y * w];
+                const uint32_t src_sum = sum_rgb.get(src_pixel) / 3;
+
+                const uint32_t window_pixel = buffer_in[x + i * w];
+                const uint32_t window_sum = sum_rgb.get(window_pixel) / 3;
+
+                // spatial weight
+                const float sw1 = float(abs(i - y)) / spatial_sigma;
+                const float sw2 = pow(sw1, 2.0f);
+                const float sw = exp(-0.5f * sw2);
+
+                // edge weight
+                const float ew1 = float(window_sum - src_sum);
+                const float ew2 = abs(ew1 / edge_sigma);
+                const float ew3 = pow(ew2, 2.0f);
+                const float ew = exp(-0.5f * ew3);
+
+                const uint8_t work_pixel = buffer_work[x + i * w];
+
+                num += float(work_pixel) * sw * ew;
+                den += sw * ew;
+            }
+
+            const uint32_t normalized = uint32_t((num / den) / 3.0f);
+            const uint32_t clamped = std::min<uint32_t>(normalized, 255);
+            const uint8_t result = uint8_t(clamped);
+            buffer_out[x + y * w] = 
+                (0xFF000000) |
+                (result << 16) |
+                (result << 8) |
+                (result << 0);
+        }
+    }
+
+    out->Bind();
+    out->SubData(buffer_out, w, h, 0, 0);
+    out->Unbind();
+
+    delete buffer_in;
+    delete buffer_out;
+    delete buffer_work;
+}
+
 static int GM_CDECL gmfFilterSobelRGBA(gmThread * a_thread)
 {
 	GM_CHECK_NUM_PARAMS(3);
@@ -208,9 +334,24 @@ static int GM_CDECL gmfFilterSobelRGBA(gmThread * a_thread)
 	return GM_OK;
 }
 
+static int GM_CDECL gmfFilterBilateralRGBA(gmThread * a_thread)
+{
+	GM_CHECK_NUM_PARAMS(4);
+
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+    GM_CHECK_FLOAT_PARAM( spatial_sigma, 2 );
+    GM_CHECK_FLOAT_PARAM( edge_sigma, 2 );
+
+    Filters::BilateralRGBA(in, out, spatial_sigma, edge_sigma);
+
+	return GM_OK;
+}
+
 static gmFunctionEntry s_FiltersLib[] = 
 { 
 	{ "SobelRGBA", gmfFilterSobelRGBA },
+	{ "BilateralRGBA", gmfFilterBilateralRGBA },
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm)
