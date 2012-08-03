@@ -117,7 +117,27 @@ global MakeImageFilters = function()
 
         filter.Apply = function(in_, out)
         {
-            Filter.SobelRGBA(in_, out, .threshold);
+            Filter.SobelARGB(in_, out, .threshold);
+        };
+
+        return filter;
+    };
+
+    ImageFilters.MakeBoxBlurFilter = function()
+    {
+        local filter = {
+            enabled = true,
+            tex = null,
+        };
+
+        filter.Gui = function()
+        {
+            Gui.Print("Box Blur");
+        };
+
+        filter.Apply = function(in_, out)
+        {
+            Filter.BoxBlurARGB(in_, out, .threshold);
         };
 
         return filter;
@@ -141,7 +161,7 @@ global MakeImageFilters = function()
 
         filter.Apply = function(in_, out)
         {
-            Filter.BilateralRGBA(in_, out, .spatial_sigma, .edge_sigma);
+            Filter.BilateralARGB(in_, out, .spatial_sigma, .edge_sigma);
         };
 
         return filter;
@@ -156,6 +176,7 @@ global MakeImageFilters = function()
         if (Gui.Button("Clear")) { .Clear(); }
         if (Gui.Button("Add Sobel")) { .Add("Sobel"); }
         if (Gui.Button("Add Bilateral")) { .Add("Bilateral"); }
+        if (Gui.Button("Add BoxBlur")) { .Add("BoxBlur"); }
         
         foreach (filter in .chain)
         {

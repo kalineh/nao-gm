@@ -20,8 +20,9 @@ using namespace funk;
 class Filters
 {
 public:
-    static void SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold);
-    static void BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma);
+    static void SobelARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold);
+    static void BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma);
+    static void BoxBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out);
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm);

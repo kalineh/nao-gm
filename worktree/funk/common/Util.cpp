@@ -16,7 +16,7 @@ char * TextFileRead( const char * fileName, int * numBytes )
 	}
 
 	file.seekg( 0, std::ios::end );
-	size_t size = file.tellg();
+	size_t size = (size_t)file.tellg();
 	file.seekg( 0, std::ios::beg );
 
 	char* data = new char[ size + 1 ];

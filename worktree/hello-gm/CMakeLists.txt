@@ -7,6 +7,7 @@ find_package(qibuild REQUIRED)
 find_package(funklibs REQUIRED)
 
 include_directories(../funk)
+include_directories(../glm-0.9.3.4)
 
 # hackery to put all the funk source into vcproj
 file(GLOB_RECURSE FUNK_SRCS ../funk/*.cpp)

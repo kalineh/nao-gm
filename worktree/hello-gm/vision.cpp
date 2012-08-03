@@ -19,9 +19,181 @@
 
 #include <math.h>
 
+#define GLM_MESSAGES
+#define GLM_FORCE_INLINE
+#include <glm/glm.hpp>
+//#include <glm/gtx/simd_vec4.hpp>
+#include <glm/gtc/swizzle.hpp>
+
 using namespace funk;
 
-void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold)
+const glm::vec4 LuminanceCoefficientARGB = glm::vec4(1.0f, 0.2126f, 0.7152f, 0.0722f);
+const glm::vec4 LuminancePerceivedCoefficientARGB = glm::vec4(1.0f, 0.299f, 0.587f, 0.114f);
+
+struct ImageView
+{
+    int width;
+    int height;
+
+    explicit ImageView(int w, int h)
+        : width(w)
+        , height(h)
+    {
+    }
+
+    int indexof(int x, int y) const
+    {
+        x = clamp(x, 0, width - 1);
+        y = clamp(y, 0, height - 1);
+
+        return x + y * width;
+    }
+};
+
+// fast integer clamping
+//x -= a;
+//x &= (~x) >> 31;
+//x += a;
+//x -= b;
+//x &= x >> 31;
+//x += b;
+
+struct Image
+{
+    int width;
+    int height;
+    uint32_t* src;
+    glm::vec4* work;
+
+    Image(uint32_t* src, int w, int h)
+        : width(w)
+        , height(h)
+        , src(src)
+    {
+    }
+
+    void write(uint32_t* out);
+};
+
+void Convolve_ARGB_V4(glm::vec4* in, glm::vec4* out, int w, int h)
+{
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+        }
+    }
+}
+
+struct Convolver_3x3
+{
+    float kernel[9];
+
+    void apply(uint32_t* src, uint32_t* dst)
+    {
+        //for 
+    }
+};
+
+struct Convolver_xRGB_3x3
+{
+    float kernel[9];
+    //void apply(uint32_t* src, 
+};
+
+void VectorizeImageARGBLuminance(glm::vec4* out, uint32_t* in, int w, int h)
+{
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const int i = x + y * w;
+            const uint32_t pixel = in[i];
+            const uint8_t a = (pixel & 0xFF000000) >> 24;
+            const uint8_t r = (pixel & 0x00FF0000) >> 16;
+            const uint8_t g = (pixel & 0x0000FF00) >> 8;
+            const uint8_t b = (pixel & 0x000000FF) >> 0;
+            const glm::vec4 v = glm::vec4(a / 255.0f , r / 255.0f, g / 255.0f, b / 255.0f);
+
+            out[i] = v * LuminanceCoefficientARGB;
+        }
+    }
+}
+
+void VectorizeImageARGBARGB(glm::vec4* out, uint32_t* in, int w, int h)
+{
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const int i = x + y * w;
+
+            const uint32_t pixel = in[i];
+            const uint8_t a = (pixel & 0xFF000000) >> 24;
+            const uint8_t r = (pixel & 0x00FF0000) >> 16;
+            const uint8_t g = (pixel & 0x0000FF00) >> 8;
+            const uint8_t b = (pixel & 0x000000FF) >> 0;
+            const glm::vec4 v = glm::vec4(a / 255.0f , r / 255.0f, g / 255.0f, b / 255.0f);
+
+            out[i] = v;
+        }
+    }
+}
+
+void UnvectorizeImageARGBARGB(uint32_t* out, glm::vec4* in, int w, int h)
+{
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const int i = x + y * w;
+
+            const glm::vec4 pixel = in[i];
+            const uint8_t a = uint8_t(pixel.x * 255.0f);
+            const uint8_t r = uint8_t(pixel.y * 255.0f);
+            const uint8_t g = uint8_t(pixel.z * 255.0f);
+            const uint8_t b = uint8_t(pixel.w * 255.0f);
+
+            const uint32_t v = 
+                (a << 24) |
+                (r << 16) |
+                (g <<  8) |
+                (b <<  0);
+
+            out[i] = v;
+        }
+    }
+}
+
+void Convolve3x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a b c
+            // d e f
+            // g h i
+
+            const glm::vec4 a = in[view.indexof(x - 1, y - 1)];
+            const glm::vec4 b = in[view.indexof(x + 0, y - 1)];
+            const glm::vec4 c = in[view.indexof(x + 1, y - 1)];
+            const glm::vec4 d = in[view.indexof(x - 1, y + 0)];
+            const glm::vec4 e = in[view.indexof(x + 0, y + 0)];
+            const glm::vec4 f = in[view.indexof(x + 1, y + 0)];
+            const glm::vec4 g = in[view.indexof(x - 1, y + 1)];
+            const glm::vec4 h = in[view.indexof(x + 0, y + 1)];
+            const glm::vec4 i = in[view.indexof(x + 1, y + 1)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2] +
+                d * kernel[3] + e * kernel[4] + f * kernel[5] +
+                g * kernel[6] + h * kernel[7] + i * kernel[8];
+        }
+    }
+}
+
+void Filters::SobelARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -35,6 +207,7 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int
 
     uint32_t* buffer_in = new uint32_t[w * h];
     uint32_t* buffer_out = new uint32_t[w * h];
+    //glm::vec4* buffer_work = new glm::vec4[w * h]
 
     in->Bind(0);
     in->GetTexImage(buffer_in);
@@ -197,7 +370,7 @@ void Filters::SobelRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, int
     delete buffer_out;
 }
 
-void Filters::BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
+void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -219,8 +392,8 @@ void Filters::BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out,
 
     // filter
 
-    const int window_x = 6;
-    const int window_y = 6;
+    const int window_x = 3;
+    const int window_y = 3;
 
     struct {
         inline uint32_t get(uint32_t value)
@@ -323,7 +496,50 @@ void Filters::BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out,
     delete buffer_work;
 }
 
-static int GM_CDECL gmfFilterSobelRGBA(gmThread * a_thread)
+void Filters::BoxBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out)
+{
+    CHECK(in->Sizei() == out->Sizei());
+
+    // ignore edges because simplicity
+
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer_in = new uint32_t[w * h];
+    uint32_t* buffer_out = new uint32_t[w * h];
+    glm::vec4* buffer_vin = new glm::vec4[w * h];
+    glm::vec4* buffer_vout = new glm::vec4[w * h];
+
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
+    in->Unbind();
+
+    glFinish();
+
+    VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
+
+    const float kernel[9] = {
+        1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f,
+        1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f,
+        1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f,
+    };
+
+    ImageView view(w, h);
+    Convolve3x3(buffer_vin, buffer_vout, view, kernel);
+    UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
+
+    out->Bind();
+    out->SubData(buffer_out, w, h, 0, 0);
+    out->Unbind();
+
+    delete buffer_in;
+    delete buffer_out;
+    delete buffer_vin;
+    delete buffer_vout;
+}
+
+static int GM_CDECL gmfFilterSobelARGB(gmThread * a_thread)
 {
 	GM_CHECK_NUM_PARAMS(3);
 
@@ -331,12 +547,12 @@ static int GM_CDECL gmfFilterSobelRGBA(gmThread * a_thread)
 	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
 	GM_CHECK_INT_PARAM(threshold, 2);
 
-    Filters::SobelRGBA(in, out, threshold);
+    Filters::SobelARGB(in, out, threshold);
 
 	return GM_OK;
 }
 
-static int GM_CDECL gmfFilterBilateralRGBA(gmThread * a_thread)
+static int GM_CDECL gmfFilterBilateralARGB(gmThread * a_thread)
 {
 	GM_CHECK_NUM_PARAMS(4);
 
@@ -345,15 +561,28 @@ static int GM_CDECL gmfFilterBilateralRGBA(gmThread * a_thread)
     GM_CHECK_FLOAT_PARAM( spatial_sigma, 2 );
     GM_CHECK_FLOAT_PARAM( edge_sigma, 2 );
 
-    Filters::BilateralRGBA(in, out, spatial_sigma, edge_sigma);
+    Filters::BilateralARGB(in, out, spatial_sigma, edge_sigma);
+
+	return GM_OK;
+}
+
+static int GM_CDECL gmfFilterBoxBlurARGB(gmThread * a_thread)
+{
+	GM_CHECK_NUM_PARAMS(2);
+
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+
+    Filters::BoxBlurARGB(in, out);
 
 	return GM_OK;
 }
 
 static gmFunctionEntry s_FiltersLib[] = 
 { 
-	{ "SobelRGBA", gmfFilterSobelRGBA },
-	{ "BilateralRGBA", gmfFilterBilateralRGBA },
+	{ "SobelARGB", gmfFilterSobelARGB },
+	{ "BilateralARGB", gmfFilterBilateralARGB },
+	{ "BoxBlurARGB", gmfFilterBoxBlurARGB },
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm)
