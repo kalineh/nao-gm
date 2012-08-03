@@ -225,9 +225,11 @@ void Filters::BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out,
     struct {
         inline uint32_t get(uint32_t value)
         {
-            return ((value & 0x00FF0000) >> 16) +
-                   ((value & 0x0000FF00) >> 8) +
-                   ((value & 0x000000FF) >> 0);
+            // roughly approximate luminance (divisor low to enhance brightness a little)
+            return (
+                ((value & 0x00FF0000) >> 16) * 2 +
+                ((value & 0x0000FF00) >> 8) * 5 +
+                ((value & 0x000000FF) >> 0) * 1) / 8;
         }
     } sum_rgb;
 
@@ -243,10 +245,10 @@ void Filters::BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out,
             for (int i = x - window_x; i < x + window_x; ++i)
             {
                 const uint32_t src_pixel = buffer_in[x + y * w];
-                const uint32_t src_sum = sum_rgb.get(src_pixel) / 3;
+                const uint32_t src_sum = sum_rgb.get(src_pixel);
 
                 const uint32_t window_pixel = buffer_in[i + y * w];
-                const uint32_t window_sum = sum_rgb.get(window_pixel) / 3;
+                const uint32_t window_sum = sum_rgb.get(window_pixel);
 
                 // spatial weight
                 const float sw1 = float(abs(i - x)) / spatial_sigma;
@@ -279,10 +281,10 @@ void Filters::BilateralRGBA(StrongHandle<Texture> in, StrongHandle<Texture> out,
             for (int i = y - window_y; i < y + window_y; ++i)
             {
                 const uint32_t src_pixel = buffer_in[x + y * w];
-                const uint32_t src_sum = sum_rgb.get(src_pixel) / 3;
+                const uint32_t src_sum = sum_rgb.get(src_pixel);
 
                 const uint32_t window_pixel = buffer_in[x + i * w];
-                const uint32_t window_sum = sum_rgb.get(window_pixel) / 3;
+                const uint32_t window_sum = sum_rgb.get(window_pixel);
 
                 // spatial weight
                 const float sw1 = float(abs(i - y)) / spatial_sigma;
