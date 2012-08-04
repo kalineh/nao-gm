@@ -21,8 +21,9 @@
 
 #define GLM_MESSAGES
 #define GLM_FORCE_INLINE
+#define GLM_FORCE_SSE2
 #include <glm/glm.hpp>
-//#include <glm/gtx/simd_vec4.hpp>
+#include <glm/gtx/simd_vec4.hpp>
 #include <glm/gtc/swizzle.hpp>
 
 // Performance notes (release build):
@@ -31,9 +32,10 @@
 // bilateral using naive integer inline convolution (3x3 window): 90ms
 // boxblur using vec4 3x3 kernel: 8ms
 // gaussianblur using vec4 5x5 kernel: 8ms
-// gaussianblur using vec4 3x3 kernel: 7ms
-// gaussianblur using vec4 3x3 kernel with imagecache: 6ms
-// gaussianblur using vec4 5x5 kernel with imagecache: 7ms
+// gaussianblur using vec4 2x 3x1 kernel: 7ms
+// gaussianblur using vec4 2x 3x1 kernel with imagecache: 6ms
+// gaussianblur using simdVec4 2x 5x1 kernel with imagecache: 7ms
+// gaussianblur using simdVec4 2x 5x1 kernel with imagecache: 5.5ms
 
 using namespace funk;
 
@@ -97,7 +99,7 @@ public:
         for (int i = 0; i < (int)_cache.size(); ++i)
         {
             Image& image = _cache[i];
-            if (image.data != data)
+            if (image.data == data)
             {
                 image.used = false; 
                 break;
@@ -136,49 +138,6 @@ struct ImageView
 //x &= x >> 31;
 //x += b;
 
-struct Image
-{
-    int width;
-    int height;
-    uint32_t* src;
-    glm::vec4* work;
-
-    Image(uint32_t* src, int w, int h)
-        : width(w)
-        , height(h)
-        , src(src)
-    {
-    }
-
-    void write(uint32_t* out);
-};
-
-void Convolve_ARGB_V4(glm::vec4* in, glm::vec4* out, int w, int h)
-{
-    for (int y = 0; y < h; ++y)
-    {
-        for (int x = 0; x < w; ++x)
-        {
-        }
-    }
-}
-
-struct Convolver_3x3
-{
-    float kernel[9];
-
-    void apply(uint32_t* src, uint32_t* dst)
-    {
-        //for 
-    }
-};
-
-struct Convolver_xRGB_3x3
-{
-    float kernel[9];
-    //void apply(uint32_t* src, 
-};
-
 void VectorizeImageARGBLuminance(glm::vec4* out, uint32_t* in, int w, int h)
 {
     for (int y = 0; y < h; ++y)
@@ -191,7 +150,7 @@ void VectorizeImageARGBLuminance(glm::vec4* out, uint32_t* in, int w, int h)
             const uint8_t r = (pixel & 0x00FF0000) >> 16;
             const uint8_t g = (pixel & 0x0000FF00) >> 8;
             const uint8_t b = (pixel & 0x000000FF) >> 0;
-            const glm::vec4 v = glm::vec4(a / 255.0f , r / 255.0f, g / 255.0f, b / 255.0f);
+            const glm::vec4 v = glm::vec4(a, r, g, b) / 255.0f;
 
             out[i] = v * LuminanceCoefficientARGB;
         }
@@ -211,7 +170,7 @@ void VectorizeImageARGBARGB(glm::vec4* out, uint32_t* in, int w, int h)
             const uint8_t r = (pixel & 0x00FF0000) >> 16;
             const uint8_t g = (pixel & 0x0000FF00) >> 8;
             const uint8_t b = (pixel & 0x000000FF) >> 0;
-            const glm::vec4 v = glm::vec4(a / 255.0f , r / 255.0f, g / 255.0f, b / 255.0f);
+            const glm::vec4 v = glm::vec4(a, r, g, b) / 255.0f;
 
             out[i] = v;
         }
@@ -226,11 +185,11 @@ void UnvectorizeImageARGBARGB(uint32_t* out, glm::vec4* in, int w, int h)
         {
             const int i = x + y * w;
 
-            const glm::vec4 pixel = in[i];
-            const uint8_t a = uint8_t(pixel.x * 255.0f);
-            const uint8_t r = uint8_t(pixel.y * 255.0f);
-            const uint8_t g = uint8_t(pixel.z * 255.0f);
-            const uint8_t b = uint8_t(pixel.w * 255.0f);
+            const glm::vec4 pixel = in[i] * 255.0f;
+            const uint8_t a = uint8_t(pixel.x);
+            const uint8_t r = uint8_t(pixel.y);
+            const uint8_t g = uint8_t(pixel.z);
+            const uint8_t b = uint8_t(pixel.w);
 
             const uint32_t v = 
                 (a << 24) |
@@ -289,50 +248,6 @@ void Convolve3x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
     }
 }
 
-void Convolve5x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
-{
-    for (int y = 0; y < view.height; ++y)
-    {
-        for (int x = 0; x < view.width; ++x)
-        {
-            // a b c d e
-
-            const glm::vec4 a = in[view.indexof(x - 2, y)];
-            const glm::vec4 b = in[view.indexof(x - 1, y)];
-            const glm::vec4 c = in[view.indexof(x + 0, y)];
-            const glm::vec4 d = in[view.indexof(x + 1, y)];
-            const glm::vec4 e = in[view.indexof(x + 2, y)];
-
-            out[view.indexof(x, y)] = 
-                a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4];
-        }
-    }
-}
-
-void Convolve1x5(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
-{
-    for (int y = 0; y < view.height; ++y)
-    {
-        for (int x = 0; x < view.width; ++x)
-        {
-            // a
-            // b
-            // c
-            // d
-            // e
-
-            const glm::vec4 a = in[view.indexof(x, y - 2)];
-            const glm::vec4 b = in[view.indexof(x, y - 1)];
-            const glm::vec4 c = in[view.indexof(x, y + 0)];
-            const glm::vec4 d = in[view.indexof(x, y + 1)];
-            const glm::vec4 e = in[view.indexof(x, y + 2)];
-
-            out[view.indexof(x, y)] = 
-                a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4];
-        }
-    }
-}
-
 void Convolve1x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
@@ -349,6 +264,50 @@ void Convolve1x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
 
             out[view.indexof(x, y)] = 
                 a * kernel[0] + b * kernel[1] + c * kernel[2];
+        }
+    }
+}
+
+void Convolve5x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a b c d e
+
+            const glm::simdVec4 a = glm::simdVec4(in[view.indexof(x - 2, y)]);
+            const glm::simdVec4 b = glm::simdVec4(in[view.indexof(x - 1, y)]);
+            const glm::simdVec4 c = glm::simdVec4(in[view.indexof(x + 0, y)]);
+            const glm::simdVec4 d = glm::simdVec4(in[view.indexof(x + 1, y)]);
+            const glm::simdVec4 e = glm::simdVec4(in[view.indexof(x + 2, y)]);
+
+            out[view.indexof(x, y)] = 
+                glm::vec4_cast(a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4]);
+        }
+    }
+}
+
+void Convolve1x5(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a
+            // b
+            // c
+            // d
+            // e
+
+            const glm::simdVec4 a = glm::simdVec4(in[view.indexof(x, y - 2)]);
+            const glm::simdVec4 b = glm::simdVec4(in[view.indexof(x, y - 1)]);
+            const glm::simdVec4 c = glm::simdVec4(in[view.indexof(x, y + 0)]);
+            const glm::simdVec4 d = glm::simdVec4(in[view.indexof(x, y + 1)]);
+            const glm::simdVec4 e = glm::simdVec4(in[view.indexof(x, y + 2)]);
+
+            out[view.indexof(x, y)] = 
+                glm::vec4_cast(a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4]);
         }
     }
 }
@@ -717,11 +676,6 @@ void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out,
     out->Bind();
     out->SubData(buffer_out, w, h, 0, 0);
     out->Unbind();
-
-    //delete buffer_in;
-    //delete buffer_out;
-    //delete buffer_vin;
-    //delete buffer_vout;
 
     g_imagecache.Push(buffer_in);
     g_imagecache.Push(buffer_out);
