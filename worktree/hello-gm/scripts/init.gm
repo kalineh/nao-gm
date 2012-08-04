@@ -123,26 +123,6 @@ global MakeImageFilters = function()
         return filter;
     };
 
-    ImageFilters.MakeBoxBlurFilter = function()
-    {
-        local filter = {
-            enabled = true,
-            tex = null,
-        };
-
-        filter.Gui = function()
-        {
-            Gui.Print("Box Blur");
-        };
-
-        filter.Apply = function(in_, out)
-        {
-            Filter.BoxBlurARGB(in_, out, .threshold);
-        };
-
-        return filter;
-    };
-
     ImageFilters.MakeBilateralFilter = function()
     {
         local filter = {
@@ -167,6 +147,48 @@ global MakeImageFilters = function()
         return filter;
     };
 
+    ImageFilters.MakeBoxBlurFilter = function()
+    {
+        local filter = {
+            enabled = true,
+            tex = null,
+        };
+
+        filter.Gui = function()
+        {
+            Gui.Print("Box Blur");
+        };
+
+        filter.Apply = function(in_, out)
+        {
+            Filter.BoxBlurARGB(in_, out, .threshold);
+        };
+
+        return filter;
+    };
+
+    ImageFilters.MakeGaussianBlurFilter = function()
+    {
+        local filter = {
+            enabled = true,
+            sigma = 1.0f,
+            tex = null,
+        };
+
+        filter.Gui = function()
+        {
+            Gui.Print("Gaussian Blur");
+            .sigma = Gui.SliderFloat("Sigma", .sigma, 0.05f, 2.0f);
+        };
+
+        filter.Apply = function(in_, out)
+        {
+            Filter.GaussianBlurARGB(in_, out, .sigma);
+        };
+
+        return filter;
+    };
+
     ImageFilters.Gui = function()
     {
         Gui.Begin("Filters", g_core.screenDimen.x.Int()-650, g_core.screenDimen.y.Int() - 5);
@@ -176,7 +198,8 @@ global MakeImageFilters = function()
         if (Gui.Button("Clear")) { .Clear(); }
         if (Gui.Button("Add Sobel")) { .Add("Sobel"); }
         if (Gui.Button("Add Bilateral")) { .Add("Bilateral"); }
-        if (Gui.Button("Add BoxBlur")) { .Add("BoxBlur"); }
+        if (Gui.Button("Add Box Blur")) { .Add("BoxBlur"); }
+        if (Gui.Button("Add Gaussian Blur")) { .Add("GaussianBlur"); }
         
         foreach (filter in .chain)
         {

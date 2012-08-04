@@ -25,10 +25,88 @@
 //#include <glm/gtx/simd_vec4.hpp>
 #include <glm/gtc/swizzle.hpp>
 
+// Performance notes (release build):
+
+// sobel using naive integer inline convolution: 2ms (suprising)
+// bilateral using naive integer inline convolution (3x3 window): 90ms
+// boxblur using vec4 3x3 kernel: 8ms
+// gaussianblur using vec4 5x5 kernel: 8ms
+// gaussianblur using vec4 3x3 kernel: 7ms
+// gaussianblur using vec4 3x3 kernel with imagecache: 6ms
+// gaussianblur using vec4 5x5 kernel with imagecache: 7ms
+
 using namespace funk;
 
 const glm::vec4 LuminanceCoefficientARGB = glm::vec4(1.0f, 0.2126f, 0.7152f, 0.0722f);
 const glm::vec4 LuminancePerceivedCoefficientARGB = glm::vec4(1.0f, 0.299f, 0.587f, 0.114f);
+
+class ImageCache
+{
+public:
+    struct Image
+    {
+        bool used;
+        int width;
+        int height;
+        int pixelsize;
+        void* data;
+    };
+
+private:
+
+    std::vector<Image> _cache;
+
+public:
+
+    template <class PixelType>
+    PixelType* Pop(int width, int height)
+    {
+        const int pixelsize = sizeof(PixelType);
+
+        for (int i = 0; i < (int)_cache.size(); ++i)
+        {
+            Image& image = _cache[i];
+
+            if (image.used)
+                continue;
+            if (image.width != width)
+                continue;
+            if (image.height != height)
+                continue;
+            if (image.pixelsize != pixelsize)
+                continue;
+
+            image.used = true;
+            return (PixelType*)image.data;
+        }
+
+        Image newimage = {
+            true,
+            width,
+            height,
+            pixelsize,
+            (void*)(new unsigned char[width * height * pixelsize]),
+        };
+        
+        _cache.push_back(newimage);
+        return (PixelType*)newimage.data;
+    }
+
+    void Push(void* data)
+    {
+        for (int i = 0; i < (int)_cache.size(); ++i)
+        {
+            Image& image = _cache[i];
+            if (image.data != data)
+            {
+                image.used = false; 
+                break;
+            }
+        }
+    }
+};
+
+ImageCache g_imagecache;
 
 struct ImageView
 {
@@ -189,6 +267,88 @@ void Convolve3x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
                 a * kernel[0] + b * kernel[1] + c * kernel[2] +
                 d * kernel[3] + e * kernel[4] + f * kernel[5] +
                 g * kernel[6] + h * kernel[7] + i * kernel[8];
+        }
+    }
+}
+
+void Convolve3x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a b c
+
+            const glm::vec4 a = in[view.indexof(x - 1, y)];
+            const glm::vec4 b = in[view.indexof(x + 0, y)];
+            const glm::vec4 c = in[view.indexof(x + 1, y)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2];
+        }
+    }
+}
+
+void Convolve5x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a b c d e
+
+            const glm::vec4 a = in[view.indexof(x - 2, y)];
+            const glm::vec4 b = in[view.indexof(x - 1, y)];
+            const glm::vec4 c = in[view.indexof(x + 0, y)];
+            const glm::vec4 d = in[view.indexof(x + 1, y)];
+            const glm::vec4 e = in[view.indexof(x + 2, y)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4];
+        }
+    }
+}
+
+void Convolve1x5(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a
+            // b
+            // c
+            // d
+            // e
+
+            const glm::vec4 a = in[view.indexof(x, y - 2)];
+            const glm::vec4 b = in[view.indexof(x, y - 1)];
+            const glm::vec4 c = in[view.indexof(x, y + 0)];
+            const glm::vec4 d = in[view.indexof(x, y + 1)];
+            const glm::vec4 e = in[view.indexof(x, y + 2)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4];
+        }
+    }
+}
+
+void Convolve1x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a
+            // b
+            // c
+
+            const glm::vec4 a = in[view.indexof(x, y - 1)];
+            const glm::vec4 b = in[view.indexof(x, y + 0)];
+            const glm::vec4 c = in[view.indexof(x, y + 1)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2];
         }
     }
 }
@@ -370,7 +530,7 @@ void Filters::SobelARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, int
     delete buffer_out;
 }
 
-void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
+void Filters::BilateralARGBNaive(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -496,6 +656,125 @@ void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out,
     delete buffer_work;
 }
 
+float GaussianSample(float x, float sigma)
+{
+    const float PI = 3.1415926535f;
+
+    return exp(-0.5f * pow(x / sigma, 2.0f)) / (2.0f * PI * sigma * sigma);
+}
+
+void MakeGaussianKernel1D(float* out, int w, float sigma)
+{
+    float sum = 0.0f;
+
+    // floor() by integer division
+    float pivot_x = float(w / 2);
+
+    for (int x = 0; x < w; ++x)
+    {
+        const float g = GaussianSample(float(x) - pivot_x, sigma);
+        out[x] = g;
+        sum += g;
+    }
+
+    for (int x = 0; x < w; ++x)
+    {
+        out[x] /= sum;
+    }
+}
+
+void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
+{
+    CHECK(in->Sizei() == out->Sizei());
+
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer_in = g_imagecache.Pop<uint32_t>(w, h);
+    uint32_t* buffer_out = g_imagecache.Pop<uint32_t>(w, h);
+    glm::vec4* buffer_vin = g_imagecache.Pop<glm::vec4>(w, h);
+    glm::vec4* buffer_vout = g_imagecache.Pop<glm::vec4>(w, h);
+
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
+    in->Unbind();
+
+    glFinish();
+
+    VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
+
+    float kernel[5] = { 0.0f };
+    MakeGaussianKernel1D(kernel, 5, 1.0f);
+
+    ImageView view(w, h);
+
+    Convolve5x1(buffer_vin, buffer_vout, view, kernel);
+    Convolve1x5(buffer_vout, buffer_vout, view, kernel);
+
+    UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
+
+    out->Bind();
+    out->SubData(buffer_out, w, h, 0, 0);
+    out->Unbind();
+
+    //delete buffer_in;
+    //delete buffer_out;
+    //delete buffer_vin;
+    //delete buffer_vout;
+
+    g_imagecache.Push(buffer_in);
+    g_imagecache.Push(buffer_out);
+    g_imagecache.Push(buffer_vin);
+    g_imagecache.Push(buffer_vout);
+}
+
+void Filters::GaussianBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float sigma)
+{
+    CHECK(in->Sizei() == out->Sizei());
+
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer_in = g_imagecache.Pop<uint32_t>(w, h);
+    uint32_t* buffer_out = g_imagecache.Pop<uint32_t>(w, h);
+    glm::vec4* buffer_vin = g_imagecache.Pop<glm::vec4>(w, h);
+    glm::vec4* buffer_vout = g_imagecache.Pop<glm::vec4>(w, h);
+
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
+    in->Unbind();
+
+    glFinish();
+
+    VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
+
+    float kernel[5] = { 0.0f };
+    MakeGaussianKernel1D(kernel, 5, sigma);
+
+    ImageView view(w, h);
+
+    Convolve5x1(buffer_vin, buffer_vout, view, kernel);
+    Convolve1x5(buffer_vout, buffer_vout, view, kernel);
+
+    UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
+
+    out->Bind();
+    out->SubData(buffer_out, w, h, 0, 0);
+    out->Unbind();
+
+    //delete buffer_in;
+    //delete buffer_out;
+    //delete buffer_vin;
+    //delete buffer_vout;
+
+    g_imagecache.Push(buffer_in);
+    g_imagecache.Push(buffer_out);
+    g_imagecache.Push(buffer_vin);
+    g_imagecache.Push(buffer_vout);
+}
+
 void Filters::BoxBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out)
 {
     CHECK(in->Sizei() == out->Sizei());
@@ -578,11 +857,25 @@ static int GM_CDECL gmfFilterBoxBlurARGB(gmThread * a_thread)
 	return GM_OK;
 }
 
+static int GM_CDECL gmfFilterGaussianBlurARGB(gmThread * a_thread)
+{
+	GM_CHECK_NUM_PARAMS(3);
+
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+    GM_CHECK_FLOAT_PARAM( sigma, 2 );
+
+    Filters::GaussianBlurARGB(in, out, sigma);
+
+	return GM_OK;
+}
+
 static gmFunctionEntry s_FiltersLib[] = 
 { 
 	{ "SobelARGB", gmfFilterSobelARGB },
 	{ "BilateralARGB", gmfFilterBilateralARGB },
 	{ "BoxBlurARGB", gmfFilterBoxBlurARGB },
+	{ "GaussianBlurARGB", gmfFilterGaussianBlurARGB },
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm)

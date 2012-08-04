@@ -21,8 +21,10 @@ class Filters
 {
 public:
     static void SobelARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold);
+    static void BilateralARGBNaive(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma);
     static void BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma);
     static void BoxBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out);
+    static void GaussianBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float sigma);
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm);
