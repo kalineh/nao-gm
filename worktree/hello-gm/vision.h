@@ -6,14 +6,18 @@
 
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include "gm/gmMachine.h"
 #include "gm/gmBindHeader.h"
 
 #include "Core.h"
 #include <common/HandledObj.h>
+#include <common/StrongHandle.h>
 
 #include <alproxies/alvideodeviceproxy.h>
+#include <alproxies/alsonarproxy.h>
+#include <alproxies/almemoryproxy.h>
 
 using namespace funk;
 
@@ -51,9 +55,6 @@ public:
 
     void Update();
 
-    //void FilterSobel(...);
-    //void FilterBlobs(...);
-
 private:
     void Subscribe(int resolution, int colorspace);
 
@@ -70,3 +71,31 @@ private:
 
 GM_BIND_DECL(GMVideoDisplay);
 
+class GMSonar
+    : public HandledObj<GMSonar>
+{
+public:
+	GM_BIND_TYPEID(GMSonar);
+
+    GMSonar(const char* name, const char* ip, int port);
+
+    void SetActive(bool active);
+
+    void Update();
+
+    float GetValueByIndex(int index) const;
+
+private:
+    void Subscribe();
+
+    void UpdateMemoryValues();
+
+    bool _active;
+    AL::ALSonarProxy _proxy;
+    AL::ALMemoryProxy _memory_proxy;
+    std::string _subscriber_id;
+    std::vector<std::string> _output_names;
+    AL::ALValue _output_names_value;
+};
+
+GM_BIND_DECL(GMSonar);

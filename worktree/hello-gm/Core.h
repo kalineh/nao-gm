@@ -6,7 +6,7 @@
 #include <gfx/LineGraph.h>
 
 #define ASSERT(condition) \
-    if (!condition) assert(false) //if (!condition) { __asm { int 3; } }
+    if (!(condition)) assert(false) //if (!condition) { __asm { int 3; } }
 
 #define GM_AL_EXCEPTION_WRAPPER(code) \
     try { code ; } catch (const AL::ALError& e) { GM_EXCEPTION_MSG(e.what()); return GM_OK; }

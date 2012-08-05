@@ -16,6 +16,7 @@
 #include <alcommon/alproxy.h>
 #include <alproxies/alvideodeviceproxy.h>
 #include <alvision/alvisiondefinitions.h>
+#include <alproxies/alsonarproxy.h>
 
 #include <math.h>
 
@@ -1468,3 +1469,119 @@ GM_REG_MEMFUNC( GMVideoDisplay, Update )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMVideoDisplay);
+
+GMSonar::GMSonar(const char* name, const char* ip, int port)
+    : _active(false)
+    , _proxy(std::string(ip), port)
+    , _subscriber_id(name)
+{
+}
+
+void GMSonar::SetActive(bool active)
+{
+    if (active && !_active)
+    {
+        Subscribe();
+        _active = active;
+        return;
+    }
+
+    if (!active && _active)
+    {
+        _proxy.unsubscribe(_subscriber_id);        
+        _active = active;
+    }
+}
+
+void GMSonar::Update()
+{
+    if (!_active)
+        return;
+
+    UpdateMemoryValues();
+}
+
+float GMSonar::GetValueByIndex(int index) const
+{
+    ASSERT(index >= 0);
+    ASSERT(index < 20);
+
+    return 0.0f;
+}
+
+void GMSonar::Subscribe()
+{
+    try
+    {
+        _proxy.unsubscribe(_subscriber_id);
+    }
+    catch (const AL::ALError&)
+    {
+        // ignore, just attempting to avoid hanging subscriptions
+    }
+
+    const int period = 50; // ms
+    const float precision = 1.0f; // unknown? unused?
+
+    _proxy.subscribe(_subscriber_id, period, precision);
+    _output_names = _proxy.getOutputNames();
+    _output_names_value = AL::ALValue(_output_names);
+
+    // NOTE: will break because shared_ptr is made from value type
+    _memory_proxy = AL::ALMemoryProxy(_proxy.getGenericProxy()->getParentBroker());
+
+    UpdateMemoryValues();
+}
+
+void GMSonar::UpdateMemoryValues()
+{
+    AL::ALValue values = _memory_proxy.getListData(_output_names_value);
+}
+
+GM_REG_NAMESPACE(GMSonar)
+{
+	GM_MEMFUNC_DECL(CreateGMSonar)
+	{
+		GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_STRING_PARAM(name, 0);
+        GM_CHECK_STRING_PARAM(ip, 1);
+        GM_CHECK_INT_PARAM(port, 2);
+		GM_AL_EXCEPTION_WRAPPER(GM_PUSH_USER_HANDLED( GMSonar, new GMSonar(name, ip, port) ));
+		return GM_OK;
+	}
+
+    GM_MEMFUNC_DECL(SetActive)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_INT_PARAM(active, 0);
+
+		GM_GET_THIS_PTR(GMSonar, self);
+		GM_AL_EXCEPTION_WRAPPER(self->SetActive(active != 0));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(GetValue)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+		GM_GET_THIS_PTR(GMSonar, self);
+        GM_CHECK_INT_PARAM(index, 0);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushFloat(self->GetValueByIndex(index)));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(Update)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMSonar, self);
+        GM_AL_EXCEPTION_WRAPPER(self->Update());
+        return GM_OK;
+    }
+}
+
+GM_REG_MEM_BEGIN(GMSonar)
+GM_REG_MEMFUNC( GMSonar, SetActive )
+GM_REG_MEMFUNC( GMSonar, GetValue )
+GM_REG_MEMFUNC( GMSonar, Update )
+GM_REG_MEM_END()
+
+GM_BIND_DEFINE(GMSonar);

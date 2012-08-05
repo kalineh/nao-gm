@@ -489,16 +489,10 @@ global MakeMain = function()
 
         .filters = MakeImageFilters();
 
-        //.videotex0 = Texture( v2(160.0f, 120.0f) );
-        //.videotex1 = Texture( v2(160.0f, 120.0f) );
-        //.videotex0 = Texture( g_resourcePathPrefix + "common/img/video.png" );
-        //.videotex1 = Texture( g_resourcePathPrefix + "common/img/video.png" );
-
         if (g_norobot)
         {
             .video0 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
             .video1 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
-
         }
         else
         {
@@ -510,6 +504,13 @@ global MakeMain = function()
 
             .video0.SetResolution("QQVGA");
             .video1.SetResolution("QQVGA");
+        }
+
+        if (g_dual_video_test)
+        {
+            .videoleft = Texture( g_resourcePathPrefix + "common/img/videoleft.png" );
+            .videoright = Texture( g_resourcePathPrefix + "common/img/videoright.png" );
+            .videodisparity = Texture( .videoleft.Dimen() );
         }
     };
 
@@ -569,10 +570,12 @@ global MakeMain = function()
             .video1.Update();
         }
 
-        .filters.Apply(.video0.GetTexture());
-        //.filters.Apply(.video1);
-
         .DrawVideo();
+
+        if (g_dual_video_test)
+        {
+            .DrawDualVideo();
+        }
     };
 
     Main.DrawVideo = function()
@@ -598,15 +601,45 @@ global MakeMain = function()
         
         vpos = vpos - v2(0.0f, vsize.y + 8.0f);
 
-        //.video1_sobel = .GetFilteredImage(.video1.GetTexture(), .video1_sobel);
-		//.video1_sobel.Bind(0);
-		//Gfx.DrawRectTexCoords( vpos, vsize );
-		//.video1_sobel.Unbind();
-
         Gfx.Color(Gfx.RED);
         Gfx.DrawRect(v2(0.0f), v2(32.0f));
         Gfx.Color(Gfx.BLUE);
         Gfx.DrawRect(g_core.screenDimen - v2(32.0f), v2(32.0f));
+
+        .cam2d.End();
+
+		Gfx.EndDefaultShader();
+		Gfx.Viewport( v2(0), g_core.screenDimen );
+    };
+
+    Main.DrawDualVideo = function()
+    {
+		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
+		Gfx.BeginDefaultShader();
+
+        .cam2d.Begin();
+
+		Gfx.Color(Gfx.WHITE, 1.0f);
+
+        local vscale = 2.0f;
+		local vsize = v2(160.0f, 120.0f) * vscale;
+		local vpos = g_core.screenDimen * v2(0.2f, 0.2f) - vsize * 0.5f;
+
+        .videoleft.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        .videoleft.Unbind();
+        
+        vpos = vpos + v2(vsize.x + 32.0f, 0.0f);
+
+        .videoright.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        .videoright.Unbind();
+
+        vpos = vpos + v2(vsize.x * -0.5f - 16.0f, vsize.y + 32.0f);
+
+        .videodisparity.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        .videodisparity.Unbind();
 
         .cam2d.End();
 
@@ -633,6 +666,7 @@ global MakeMain = function()
 global g_ip = "192.168.11.2";
 global g_port = 9559;
 global g_norobot = true;
+global g_dual_video_test = true;
 
 global g_main = MakeMain(g_ip, g_port);
 global g_proxies = MakeProxies(g_ip, g_port);
