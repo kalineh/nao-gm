@@ -201,6 +201,21 @@ void VectorizeImageARGBARGB(glm::simdVec4* out, uint32_t* in, int w, int h)
     }
 }
 
+void RestoreAlphaARGB(glm::simdVec4* out, glm::simdVec4* in, int w, int h)
+{
+    const glm::simdVec4 m = glm::simdVec4(1.0f, 1.0f, 1.0f, 0.0f);
+    const glm::simdVec4 a = glm::simdVec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const int i = x + y * w;
+            out[i] = in[i] * m + a;
+        }
+    }
+}
+
 void UnvectorizeImageARGBARGB(uint32_t* out, glm::vec4* in, int w, int h)
 {
     for (int y = 0; y < h; ++y)
@@ -251,7 +266,7 @@ void UnvectorizeImageARGBARGB(uint32_t* out, glm::simdVec4* in, int w, int h)
     }
 }
 
-void Convolve3x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+void Convolve3x3(glm::vec4* out, glm::vec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
     {
@@ -279,7 +294,7 @@ void Convolve3x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
     }
 }
 
-void Convolve3x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+void Convolve3x1(glm::vec4* out, glm::vec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
     {
@@ -297,7 +312,7 @@ void Convolve3x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
     }
 }
 
-void Convolve1x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+void Convolve1x3(glm::vec4* out, glm::vec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
     {
@@ -317,7 +332,45 @@ void Convolve1x3(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
     }
 }
 
-void Convolve5x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+void Convolve3x1(glm::simdVec4* out, glm::simdVec4* in, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a b c
+
+            const glm::simdVec4 a = in[view.indexof(x - 1, y)];
+            const glm::simdVec4 b = in[view.indexof(x + 0, y)];
+            const glm::simdVec4 c = in[view.indexof(x + 1, y)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2];
+        }
+    }
+}
+
+void Convolve1x3(glm::simdVec4* out, glm::simdVec4* in, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a
+            // b
+            // c
+
+            const glm::simdVec4 a = in[view.indexof(x, y - 1)];
+            const glm::simdVec4 b = in[view.indexof(x, y + 0)];
+            const glm::simdVec4 c = in[view.indexof(x, y + 1)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2];
+        }
+    }
+}
+
+void Convolve5x1(glm::vec4* out, glm::vec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
     {
@@ -337,7 +390,7 @@ void Convolve5x1(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
     }
 }
 
-void Convolve1x5(glm::vec4* in, glm::vec4* out, const ImageView& view, const float kernel[9])
+void Convolve1x5(glm::vec4* out, glm::vec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
     {
@@ -361,7 +414,7 @@ void Convolve1x5(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
     }
 }
 
-void Convolve5x1(glm::simdVec4* in, glm::simdVec4* out, const ImageView& view, const float kernel[9])
+void Convolve5x1(glm::simdVec4* out, glm::simdVec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
     {
@@ -381,7 +434,7 @@ void Convolve5x1(glm::simdVec4* in, glm::simdVec4* out, const ImageView& view, c
     }
 }
 
-void Convolve1x5(glm::simdVec4* in, glm::simdVec4* out, const ImageView& view, const float kernel[9])
+void Convolve1x5(glm::simdVec4* out, glm::simdVec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
     {
@@ -405,7 +458,7 @@ void Convolve1x5(glm::simdVec4* in, glm::simdVec4* out, const ImageView& view, c
     }
 }
 
-void Filters::SobelARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold)
+void Filters::SobelARGBNaive(StrongHandle<Texture> out, StrongHandle<Texture> in, int threshold)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -582,7 +635,55 @@ void Filters::SobelARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, int
     delete buffer_out;
 }
 
-void Filters::BilateralARGBNaive(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
+void Filters::SobelARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int threshold)
+{
+    CHECK(in->Sizei() == out->Sizei());
+
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer_in = g_imagecache.Pop<uint32_t>(w, h);
+    uint32_t* buffer_out = g_imagecache.Pop<uint32_t>(w, h);
+    glm::simdVec4* buffer_vin = g_imagecache.Pop<glm::simdVec4>(w, h);
+    glm::simdVec4* buffer_vout = g_imagecache.Pop<glm::simdVec4>(w, h);
+
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
+    in->Unbind();
+
+    glFinish();
+
+    VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
+
+    float kernel_x[3] = { -1.0f, +0.0f, +1.0f, };
+    float kernel_y[3] = { +1.0f, +2.0f, +1.0f, };
+
+    ImageView view(w, h);
+
+    Convolve3x1(buffer_vin, buffer_vout, view, kernel_x);
+    Convolve1x3(buffer_vout, buffer_vout, view, kernel_y);
+
+    //RestoreAlphaARGB(buffer_vout, buffer_vout, w, h);
+    RestoreAlphaARGB(buffer_vout, buffer_vin, w, h);
+    UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
+
+    out->Bind();
+    out->SubData(buffer_out, w, h, 0, 0);
+    out->Unbind();
+
+    //delete buffer_in;
+    //delete buffer_out;
+    //delete buffer_vin;
+    //delete buffer_vout;
+
+    g_imagecache.Push(buffer_in);
+    g_imagecache.Push(buffer_out);
+    g_imagecache.Push(buffer_vin);
+    g_imagecache.Push(buffer_vout);
+}
+
+void Filters::BilateralARGBNaive(StrongHandle<Texture> out, StrongHandle<Texture> in, float spatial_sigma, float edge_sigma)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -735,7 +836,7 @@ void MakeGaussianKernel1D(float* out, int w, float sigma)
     }
 }
 
-void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma)
+void Filters::BilateralARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float spatial_sigma, float edge_sigma)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -775,7 +876,7 @@ void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out,
     //    > a and b for position is bounded around -window to window (window*window*sizeof(float), 16kb for window=4)
     // 
 
-    Convolve5x1(buffer_vin, buffer_vout, view, kernel);
+    Convolve5x1(buffer_vout, buffer_vin, view, kernel);
     Convolve1x5(buffer_vout, buffer_vout, view, kernel);
 
     UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
@@ -790,7 +891,7 @@ void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out,
     g_imagecache.Push(buffer_vout);
 }
 
-void Filters::GaussianBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float sigma)
+void Filters::GaussianBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float sigma)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -816,7 +917,7 @@ void Filters::GaussianBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> o
 
     ImageView view(w, h);
 
-    Convolve5x1(buffer_vin, buffer_vout, view, kernel);
+    Convolve5x1(buffer_vout, buffer_vin, view, kernel);
     Convolve1x5(buffer_vout, buffer_vout, view, kernel);
 
     UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
@@ -825,18 +926,13 @@ void Filters::GaussianBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> o
     out->SubData(buffer_out, w, h, 0, 0);
     out->Unbind();
 
-    //delete buffer_in;
-    //delete buffer_out;
-    //delete buffer_vin;
-    //delete buffer_vout;
-
     g_imagecache.Push(buffer_in);
     g_imagecache.Push(buffer_out);
     g_imagecache.Push(buffer_vin);
     g_imagecache.Push(buffer_vout);
 }
 
-void Filters::BoxBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out)
+void Filters::BoxBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> in)
 {
     CHECK(in->Sizei() == out->Sizei());
 
@@ -866,7 +962,7 @@ void Filters::BoxBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out)
     };
 
     ImageView view(w, h);
-    Convolve3x3(buffer_vin, buffer_vout, view, kernel);
+    Convolve3x3(buffer_vout, buffer_vin, view, kernel);
     UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
 
     out->Bind();
@@ -883,11 +979,11 @@ static int GM_CDECL gmfFilterSobelARGB(gmThread * a_thread)
 {
 	GM_CHECK_NUM_PARAMS(3);
 
-	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
-	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
 	GM_CHECK_INT_PARAM(threshold, 2);
 
-    Filters::SobelARGB(in, out, threshold);
+    Filters::SobelARGB(out, in, threshold);
 
 	return GM_OK;
 }
@@ -896,12 +992,12 @@ static int GM_CDECL gmfFilterBilateralARGB(gmThread * a_thread)
 {
 	GM_CHECK_NUM_PARAMS(4);
 
-	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
-	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
     GM_CHECK_FLOAT_PARAM( spatial_sigma, 2 );
     GM_CHECK_FLOAT_PARAM( edge_sigma, 2 );
 
-    Filters::BilateralARGB(in, out, spatial_sigma, edge_sigma);
+    Filters::BilateralARGB(out, in, spatial_sigma, edge_sigma);
 
 	return GM_OK;
 }
@@ -910,10 +1006,10 @@ static int GM_CDECL gmfFilterBoxBlurARGB(gmThread * a_thread)
 {
 	GM_CHECK_NUM_PARAMS(2);
 
-	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
-	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
 
-    Filters::BoxBlurARGB(in, out);
+    Filters::BoxBlurARGB(out, in);
 
 	return GM_OK;
 }
@@ -922,11 +1018,11 @@ static int GM_CDECL gmfFilterGaussianBlurARGB(gmThread * a_thread)
 {
 	GM_CHECK_NUM_PARAMS(3);
 
-	GM_CHECK_USER_PARAM_PTR( Texture, in, 0 );
-	GM_CHECK_USER_PARAM_PTR( Texture, out, 1 );
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
     GM_CHECK_FLOAT_PARAM( sigma, 2 );
 
-    Filters::GaussianBlurARGB(in, out, sigma);
+    Filters::GaussianBlurARGB(out, in, sigma);
 
 	return GM_OK;
 }

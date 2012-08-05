@@ -115,9 +115,9 @@ global MakeImageFilters = function()
             .threshold = Gui.SliderInt("Threshold", .threshold, 0, 255);
         };
 
-        filter.Apply = function(in_, out)
+        filter.Apply = function(out, in_)
         {
-            Filter.SobelARGB(in_, out, .threshold);
+            Filter.SobelARGB(out, in_, .threshold);
         };
 
         return filter;
@@ -139,9 +139,9 @@ global MakeImageFilters = function()
             .edge_sigma = Gui.SliderFloat("Edge Sigma", .edge_sigma, 0.0f, 0.5f);
         };
 
-        filter.Apply = function(in_, out)
+        filter.Apply = function(out, in_)
         {
-            Filter.BilateralARGB(in_, out, .spatial_sigma, .edge_sigma);
+            Filter.BilateralARGB(out, in_, .spatial_sigma, .edge_sigma);
         };
 
         return filter;
@@ -159,9 +159,9 @@ global MakeImageFilters = function()
             Gui.Print("Box Blur");
         };
 
-        filter.Apply = function(in_, out)
+        filter.Apply = function(out, in_)
         {
-            Filter.BoxBlurARGB(in_, out, .threshold);
+            Filter.BoxBlurARGB(out, in_, .threshold);
         };
 
         return filter;
@@ -181,9 +181,9 @@ global MakeImageFilters = function()
             .sigma = Gui.SliderFloat("Sigma", .sigma, 0.05f, 2.0f);
         };
 
-        filter.Apply = function(in_, out)
+        filter.Apply = function(out, in_)
         {
-            Filter.GaussianBlurARGB(in_, out, .sigma);
+            Filter.GaussianBlurARGB(out, in_, .sigma);
         };
 
         return filter;
@@ -223,7 +223,7 @@ global MakeImageFilters = function()
                 item.tex = Texture(current.Dimen());
             }
 
-            item.tex = item.Apply(current, item.tex);
+            item.tex = item.Apply(item.tex, current);
         }
 
         .final = current;
