@@ -36,6 +36,7 @@
 // gaussianblur using vec4 2x 3x1 kernel with imagecache: 6ms
 // gaussianblur using simdVec4 2x 5x1 kernel with imagecache: 7ms
 // gaussianblur using simdVec4 2x 5x1 kernel with imagecache: 5.5ms
+// gaussianblur using simdVec4 2x 5x1 kernel with imagecache with simd vectorize: 3.5ms
 
 using namespace funk;
 
@@ -82,12 +83,15 @@ public:
             return (PixelType*)image.data;
         }
 
+        // require aligned allocation for simd
+        void* allocation = _aligned_malloc(width * height * pixelsize, 16);
+
         Image newimage = {
             true,
             width,
             height,
             pixelsize,
-            (void*)(new unsigned char[width * height * pixelsize]),
+            allocation,
         };
         
         _cache.push_back(newimage);
@@ -177,6 +181,26 @@ void VectorizeImageARGBARGB(glm::vec4* out, uint32_t* in, int w, int h)
     }
 }
 
+void VectorizeImageARGBARGB(glm::simdVec4* out, uint32_t* in, int w, int h)
+{
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const int i = x + y * w;
+
+            const uint32_t pixel = in[i];
+            const uint8_t a = (pixel & 0xFF000000) >> 24;
+            const uint8_t r = (pixel & 0x00FF0000) >> 16;
+            const uint8_t g = (pixel & 0x0000FF00) >> 8;
+            const uint8_t b = (pixel & 0x000000FF) >> 0;
+            const glm::simdVec4 v = glm::simdVec4(a, r, g, b) / 255.0f;
+
+            out[i] = v;
+        }
+    }
+}
+
 void UnvectorizeImageARGBARGB(uint32_t* out, glm::vec4* in, int w, int h)
 {
     for (int y = 0; y < h; ++y)
@@ -186,6 +210,31 @@ void UnvectorizeImageARGBARGB(uint32_t* out, glm::vec4* in, int w, int h)
             const int i = x + y * w;
 
             const glm::vec4 pixel = in[i] * 255.0f;
+            const uint8_t a = uint8_t(pixel.x);
+            const uint8_t r = uint8_t(pixel.y);
+            const uint8_t g = uint8_t(pixel.z);
+            const uint8_t b = uint8_t(pixel.w);
+
+            const uint32_t v = 
+                (a << 24) |
+                (r << 16) |
+                (g <<  8) |
+                (b <<  0);
+
+            out[i] = v;
+        }
+    }
+}
+
+void UnvectorizeImageARGBARGB(uint32_t* out, glm::simdVec4* in, int w, int h)
+{
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const int i = x + y * w;
+
+            const glm::vec4 pixel = glm::vec4_cast(in[i] * 255.0f);
             const uint8_t a = uint8_t(pixel.x);
             const uint8_t r = uint8_t(pixel.y);
             const uint8_t g = uint8_t(pixel.z);
@@ -308,6 +357,50 @@ void Convolve1x5(glm::vec4* in, glm::vec4* out, const ImageView& view, const flo
 
             out[view.indexof(x, y)] = 
                 glm::vec4_cast(a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4]);
+        }
+    }
+}
+
+void Convolve5x1(glm::simdVec4* in, glm::simdVec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a b c d e
+
+            const glm::simdVec4 a = in[view.indexof(x - 2, y)];
+            const glm::simdVec4 b = in[view.indexof(x - 1, y)];
+            const glm::simdVec4 c = in[view.indexof(x + 0, y)];
+            const glm::simdVec4 d = in[view.indexof(x + 1, y)];
+            const glm::simdVec4 e = in[view.indexof(x + 2, y)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4];
+        }
+    }
+}
+
+void Convolve1x5(glm::simdVec4* in, glm::simdVec4* out, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a
+            // b
+            // c
+            // d
+            // e
+
+            const glm::simdVec4 a = in[view.indexof(x, y - 2)];
+            const glm::simdVec4 b = in[view.indexof(x, y - 1)];
+            const glm::simdVec4 c = in[view.indexof(x, y + 0)];
+            const glm::simdVec4 d = in[view.indexof(x, y + 1)];
+            const glm::simdVec4 e = in[view.indexof(x, y + 2)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2] + d * kernel[3] + e * kernel[4];
         }
     }
 }
@@ -668,6 +761,20 @@ void Filters::BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out,
 
     ImageView view(w, h);
 
+    // how do we convolve bilateral?
+
+    // for pixel p in window pixels q
+    //   where t = location
+    //   where i = intensity
+    //   p = G(pt - qt) * G(pi - qi)
+
+    // can we generate a convolution filter?
+    //  > no, because intensity is required
+    //  > we could cache G(a - b) for all a and b
+    //    > a and b for intensity is bounded 0..255 (per channel) (256*256*sizeof(float), 256kb)
+    //    > a and b for position is bounded around -window to window (window*window*sizeof(float), 16kb for window=4)
+    // 
+
     Convolve5x1(buffer_vin, buffer_vout, view, kernel);
     Convolve1x5(buffer_vout, buffer_vout, view, kernel);
 
@@ -693,8 +800,8 @@ void Filters::GaussianBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> o
 
     uint32_t* buffer_in = g_imagecache.Pop<uint32_t>(w, h);
     uint32_t* buffer_out = g_imagecache.Pop<uint32_t>(w, h);
-    glm::vec4* buffer_vin = g_imagecache.Pop<glm::vec4>(w, h);
-    glm::vec4* buffer_vout = g_imagecache.Pop<glm::vec4>(w, h);
+    glm::simdVec4* buffer_vin = g_imagecache.Pop<glm::simdVec4>(w, h);
+    glm::simdVec4* buffer_vout = g_imagecache.Pop<glm::simdVec4>(w, h);
 
     in->Bind(0);
     in->GetTexImage(buffer_in);
