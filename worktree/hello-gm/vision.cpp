@@ -42,6 +42,8 @@ using namespace funk;
 
 const glm::vec4 LuminanceCoefficientARGB = glm::vec4(1.0f, 0.2126f, 0.7152f, 0.0722f);
 const glm::vec4 LuminancePerceivedCoefficientARGB = glm::vec4(1.0f, 0.299f, 0.587f, 0.114f);
+const glm::simdVec4 simdLuminanceCoefficientARGB = glm::simdVec4(1.0f, 0.2126f, 0.7152f, 0.0722f);
+const glm::simdVec4 simdLuminancePerceivedCoefficientARGB = glm::simdVec4(1.0f, 0.299f, 0.587f, 0.114f);
 
 class ImageCache
 {
@@ -142,8 +144,9 @@ struct ImageView
 //x &= x >> 31;
 //x += b;
 
-void VectorizeImageARGBLuminance(glm::vec4* out, uint32_t* in, int w, int h)
+void VectorizeImageARGBALLL(glm::simdVec4* out, uint32_t* in, int w, int h)
 {
+    const glm::simdVec4 d = glm::simdVec4(1.0f / 255.0f);
     for (int y = 0; y < h; ++y)
     {
         for (int x = 0; x < w; ++x)
@@ -154,9 +157,18 @@ void VectorizeImageARGBLuminance(glm::vec4* out, uint32_t* in, int w, int h)
             const uint8_t r = (pixel & 0x00FF0000) >> 16;
             const uint8_t g = (pixel & 0x0000FF00) >> 8;
             const uint8_t b = (pixel & 0x000000FF) >> 0;
-            const glm::vec4 v = glm::vec4(a, r, g, b) / 255.0f;
+            const glm::simdVec4 v = glm::simdVec4(a, r, g, b) * d * simdLuminanceCoefficientARGB;
 
-            out[i] = v * LuminanceCoefficientARGB;
+            // TODO: replace with horizontal-add
+            const glm::simdVec4 o = 
+                v.swizzle<glm::X, glm::Y, glm::Z, glm::W>() +
+                v.swizzle<glm::X, glm::Z, glm::W, glm::Y>() +
+                v.swizzle<glm::X, glm::W, glm::Y, glm::Z>();
+
+            // scale alpha back down
+            const glm::simdVec4 oo = o * glm::simdVec4(1.0f / 3.0f, 1.0f, 1.0f, 1.0f);
+            
+            out[i] = oo;
         }
     }
 }
@@ -203,8 +215,8 @@ void VectorizeImageARGBARGB(glm::simdVec4* out, uint32_t* in, int w, int h)
 
 void RestoreAlphaARGB(glm::simdVec4* out, glm::simdVec4* in, int w, int h)
 {
-    const glm::simdVec4 m = glm::simdVec4(1.0f, 1.0f, 1.0f, 0.0f);
-    const glm::simdVec4 a = glm::simdVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    const glm::simdVec4 m = glm::simdVec4(0.0f, 1.0f, 1.0f, 1.0f);
+    const glm::simdVec4 a = glm::simdVec4(1.0f, 0.0f, 0.0f, 0.0f);
 
     for (int y = 0; y < h; ++y)
     {
@@ -285,6 +297,34 @@ void Convolve3x3(glm::vec4* out, glm::vec4* in, const ImageView& view, const flo
             const glm::vec4 g = in[view.indexof(x - 1, y + 1)];
             const glm::vec4 h = in[view.indexof(x + 0, y + 1)];
             const glm::vec4 i = in[view.indexof(x + 1, y + 1)];
+
+            out[view.indexof(x, y)] = 
+                a * kernel[0] + b * kernel[1] + c * kernel[2] +
+                d * kernel[3] + e * kernel[4] + f * kernel[5] +
+                g * kernel[6] + h * kernel[7] + i * kernel[8];
+        }
+    }
+}
+
+void Convolve3x3(glm::simdVec4* out, glm::simdVec4* in, const ImageView& view, const float kernel[9])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            // a b c
+            // d e f
+            // g h i
+
+            const glm::simdVec4 a = in[view.indexof(x - 1, y - 1)];
+            const glm::simdVec4 b = in[view.indexof(x + 0, y - 1)];
+            const glm::simdVec4 c = in[view.indexof(x + 1, y - 1)];
+            const glm::simdVec4 d = in[view.indexof(x - 1, y + 0)];
+            const glm::simdVec4 e = in[view.indexof(x + 0, y + 0)];
+            const glm::simdVec4 f = in[view.indexof(x + 1, y + 0)];
+            const glm::simdVec4 g = in[view.indexof(x - 1, y + 1)];
+            const glm::simdVec4 h = in[view.indexof(x + 0, y + 1)];
+            const glm::simdVec4 i = in[view.indexof(x + 1, y + 1)];
 
             out[view.indexof(x, y)] = 
                 a * kernel[0] + b * kernel[1] + c * kernel[2] +
@@ -654,28 +694,63 @@ void Filters::SobelARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int
 
     glFinish();
 
-    VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
-
-    float kernel_x[3] = { -1.0f, +0.0f, +1.0f, };
-    float kernel_y[3] = { +1.0f, +2.0f, +1.0f, };
+    VectorizeImageARGBALLL(buffer_vin, buffer_in, w, h);
 
     ImageView view(w, h);
 
-    Convolve3x1(buffer_vin, buffer_vout, view, kernel_x);
-    Convolve1x3(buffer_vout, buffer_vout, view, kernel_y);
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const glm::simdVec4 p00 = buffer_vin[view.indexof(x - 1, y - 1)];
+            const glm::simdVec4 p10 = buffer_vin[view.indexof(x + 0, y - 1)];
+            const glm::simdVec4 p20 = buffer_vin[view.indexof(x + 1, y - 1)];
 
-    //RestoreAlphaARGB(buffer_vout, buffer_vout, w, h);
-    RestoreAlphaARGB(buffer_vout, buffer_vin, w, h);
+            const glm::simdVec4 p01 = buffer_vin[view.indexof(x - 1, y + 0)];
+            const glm::simdVec4 p11 = buffer_vin[view.indexof(x + 0, y + 0)];
+            const glm::simdVec4 p21 = buffer_vin[view.indexof(x + 1, y + 0)];
+
+            const glm::simdVec4 p02 = buffer_vin[view.indexof(x - 1, y + 1)];
+            const glm::simdVec4 p12 = buffer_vin[view.indexof(x + 0, y + 1)];
+            const glm::simdVec4 p22 = buffer_vin[view.indexof(x + 1, y + 1)];
+
+            const glm::simdVec4 sx =
+                p00 * -1.0f + p20 * +1.0f +
+                p01 * -2.0f + p21 * +2.0f +
+                p02 * -1.0f + p22 * +1.0f;
+
+            const glm::simdVec4 sy =
+                p00 * -1.0f + p10 * -2.0f + p20 * -1.0f +
+                p02 * +1.0f + p12 * +2.0f + p22 * +1.0f;
+
+            // abs not working?
+            //const glm::simdVec4 sqr = glm::abs(sx) + glm::abs(sy);
+            const glm::simdVec4 sqr = sx * sx + sy * sy;
+            const glm::simdVec4 p = glm::clamp(sqr, glm::simdVec4(0.0f), glm::simdVec4(1.0f));
+            const float thresholdf = float(threshold) / 255.0f;
+            const glm::simdVec4 edge = glm::simdVec4(1.0f, thresholdf, thresholdf, thresholdf);
+
+            // mask workaround
+            const float maskf = glm::vec4_cast(p).w < thresholdf ? 0.0f : 1.0f;
+            const glm::simdVec4 mask = glm::simdVec4(1.0f, maskf, maskf, maskf);
+            //const glm::simdVec4 mask = glm::step(thresholdf, p);
+
+            const glm::simdVec4 o = p * mask;
+
+            // step is broken? this gives 1,1,1,1 for both
+            //const glm::simdVec4 maska = glm::step(p * 1.1f, p);
+            //const glm::simdVec4 maskb = glm::step(p * 0.9f, p);
+
+            buffer_vout[view.indexof(x, y)] = o;
+        }
+    }
+
+    RestoreAlphaARGB(buffer_vout, buffer_vout, w, h);
     UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
 
     out->Bind();
     out->SubData(buffer_out, w, h, 0, 0);
     out->Unbind();
-
-    //delete buffer_in;
-    //delete buffer_out;
-    //delete buffer_vin;
-    //delete buffer_vout;
 
     g_imagecache.Push(buffer_in);
     g_imagecache.Push(buffer_out);
