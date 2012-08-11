@@ -212,18 +212,21 @@ global MakeImageFilters = function()
     {
         local filter = {
             enabled = true,
+            theta_steps = 32,
+            polar_bins = 32,
             tex = null,
         };
 
         filter.Gui = function()
         {
             Gui.Print("Hough Transform");
-            //.threshold = Gui.SliderInt("Threshold", .threshold, 0, 255);
+            .theta_steps = Gui.SliderInt("Theta Steps", .theta_steps, 1, 256);
+            .polar_bins = Gui.SliderInt("Polar Bins", .polar_bins, 1, 180);
         };
 
         filter.Apply = function(out, in_)
         {
-            Filter.HoughTransformARGB(out, in_);
+            Filter.HoughTransformARGB(out, in_, .theta_steps, .polar_bins);
         };
 
         return filter;
@@ -532,8 +535,8 @@ global MakeMain = function()
 
         if (g_norobot)
         {
-            .video0 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
-            .video1 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/video.png" ), };
+            .video0 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/hough_test.png" ), };
+            .video1 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/hough_test.png" ), };
         }
         else
         {

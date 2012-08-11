@@ -39,7 +39,7 @@ public:
     static void GaussianBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float sigma);
 
     //static void HoughTransformARGB(std::vector<glm::vec2> pairs, StrongHandle<Texture> in);
-    static void HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in);
+    static void HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int theta_steps, int polar_bins);
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm);

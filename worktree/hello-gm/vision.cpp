@@ -1006,9 +1006,10 @@ void Filters::GaussianBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> 
 // http://www.cs.unc.edu/~lazebnik/spring09/lec09_hough.pdf
 // http://www.cs.jhu.edu/~misha/Fall04/GHT1.pdf
 // http://planetmath.org/HoughTransform.html
+// http://www.aishack.in/2010/03/the-hough-transform/2/
+// http://http.developer.nvidia.com/GPUGems3/gpugems3_ch41.html
 
-
-void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in)
+void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int theta_steps, int polar_bins)
 {
     const int w = in->Sizei().x;
     const int h = in->Sizei().y;
@@ -1042,13 +1043,17 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
 	//    arrayHough[Theta_max * rho + k] ++;
     // 
 
-    const int steps = 32;
-    const int bins = 32;
+    const int steps = theta_steps;
+    const int bins = polar_bins;
     const float threshold = 0.5f;
+
+    const float rho_max = ::sqrtf(float(w * w + h * h));
+    const float delta_rho = rho_max / float(bins / 2);
 
     // hough accumulator: x-axis = theta, y-axis = polar value
 
-    int hough[steps * bins] = { 0 };
+    int* hough = new int[steps * bins];
+    memset(hough, 0, sizeof(int) * steps * bins);
 
     for (int y = 0; y < h; ++y)
     {
@@ -1065,19 +1070,23 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
                     continue;
 
                 const float theta = PI / float(steps) * float(i);
-                const float ix = float(x) / float(steps);
-                const float iy = float(y) / float(bins);
-                const float p = float(ix) * ::cos(theta) + float(iy) * ::sin(theta);
-                const float np = (p + 1.0f) / 2.0f * 0.5f;
-                
-                const int hx = i;
-                const int hy = int(np * float(bins));
+                const float p = float(x) * ::cos(theta) + float(y) * ::sin(theta);
 
-                // add a vote for a line at polar coordinates p = x cos theta + y sin theta
+                // normalize -n..n to centered around rho_max
+
+                const float rho = rho_max * 0.5f + p / delta_rho;
+                
+                //const float np = 
+                //const float bin = 
+
+                const int hx = i;
+                const int hy = int(float(bins) / rho_max * rho);
+
+                // add a vote for this [theta, p] line
 
                 // DEBUG
-                if (hx < 0 || hx >= steps) continue;
-                if (hy < 0 || hy >= bins) continue;
+                //if (hx < 0 || hx >= steps) continue;
+                //if (hy < 0 || hy >= bins) continue;
 
                 hough[hx + hy * steps] += 1;
             }
@@ -1086,22 +1095,36 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
 
     // write visible hough transform to image
 
-    const int vote_threshold = 5;
+    int max_vote = 0;
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const int hx = int(float(steps) / float(w) * float(x));
+            const int hy = int(float(bins) / float(h) * float(y));
+            const int vote = hough[hx + hy * steps];
+
+            max_vote = std::max<int>(vote, max_vote);
+        }
+    }
 
     for (int y = 0; y < h; ++y)
     {
-        for (int x = 0; x < h; ++x)
+        for (int x = 0; x < w; ++x)
         {
-            const int hx = int(h / float(steps) * float(x));
-            const int hy = int(y / float(bins) * float(y));
+            const int hx = int(float(steps) / float(w) * float(x));
+            const int hy = int(float(bins) / float(h) * float(y));
             const int vote = hough[hx + hy * steps];
 
-            const bool voted = vote > vote_threshold;
+            const float l = 1.0f / float(max_vote) * float(vote);
+            const float luminosity = l;
 
-            const glm::simdVec4 p = voted ? glm::simdVec4(1.0f) : glm::simdVec4(1.0f, 0.0f, 0.0f, 0.0f);
+            const glm::simdVec4 p = glm::simdVec4(1.0f, luminosity, luminosity, luminosity);
             buffer_vout[view.indexof(x, y)] = p;
         }
     }
+
+    delete hough;
 
     UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
 
@@ -1248,12 +1271,14 @@ static int GM_CDECL gmfFilterGaussianBlurARGB(gmThread * a_thread)
 
 static int GM_CDECL gmfFilterHoughTransformARGB(gmThread * a_thread)
 {
-	GM_CHECK_NUM_PARAMS(2);
+	GM_CHECK_NUM_PARAMS(4);
 
 	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
 	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
+    GM_CHECK_INT_PARAM( theta_steps, 2 );
+    GM_CHECK_INT_PARAM( polar_bins, 2 );
 
-    Filters::HoughTransformARGB(out, in);
+    Filters::HoughTransformARGB(out, in, theta_steps, polar_bins);
 
 	return GM_OK;
 }
