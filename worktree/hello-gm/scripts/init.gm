@@ -18,6 +18,25 @@ local MakeSoundLooker = function()
     return SoundLooker;
 };
 
+
+/*
+
+generate sets of lines from sobel filter
+find lines of similar vector shapes in alternate image
+compare offsets with original image lines
+* can we use offsets to estimate depth?
+for pairs of L-shaped lines, generate triangles
+take lower-res estimates of triangle regions
+look for similar blocks in other image
+* what about circular regions? we should still curves from sobel filtered
+* we can reduce threshold and compare line lengths to see fall-off of a given line
+* we can take projected line intersections and estimate occluded quads/joins
+* higher edge strength indicates solid/furniture objects
+
+
+
+*/
+
 global MakeALProxy = function(type, ip, port)
 {
     assert(?type);
@@ -189,6 +208,27 @@ global MakeImageFilters = function()
         return filter;
     };
 
+    ImageFilters.MakeHoughTransformFilter = function()
+    {
+        local filter = {
+            enabled = true,
+            tex = null,
+        };
+
+        filter.Gui = function()
+        {
+            Gui.Print("Hough Transform");
+            //.threshold = Gui.SliderInt("Threshold", .threshold, 0, 255);
+        };
+
+        filter.Apply = function(out, in_)
+        {
+            Filter.HoughTransformARGB(out, in_);
+        };
+
+        return filter;
+    };
+
     ImageFilters.Gui = function()
     {
         Gui.Begin("Filters", g_core.screenDimen.x.Int()-650, g_core.screenDimen.y.Int() - 5);
@@ -200,6 +240,7 @@ global MakeImageFilters = function()
         if (Gui.Button("Add Bilateral")) { .Add("Bilateral"); }
         if (Gui.Button("Add Box Blur")) { .Add("BoxBlur"); }
         if (Gui.Button("Add Gaussian Blur")) { .Add("GaussianBlur"); }
+        if (Gui.Button("Add Hough Transform")) { .Add("HoughTransform"); }
         
         foreach (filter in .chain)
         {

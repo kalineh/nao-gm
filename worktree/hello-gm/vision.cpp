@@ -12,6 +12,7 @@
 #include <common/StrongHandle.h>
 #include <vm/VirtualMachine.h>
 #include <gfx/Texture.h>
+#include <math.h>
 
 #include <alcommon/alproxy.h>
 #include <alproxies/alvideodeviceproxy.h>
@@ -20,12 +21,7 @@
 
 #include <math.h>
 
-#define GLM_MESSAGES
-#define GLM_FORCE_INLINE
-#define GLM_FORCE_SSE2
-#include <glm/glm.hpp>
-#include <glm/gtx/simd_vec4.hpp>
-#include <glm/gtc/swizzle.hpp>
+const float PI = 3.1315926535f;
 
 // Performance notes (release build):
 
@@ -887,8 +883,6 @@ void Filters::BilateralARGBNaive(StrongHandle<Texture> out, StrongHandle<Texture
 
 float GaussianSample(float x, float sigma)
 {
-    const float PI = 3.1415926535f;
-
     return exp(-0.5f * pow(x / sigma, 2.0f)) / (2.0f * PI * sigma * sigma);
 }
 
@@ -1008,6 +1002,155 @@ void Filters::GaussianBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> 
     g_imagecache.Push(buffer_vout);
 }
 
+// http://www.tina-vision.net/docs/memos/1996-003.pdf
+// http://www.cs.unc.edu/~lazebnik/spring09/lec09_hough.pdf
+// http://www.cs.jhu.edu/~misha/Fall04/GHT1.pdf
+// http://planetmath.org/HoughTransform.html
+
+
+void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in)
+{
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer_in = g_imagecache.Pop<uint32_t>(w, h);
+    uint32_t* buffer_out = g_imagecache.Pop<uint32_t>(w, h);
+    glm::simdVec4* buffer_vin = g_imagecache.Pop<glm::simdVec4>(w, h);
+    glm::simdVec4* buffer_vout = g_imagecache.Pop<glm::simdVec4>(w, h);
+
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
+    in->Unbind();
+
+    glFinish();
+
+    VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
+
+    ImageView view(w, h);
+
+    // work
+    // generate gradient field
+    // for each pixel
+    //   can walk dir?
+    //     walk till threshold exceed
+    //     make pair
+
+    // for pixel > threshold:
+    //    double angle= k * (PI) /Theta_max - PI/4; 
+	//    unsigned rho = unsigned(fabs(i * cos(angle)+ j * sin(angle)));
+	//    arrayHough[Theta_max * rho + k] ++;
+    // 
+
+    const int steps = 32;
+    const int bins = 32;
+    const float threshold = 0.5f;
+
+    // hough accumulator: x-axis = theta, y-axis = polar value
+
+    int hough[steps * bins] = { 0 };
+
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            for (int i = 0; i < steps; ++i)
+            {
+                // use red channel since rgb should be identical
+
+                const glm::simdVec4 argb = buffer_vin[view.indexof(x, y)];
+                const float luminosity = glm::vec4_cast(argb).y;
+                
+                if (luminosity < threshold)
+                    continue;
+
+                const float theta = PI / float(steps) * float(i);
+                const float ix = float(x) / float(steps);
+                const float iy = float(y) / float(bins);
+                const float p = float(ix) * ::cos(theta) + float(iy) * ::sin(theta);
+                const float np = (p + 1.0f) / 2.0f * 0.5f;
+                
+                const int hx = i;
+                const int hy = int(np * float(bins));
+
+                // add a vote for a line at polar coordinates p = x cos theta + y sin theta
+
+                // DEBUG
+                if (hx < 0 || hx >= steps) continue;
+                if (hy < 0 || hy >= bins) continue;
+
+                hough[hx + hy * steps] += 1;
+            }
+        }
+    }
+
+    // write visible hough transform to image
+
+    const int vote_threshold = 5;
+
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < h; ++x)
+        {
+            const int hx = int(h / float(steps) * float(x));
+            const int hy = int(y / float(bins) * float(y));
+            const int vote = hough[hx + hy * steps];
+
+            const bool voted = vote > vote_threshold;
+
+            const glm::simdVec4 p = voted ? glm::simdVec4(1.0f) : glm::simdVec4(1.0f, 0.0f, 0.0f, 0.0f);
+            buffer_vout[view.indexof(x, y)] = p;
+        }
+    }
+
+    UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
+
+    out->Bind();
+    out->SubData(buffer_out, w, h, 0, 0);
+    out->Unbind();
+
+    /*
+    // find sufficiently voted hough values - these are detected lines
+    
+    const int vote_threshold = 5;
+
+    int lines[steps * bins] = { 0 };
+
+    for (int y = 0; y < bins; ++y)
+    {
+        for (int x = 0; x < steps; ++x)
+        {
+            const int index = x + y * steps;
+            const int votes = hough[index];
+
+            lines[index] = votes < vote_threshold ? 0 : 1;
+        }
+    }
+
+    // convert back out from hough space
+
+    pairs.clear();
+
+    for (int y = 0; y < bins; ++y)
+    {
+        for (int x = 0; x < steps; ++x)
+        {
+            const int index = x + y * steps;
+
+            if (lines[index] <= 0)
+                continue;
+
+            glm::vec2 a = TRANSFORM POLAR BACK TO LINE
+        }
+    }
+    */
+
+    g_imagecache.Push(buffer_in);
+    g_imagecache.Push(buffer_out);
+    g_imagecache.Push(buffer_vin);
+    g_imagecache.Push(buffer_vout);
+}
+
 void Filters::BoxBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> in)
 {
     CHECK(in->Sizei() == out->Sizei());
@@ -1103,12 +1246,25 @@ static int GM_CDECL gmfFilterGaussianBlurARGB(gmThread * a_thread)
 	return GM_OK;
 }
 
+static int GM_CDECL gmfFilterHoughTransformARGB(gmThread * a_thread)
+{
+	GM_CHECK_NUM_PARAMS(2);
+
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
+
+    Filters::HoughTransformARGB(out, in);
+
+	return GM_OK;
+}
+
 static gmFunctionEntry s_FiltersLib[] = 
 { 
 	{ "SobelARGB", gmfFilterSobelARGB },
 	{ "BilateralARGB", gmfFilterBilateralARGB },
 	{ "BoxBlurARGB", gmfFilterBoxBlurARGB },
 	{ "GaussianBlurARGB", gmfFilterGaussianBlurARGB },
+	{ "HoughTransformARGB", gmfFilterHoughTransformARGB },
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm)

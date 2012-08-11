@@ -19,17 +19,27 @@
 #include <alproxies/alsonarproxy.h>
 #include <alproxies/almemoryproxy.h>
 
+#define GLM_MESSAGES
+#define GLM_FORCE_INLINE
+#define GLM_FORCE_SSE2
+#include <glm/glm.hpp>
+#include <glm/gtx/simd_vec4.hpp>
+#include <glm/gtc/swizzle.hpp>
+
 using namespace funk;
 
 class Filters
 {
 public:
-    static void SobelARGBNaive(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold);
-    static void SobelARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, int threshold);
-    static void BilateralARGBNaive(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma);
-    static void BilateralARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float spatial_sigma, float edge_sigma);
-    static void BoxBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out);
-    static void GaussianBlurARGB(StrongHandle<Texture> in, StrongHandle<Texture> out, float sigma);
+    static void SobelARGBNaive(StrongHandle<Texture> out, StrongHandle<Texture> in, int threshold);
+    static void SobelARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int threshold);
+    static void BilateralARGBNaive(StrongHandle<Texture> out, StrongHandle<Texture> in, float spatial_sigma, float edge_sigma);
+    static void BilateralARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float spatial_sigma, float edge_sigma);
+    static void BoxBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> in);
+    static void GaussianBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float sigma);
+
+    //static void HoughTransformARGB(std::vector<glm::vec2> pairs, StrongHandle<Texture> in);
+    static void HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in);
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm);
