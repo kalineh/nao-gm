@@ -144,42 +144,58 @@ void DrawBresenhamLine(glm::vec2 a, glm::vec2 b, const glm::simdVec4& color, con
     int dx = x2 - x1;
     int stepx, stepy;
 
-    if (dy < 0) { dy = -dy;  stepy = -1; } else { stepy = 1; }
-    if (dx < 0) { dx = -dx;  stepx = -1; } else { stepx = 1; }
+    if (dy < 0)
+    {
+        dy = -dy;
+        stepy = -1;
+    }
+    else
+    {
+        stepy = 1;
+    }
+
+    if (dx < 0)
+    {
+        dx = -dx;
+        stepx = -1;
+    }
+    else
+    {
+        stepx = 1;
+    }
 
     dy *= 2;
     dx *= 2;
 
-    //drawpixel(x1,y1, color);
     data[view.indexof(x1, y1)] = color;
 
     if (dx > dy) 
     {
-        int fraction = dy - (dx >> 1);  // same as 2*dy - dx
+        int fraction = dy - (dx >> 1);
         while (x1 != x2) 
         {
             if (fraction >= 0) 
             {
                 y1 += stepy;
-                fraction -= dx;          // same as fraction -= 2*dx
+                fraction -= dx;
             }
             x1 += stepx;
-            fraction += dy;              // same as fraction -= 2*dy
-            //drawpixel(x1, y1, color);
+            fraction += dy;
             data[view.indexof(x1, y1)] = color;
         }
     }
     else
     {
         int fraction = dx - (dy >> 1);
-        while (y1 != y2) {
-            if (fraction >= 0) {
+        while (y1 != y2)
+        {
+            if (fraction >= 0)
+            {
                 x1 += stepx;
                 fraction -= dy;
             }
             y1 += stepy;
             fraction += dx;
-            //drawpixel(x1, y1, color);
             data[view.indexof(x1, y1)] = color;
         }
     }
@@ -1097,14 +1113,15 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
     // 
 
     const int steps = theta_steps;
-    const int bins = rho_bins;
+    const int bins = rho_bins & 0xFFFFFFFE; // round to even
+    const int halfbins = rho_bins / 2;
     const float threshold = 0.5f;
 
     // theta range is 0..pi
     // rho range is -D..D where D is the diagonal size of the image
 
     const float rho_max = ::sqrtf(float(w * w + h * h));
-    const float delta_rho = rho_max / float(bins / 2);
+    const float delta_rho = rho_max / float(halfbins);
 
     // hough accumulator: x-axis = theta, y-axis = polar value
 
@@ -1128,26 +1145,12 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
                 const float theta = PI / float(steps) * float(i);
                 const float p = float(x) * ::cos(theta) + float(y) * ::sin(theta);
 
-                // normalize -n..n to 0..1
-
-                // TODO: why are some things ignoring < 0.0f rho?
-                // TODO: untested yet
-                //const float rho = ::fabsf(p / rho_max);
-                const float rho = p / rho_max;
-                if (rho < 0.0f)
-                    continue;
+                const float rho = p / delta_rho;
                 
-                //const float np = 
-                //const float bin = 
-
                 const int hx = i;
-                const int hy = int(rho * float(bins));
+                const int hy = halfbins + int(rho + 0.5f);
 
-                // add a vote for this [theta, p] line
-
-                // DEBUG
-                //if (hx < 0 || hx >= steps) continue;
-                //if (hy < 0 || hy >= bins) continue;
+                // add a vote for this [theta, rho] line
 
                 hough[hx + hy * steps] += 1;
             }
@@ -1258,14 +1261,6 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
 
     ImageView view(w, h);
 
-    // iterate for images above a given threshold
-    // these are the detected lines
-
-    // line is p = x cos t + y sin t
-    // 
-
-    // how does we get a lines
-
     for (int y = 0; y < h; ++y)
     {
         for (int x = 0; x < w; ++x)
@@ -1284,8 +1279,8 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
             // TODO: compare a short line and a long line (just vote count differs?)
             // perhaps nearby pixels need examining
 
-            const float p = float(y);
-            const float t = float(x);
+            const float p = float(y) / 120.0f;
+            const float t = float(x) / 160.0f;
 
             glm::vec2 l = glm::vec2(
                 ::cos(t) * p,
