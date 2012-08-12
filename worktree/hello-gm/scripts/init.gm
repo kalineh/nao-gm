@@ -212,8 +212,9 @@ global MakeImageFilters = function()
     {
         local filter = {
             enabled = true,
-            theta_steps = 32,
-            polar_bins = 32,
+            theta_steps = 128,
+            rho_bins = 128,
+            rho_threshold = 1,
             tex = null,
         };
 
@@ -221,12 +222,35 @@ global MakeImageFilters = function()
         {
             Gui.Print("Hough Transform");
             .theta_steps = Gui.SliderInt("Theta Steps", .theta_steps, 1, 256);
-            .polar_bins = Gui.SliderInt("Polar Bins", .polar_bins, 1, 180);
+            .rho_bins = Gui.SliderInt("Rho Bins", .rho_bins, 1, 256);
+            .rho_threshold = Gui.SliderInt("Rho Threshold", .rho_threshold, 0, 64);
         };
 
         filter.Apply = function(out, in_)
         {
-            Filter.HoughTransformARGB(out, in_, .theta_steps, .polar_bins);
+            Filter.HoughTransformARGB(out, in_, .theta_steps, .rho_bins, .rho_threshold);
+        };
+
+        return filter;
+    };
+
+    ImageFilters.MakeHoughLinesFilter = function()
+    {
+        local filter = {
+            enabled = true,
+            peak_threshold = 0.5f,
+            tex = null,
+        };
+
+        filter.Gui = function()
+        {
+            Gui.Print("Hough Transform");
+            .peak_threshold = Gui.SliderFloat("Peak Threshold", .peak_threshold, 0.0f, 1.0f);
+        };
+
+        filter.Apply = function(out, in_)
+        {
+            Filter.HoughLinesARGB(out, in_, .peak_threshold);
         };
 
         return filter;
@@ -244,6 +268,7 @@ global MakeImageFilters = function()
         if (Gui.Button("Add Box Blur")) { .Add("BoxBlur"); }
         if (Gui.Button("Add Gaussian Blur")) { .Add("GaussianBlur"); }
         if (Gui.Button("Add Hough Transform")) { .Add("HoughTransform"); }
+        if (Gui.Button("Add Hough Lines")) { .Add("HoughLines"); }
         
         foreach (filter in .chain)
         {

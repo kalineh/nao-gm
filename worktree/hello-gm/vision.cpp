@@ -133,6 +133,59 @@ struct ImageView
     }
 };
 
+void DrawBresenhamLine(glm::vec2 a, glm::vec2 b, const glm::simdVec4& color, const ImageView& view, glm::simdVec4* data)
+{
+    int x1 = int(a.x);
+    int x2 = int(b.x);
+    int y1 = int(a.y);
+    int y2 = int(b.y);
+
+    int dy = y2 - y1;
+    int dx = x2 - x1;
+    int stepx, stepy;
+
+    if (dy < 0) { dy = -dy;  stepy = -1; } else { stepy = 1; }
+    if (dx < 0) { dx = -dx;  stepx = -1; } else { stepx = 1; }
+
+    dy *= 2;
+    dx *= 2;
+
+    //drawpixel(x1,y1, color);
+    data[view.indexof(x1, y1)] = color;
+
+    if (dx > dy) 
+    {
+        int fraction = dy - (dx >> 1);  // same as 2*dy - dx
+        while (x1 != x2) 
+        {
+            if (fraction >= 0) 
+            {
+                y1 += stepy;
+                fraction -= dx;          // same as fraction -= 2*dx
+            }
+            x1 += stepx;
+            fraction += dy;              // same as fraction -= 2*dy
+            //drawpixel(x1, y1, color);
+            data[view.indexof(x1, y1)] = color;
+        }
+    }
+    else
+    {
+        int fraction = dx - (dy >> 1);
+        while (y1 != y2) {
+            if (fraction >= 0) {
+                x1 += stepx;
+                fraction -= dy;
+            }
+            y1 += stepy;
+            fraction += dx;
+            //drawpixel(x1, y1, color);
+            data[view.indexof(x1, y1)] = color;
+        }
+    }
+}
+
+
 // fast integer clamping
 //x -= a;
 //x &= (~x) >> 31;
@@ -1009,7 +1062,7 @@ void Filters::GaussianBlurARGB(StrongHandle<Texture> out, StrongHandle<Texture> 
 // http://www.aishack.in/2010/03/the-hough-transform/2/
 // http://http.developer.nvidia.com/GPUGems3/gpugems3_ch41.html
 
-void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int theta_steps, int polar_bins)
+void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int theta_steps, int rho_bins, int rho_threshold)
 {
     const int w = in->Sizei().x;
     const int h = in->Sizei().y;
@@ -1044,8 +1097,11 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
     // 
 
     const int steps = theta_steps;
-    const int bins = polar_bins;
+    const int bins = rho_bins;
     const float threshold = 0.5f;
+
+    // theta range is 0..pi
+    // rho range is -D..D where D is the diagonal size of the image
 
     const float rho_max = ::sqrtf(float(w * w + h * h));
     const float delta_rho = rho_max / float(bins / 2);
@@ -1059,28 +1115,33 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
     {
         for (int x = 0; x < w; ++x)
         {
+            // use red channel since rgb should be identical
+
+            const glm::simdVec4 argb = buffer_vin[view.indexof(x, y)];
+            const float luminosity = glm::vec4_cast(argb).y;
+            
+            if (luminosity < threshold)
+                continue;
+
             for (int i = 0; i < steps; ++i)
             {
-                // use red channel since rgb should be identical
-
-                const glm::simdVec4 argb = buffer_vin[view.indexof(x, y)];
-                const float luminosity = glm::vec4_cast(argb).y;
-                
-                if (luminosity < threshold)
-                    continue;
-
                 const float theta = PI / float(steps) * float(i);
                 const float p = float(x) * ::cos(theta) + float(y) * ::sin(theta);
 
-                // normalize -n..n to centered around rho_max
+                // normalize -n..n to 0..1
 
-                const float rho = rho_max * 0.5f + p / delta_rho;
+                // TODO: why are some things ignoring < 0.0f rho?
+                // TODO: untested yet
+                //const float rho = ::fabsf(p / rho_max);
+                const float rho = p / rho_max;
+                if (rho < 0.0f)
+                    continue;
                 
                 //const float np = 
                 //const float bin = 
 
                 const int hx = i;
-                const int hy = int(float(bins) / rho_max * rho);
+                const int hy = int(rho * float(bins));
 
                 // add a vote for this [theta, p] line
 
@@ -1119,8 +1180,10 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
             const float l = 1.0f / float(max_vote) * float(vote);
             const float luminosity = l;
 
-            const glm::simdVec4 p = glm::simdVec4(1.0f, luminosity, luminosity, luminosity);
-            buffer_vout[view.indexof(x, y)] = p;
+            const float p = (vote < rho_threshold) ? 0.0f : luminosity;
+
+            const glm::simdVec4 out = glm::simdVec4(1.0f, p, p, p);
+            buffer_vout[view.indexof(x, y)] = out;
         }
     }
 
@@ -1167,6 +1230,83 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
         }
     }
     */
+
+    g_imagecache.Push(buffer_in);
+    g_imagecache.Push(buffer_out);
+    g_imagecache.Push(buffer_vin);
+    g_imagecache.Push(buffer_vout);
+}
+
+void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float peak_threshold)
+{
+    const int w = in->Sizei().x;
+    const int h = in->Sizei().y;
+    const int pixelsize = 4;
+
+    uint32_t* buffer_in = g_imagecache.Pop<uint32_t>(w, h);
+    uint32_t* buffer_out = g_imagecache.Pop<uint32_t>(w, h);
+    glm::simdVec4* buffer_vin = g_imagecache.Pop<glm::simdVec4>(w, h);
+    glm::simdVec4* buffer_vout = g_imagecache.Pop<glm::simdVec4>(w, h);
+
+    in->Bind(0);
+    in->GetTexImage(buffer_in);
+    in->Unbind();
+
+    glFinish();
+
+    VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
+
+    ImageView view(w, h);
+
+    // iterate for images above a given threshold
+    // these are the detected lines
+
+    // line is p = x cos t + y sin t
+    // 
+
+    // how does we get a lines
+
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            // use red channel since rgb should be identical
+
+            const glm::simdVec4 argb = buffer_vin[view.indexof(x, y)];
+            const float luminosity = glm::vec4_cast(argb).y;
+
+            if (luminosity < peak_threshold)
+                continue;
+
+            // we have a line of p = x cos t + y sin t
+            // lets render a full line
+            // the peak threshold should be the distance from the pure value?
+            // TODO: compare a short line and a long line (just vote count differs?)
+            // perhaps nearby pixels need examining
+
+            const float p = float(y);
+            const float t = float(x);
+
+            glm::vec2 l = glm::vec2(
+                ::cos(t) * p,
+                ::sin(t) * p
+            );
+
+            glm::vec2 perp = glm::vec2(-l.y, l.x);
+
+            glm::vec2 a = l + perp * luminosity * 32.0f;
+            glm::vec2 b = l - perp * luminosity * 32.0f;
+            glm::simdVec4 color = glm::simdVec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+            DrawBresenhamLine(a, b, color, view, buffer_vout);
+        }
+    }
+
+    UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
+
+    out->Bind();
+    out->SubData(buffer_out, w, h, 0, 0);
+    out->Unbind();
 
     g_imagecache.Push(buffer_in);
     g_imagecache.Push(buffer_out);
@@ -1271,14 +1411,28 @@ static int GM_CDECL gmfFilterGaussianBlurARGB(gmThread * a_thread)
 
 static int GM_CDECL gmfFilterHoughTransformARGB(gmThread * a_thread)
 {
-	GM_CHECK_NUM_PARAMS(4);
+	GM_CHECK_NUM_PARAMS(5);
 
 	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
 	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
     GM_CHECK_INT_PARAM( theta_steps, 2 );
-    GM_CHECK_INT_PARAM( polar_bins, 2 );
+    GM_CHECK_INT_PARAM( rho_bins, 3 );
+    GM_CHECK_INT_PARAM( rho_threshold, 4 );
 
-    Filters::HoughTransformARGB(out, in, theta_steps, polar_bins);
+    Filters::HoughTransformARGB(out, in, theta_steps, rho_bins, rho_threshold);
+
+	return GM_OK;
+}
+
+static int GM_CDECL gmfFilterHoughLinesARGB(gmThread * a_thread)
+{
+	GM_CHECK_NUM_PARAMS(3);
+
+	GM_CHECK_USER_PARAM_PTR( Texture, out, 0 );
+	GM_CHECK_USER_PARAM_PTR( Texture, in, 1 );
+	GM_CHECK_FLOAT_OR_INT_PARAM( peak_threshold, 2 );
+
+    Filters::HoughLinesARGB(out, in, peak_threshold);
 
 	return GM_OK;
 }
@@ -1290,6 +1444,7 @@ static gmFunctionEntry s_FiltersLib[] =
 	{ "BoxBlurARGB", gmfFilterBoxBlurARGB },
 	{ "GaussianBlurARGB", gmfFilterGaussianBlurARGB },
 	{ "HoughTransformARGB", gmfFilterHoughTransformARGB },
+	{ "HoughLinesARGB", gmfFilterHoughLinesARGB },
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm)
