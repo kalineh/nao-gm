@@ -21,7 +21,7 @@
 
 #include <math.h>
 
-const float PI = 3.1315926535f;
+const float PI = 3.1415926535f;
 
 // Performance notes (release build):
 
@@ -1099,29 +1099,13 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
 
     ImageView view(w, h);
 
-    // work
-    // generate gradient field
-    // for each pixel
-    //   can walk dir?
-    //     walk till threshold exceed
-    //     make pair
-
-    // for pixel > threshold:
-    //    double angle= k * (PI) /Theta_max - PI/4; 
-	//    unsigned rho = unsigned(fabs(i * cos(angle)+ j * sin(angle)));
-	//    arrayHough[Theta_max * rho + k] ++;
-    // 
-
     const int steps = theta_steps;
-    const int bins = rho_bins & 0xFFFFFFFE; // round to even
+    const int bins = rho_bins;
     const int halfbins = rho_bins / 2;
     const float threshold = 0.5f;
 
-    // theta range is 0..pi
-    // rho range is -D..D where D is the diagonal size of the image
-
     const float rho_max = ::sqrtf(float(w * w + h * h));
-    const float delta_rho = rho_max / float(halfbins);
+    const float rho_bin_step = rho_max / float(bins);
 
     // hough accumulator: x-axis = theta, y-axis = polar value
 
@@ -1142,13 +1126,24 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
 
             for (int i = 0; i < steps; ++i)
             {
+                // theta = angle of line (0..PI mapped to 0..w)
+                // rho = distance of line (0..sqrt(w*w + h*h) mapped to 0..h)
+
+                // 0 .. pi/2 ..  pi
+                // |  \   -   /   |
+                
                 const float theta = PI / float(steps) * float(i);
                 const float p = float(x) * ::cos(theta) + float(y) * ::sin(theta);
 
-                const float rho = p / delta_rho;
-                
+                if (p < 0.0f)
+                    continue;
+
+                //const float rho = p / delta_rho;
+                const float rho = int(p / rho_bin_step);
+
                 const int hx = i;
-                const int hy = halfbins + int(rho + 0.5f);
+                //const int hy = halfbins + int(rho + 0.5f);
+                const int hy = int(rho);
 
                 // add a vote for this [theta, rho] line
 
@@ -1198,42 +1193,6 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
     out->SubData(buffer_out, w, h, 0, 0);
     out->Unbind();
 
-    /*
-    // find sufficiently voted hough values - these are detected lines
-    
-    const int vote_threshold = 5;
-
-    int lines[steps * bins] = { 0 };
-
-    for (int y = 0; y < bins; ++y)
-    {
-        for (int x = 0; x < steps; ++x)
-        {
-            const int index = x + y * steps;
-            const int votes = hough[index];
-
-            lines[index] = votes < vote_threshold ? 0 : 1;
-        }
-    }
-
-    // convert back out from hough space
-
-    pairs.clear();
-
-    for (int y = 0; y < bins; ++y)
-    {
-        for (int x = 0; x < steps; ++x)
-        {
-            const int index = x + y * steps;
-
-            if (lines[index] <= 0)
-                continue;
-
-            glm::vec2 a = TRANSFORM POLAR BACK TO LINE
-        }
-    }
-    */
-
     g_imagecache.Push(buffer_in);
     g_imagecache.Push(buffer_out);
     g_imagecache.Push(buffer_vin);
@@ -1261,6 +1220,23 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
 
     ImageView view(w, h);
 
+    // reduce existing image values for a sort of histogram
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const glm::simdVec4 argb = buffer_vin[view.indexof(x, y)];
+            const glm::simdVec4 out = argb * glm::simdVec4(1.0f, 0.99f, 0.99f, 0.99f);
+            buffer_vout[view.indexof(x, y)] = out;
+        }
+    }
+
+    const int theta_steps = w;
+    const float rho_max = ::sqrtf(float(w * w + h * h));
+
+    static float call_count = 0.0f;
+    call_count += 1.0f;
+
     for (int y = 0; y < h; ++y)
     {
         for (int x = 0; x < w; ++x)
@@ -1279,18 +1255,29 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
             // TODO: compare a short line and a long line (just vote count differs?)
             // perhaps nearby pixels need examining
 
-            const float p = float(y) / 120.0f;
-            const float t = float(x) / 160.0f;
+            // scale theta from 0..w to 0..pi
+            // scale rho from 0..h to 0..h
+
+            //const float theta = PI / float(theta_steps) * float(x);
+            //const float rho = float(y);
+
+            const float theta = peak_threshold * PI;
+            const float rho = h / 2.0f;
+
+            // BUG: rho needs independent x/y scaling for image size (because bins becomes y)
+
+            // theta must be scaled from 0..STEPS to 0..PI
 
             glm::vec2 l = glm::vec2(
-                ::cos(t) * p,
-                ::sin(t) * p
+                ::cos(theta) * rho,
+                ::sin(theta) * rho
             );
 
             glm::vec2 perp = glm::vec2(-l.y, l.x);
 
-            glm::vec2 a = l + perp * luminosity * 32.0f;
-            glm::vec2 b = l - perp * luminosity * 32.0f;
+            glm::vec2 a = l + glm::normalize(perp) * 32.0f;
+            glm::vec2 b = l - glm::normalize(perp) * 32.0f;
+
             glm::simdVec4 color = glm::simdVec4(1.0f, 1.0f, 1.0f, 1.0f);
 
             DrawBresenhamLine(a, b, color, view, buffer_vout);
