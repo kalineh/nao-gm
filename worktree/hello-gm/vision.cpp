@@ -1131,6 +1131,8 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
 
                 // 0 .. pi/2 ..  pi
                 // |  \   -   /   |
+
+                // NOTE: not giving correct results for lines over pi/2
                 
                 const float theta = PI / float(steps) * float(i);
                 const float p = float(x) * ::cos(theta) + float(y) * ::sin(theta);
@@ -1138,11 +1140,9 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
                 if (p < 0.0f)
                     continue;
 
-                //const float rho = p / delta_rho;
-                const float rho = int(p / rho_bin_step);
+                const float rho = p / float(rho_bin_step);
 
                 const int hx = i;
-                //const int hy = halfbins + int(rho + 0.5f);
                 const int hy = int(rho);
 
                 // add a vote for this [theta, rho] line
@@ -1233,6 +1233,7 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
 
     const int theta_steps = w;
     const float rho_max = ::sqrtf(float(w * w + h * h));
+    const float rho_scale = 1.0f / float(h) * rho_max;
 
     static float call_count = 0.0f;
     call_count += 1.0f;
@@ -1258,25 +1259,25 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
             // scale theta from 0..w to 0..pi
             // scale rho from 0..h to 0..h
 
-            //const float theta = PI / float(theta_steps) * float(x);
-            //const float rho = float(y);
+            const float theta = PI / float(theta_steps) * float(x);
+            const float rho = float(y);
 
-            const float theta = peak_threshold * PI;
-            const float rho = h / 2.0f;
+            //const float theta = peak_threshold * PI;
+            //const float rho = h / 2.0f;
 
             // BUG: rho needs independent x/y scaling for image size (because bins becomes y)
 
             // theta must be scaled from 0..STEPS to 0..PI
 
             glm::vec2 l = glm::vec2(
-                ::cos(theta) * rho,
-                ::sin(theta) * rho
+                ::cos(theta) * rho * rho_scale,
+                ::sin(theta) * rho * rho_scale
             );
 
             glm::vec2 perp = glm::vec2(-l.y, l.x);
 
-            glm::vec2 a = l + glm::normalize(perp) * 32.0f;
-            glm::vec2 b = l - glm::normalize(perp) * 32.0f;
+            glm::vec2 a = l + glm::normalize(perp) * 256.0f;
+            glm::vec2 b = l - glm::normalize(perp) * 256.0f;
 
             glm::simdVec4 color = glm::simdVec4(1.0f, 1.0f, 1.0f, 1.0f);
 
