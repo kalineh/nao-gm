@@ -40,6 +40,7 @@ public:
 
     static void HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, int theta_steps, int rho_bins, int rho_threshold);
     static void HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float peak_threshold);
+    static void HoughLineSegmentsARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float peak_threshold);
 };
 
 void RegisterGmFiltersLib(gmMachine* a_vm);

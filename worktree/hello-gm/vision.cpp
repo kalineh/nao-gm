@@ -400,6 +400,96 @@ void Convolve3x3(glm::simdVec4* out, glm::simdVec4* in, const ImageView& view, c
     }
 }
 
+void Convolve5x5(glm::simdVec4* out, glm::simdVec4* in, const ImageView& view, const float kernel[25])
+{
+    for (int y = 0; y < view.height; ++y)
+    {
+        for (int x = 0; x < view.width; ++x)
+        {
+            const glm::simdVec4 _00 = in[view.indexof(x - 2, y - 2)];
+            const glm::simdVec4 _10 = in[view.indexof(x - 2, y - 2)];
+            const glm::simdVec4 _20 = in[view.indexof(x - 2, y - 2)];
+            const glm::simdVec4 _30 = in[view.indexof(x - 2, y - 2)];
+            const glm::simdVec4 _40 = in[view.indexof(x - 2, y - 2)];
+
+            const glm::simdVec4 _01 = in[view.indexof(x - 1, y - 1)];
+            const glm::simdVec4 _11 = in[view.indexof(x - 1, y - 1)];
+            const glm::simdVec4 _21 = in[view.indexof(x - 1, y - 1)];
+            const glm::simdVec4 _31 = in[view.indexof(x - 1, y - 1)];
+            const glm::simdVec4 _41 = in[view.indexof(x - 1, y - 1)];
+
+            const glm::simdVec4 _02 = in[view.indexof(x + 0, y + 0)];
+            const glm::simdVec4 _12 = in[view.indexof(x + 0, y + 0)];
+            const glm::simdVec4 _22 = in[view.indexof(x + 0, y + 0)];
+            const glm::simdVec4 _32 = in[view.indexof(x + 0, y + 0)];
+            const glm::simdVec4 _42 = in[view.indexof(x + 0, y + 0)];
+            
+            const glm::simdVec4 _03 = in[view.indexof(x + 1, y + 1)];
+            const glm::simdVec4 _13 = in[view.indexof(x + 1, y + 1)];
+            const glm::simdVec4 _23 = in[view.indexof(x + 1, y + 1)];
+            const glm::simdVec4 _33 = in[view.indexof(x + 1, y + 1)];
+            const glm::simdVec4 _43 = in[view.indexof(x + 1, y + 1)];
+
+            const glm::simdVec4 _04 = in[view.indexof(x + 2, y + 2)];
+            const glm::simdVec4 _14 = in[view.indexof(x + 2, y + 2)];
+            const glm::simdVec4 _24 = in[view.indexof(x + 2, y + 2)];
+            const glm::simdVec4 _34 = in[view.indexof(x + 2, y + 2)];
+            const glm::simdVec4 _44 = in[view.indexof(x - 2, y + 2)];
+
+            const float* k = kernel;
+
+            out[view.indexof(x, y)] = 
+                _00 * k[0 + 0 * 5] + _10 * k[1 + 0 * 5] + _20 * k[2 + 0 * 5] + _30 * k[3 + 0 * 5] + _40 * k[4 + 0 * 5] +
+                _01 * k[0 + 1 * 5] + _11 * k[1 + 1 * 5] + _21 * k[2 + 1 * 5] + _31 * k[3 + 1 * 5] + _41 * k[4 + 1 * 5] +
+                _02 * k[0 + 2 * 5] + _12 * k[1 + 2 * 5] + _22 * k[2 + 2 * 5] + _32 * k[3 + 2 * 5] + _42 * k[4 + 2 * 5] +
+                _03 * k[0 + 3 * 5] + _13 * k[1 + 3 * 5] + _23 * k[2 + 3 * 5] + _33 * k[3 + 3 * 5] + _43 * k[4 + 3 * 5] +
+                _04 * k[0 + 4 * 5] + _14 * k[1 + 4 * 5] + _24 * k[2 + 4 * 5] + _34 * k[3 + 4 * 5] + _44 * k[4 + 4 * 5];
+        }
+    }
+}
+
+void ConvolveSingle5x5(glm::simdVec4* out, glm::simdVec4* in, int x, int y, const ImageView& view, const float kernel[25])
+{
+    const glm::simdVec4 _00 = in[view.indexof(x - 2, y - 2)];
+    const glm::simdVec4 _10 = in[view.indexof(x - 2, y - 2)];
+    const glm::simdVec4 _20 = in[view.indexof(x - 2, y - 2)];
+    const glm::simdVec4 _30 = in[view.indexof(x - 2, y - 2)];
+    const glm::simdVec4 _40 = in[view.indexof(x - 2, y - 2)];
+
+    const glm::simdVec4 _01 = in[view.indexof(x - 1, y - 1)];
+    const glm::simdVec4 _11 = in[view.indexof(x - 1, y - 1)];
+    const glm::simdVec4 _21 = in[view.indexof(x - 1, y - 1)];
+    const glm::simdVec4 _31 = in[view.indexof(x - 1, y - 1)];
+    const glm::simdVec4 _41 = in[view.indexof(x - 1, y - 1)];
+
+    const glm::simdVec4 _02 = in[view.indexof(x + 0, y + 0)];
+    const glm::simdVec4 _12 = in[view.indexof(x + 0, y + 0)];
+    const glm::simdVec4 _22 = in[view.indexof(x + 0, y + 0)];
+    const glm::simdVec4 _32 = in[view.indexof(x + 0, y + 0)];
+    const glm::simdVec4 _42 = in[view.indexof(x + 0, y + 0)];
+    
+    const glm::simdVec4 _03 = in[view.indexof(x + 1, y + 1)];
+    const glm::simdVec4 _13 = in[view.indexof(x + 1, y + 1)];
+    const glm::simdVec4 _23 = in[view.indexof(x + 1, y + 1)];
+    const glm::simdVec4 _33 = in[view.indexof(x + 1, y + 1)];
+    const glm::simdVec4 _43 = in[view.indexof(x + 1, y + 1)];
+
+    const glm::simdVec4 _04 = in[view.indexof(x + 2, y + 2)];
+    const glm::simdVec4 _14 = in[view.indexof(x + 2, y + 2)];
+    const glm::simdVec4 _24 = in[view.indexof(x + 2, y + 2)];
+    const glm::simdVec4 _34 = in[view.indexof(x + 2, y + 2)];
+    const glm::simdVec4 _44 = in[view.indexof(x - 2, y + 2)];
+
+    const float* k = kernel;
+
+    out[view.indexof(x, y)] = 
+        _00 * k[0 + 0 * 5] + _10 * k[1 + 0 * 5] + _20 * k[2 + 0 * 5] + _30 * k[3 + 0 * 5] + _40 * k[4 + 0 * 5] +
+        _01 * k[0 + 1 * 5] + _11 * k[1 + 1 * 5] + _21 * k[2 + 1 * 5] + _31 * k[3 + 1 * 5] + _41 * k[4 + 1 * 5] +
+        _02 * k[0 + 2 * 5] + _12 * k[1 + 2 * 5] + _22 * k[2 + 2 * 5] + _32 * k[3 + 2 * 5] + _42 * k[4 + 2 * 5] +
+        _03 * k[0 + 3 * 5] + _13 * k[1 + 3 * 5] + _23 * k[2 + 3 * 5] + _33 * k[3 + 3 * 5] + _43 * k[4 + 3 * 5] +
+        _04 * k[0 + 4 * 5] + _14 * k[1 + 4 * 5] + _24 * k[2 + 4 * 5] + _34 * k[3 + 4 * 5] + _44 * k[4 + 4 * 5];
+}
+
 void Convolve3x1(glm::vec4* out, glm::vec4* in, const ImageView& view, const float kernel[9])
 {
     for (int y = 0; y < view.height; ++y)
@@ -975,6 +1065,35 @@ void MakeGaussianKernel1D(float* out, int w, float sigma)
     }
 }
 
+void MakeGaussianKernel2D(float* out, int h, int w, float sigma)
+{
+    float sum = 0.0f;
+
+    // floor() by integer division
+    float pivot_x = float(w / 2);
+    float pivot_y = float(h / 2);
+
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const float gx = GaussianSample(float(x) - pivot_x, sigma);
+            const float gy = GaussianSample(float(y) - pivot_y, sigma);
+            const float g = gx * gy;
+            out[x + y * w] = g;
+            sum += g;
+        }
+    }
+
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            out[x + y * w] /= sum;
+        }
+    }
+}
+
 void Filters::BilateralARGB(StrongHandle<Texture> out, StrongHandle<Texture> in, float spatial_sigma, float edge_sigma)
 {
     CHECK(in->Sizei() == out->Sizei());
@@ -985,8 +1104,8 @@ void Filters::BilateralARGB(StrongHandle<Texture> out, StrongHandle<Texture> in,
 
     uint32_t* buffer_in = g_imagecache.Pop<uint32_t>(w, h);
     uint32_t* buffer_out = g_imagecache.Pop<uint32_t>(w, h);
-    glm::vec4* buffer_vin = g_imagecache.Pop<glm::vec4>(w, h);
-    glm::vec4* buffer_vout = g_imagecache.Pop<glm::vec4>(w, h);
+    glm::simdVec4* buffer_vin = g_imagecache.Pop<glm::simdVec4>(w, h);
+    glm::simdVec4* buffer_vout = g_imagecache.Pop<glm::simdVec4>(w, h);
 
     in->Bind(0);
     in->GetTexImage(buffer_in);
@@ -996,10 +1115,45 @@ void Filters::BilateralARGB(StrongHandle<Texture> out, StrongHandle<Texture> in,
 
     VectorizeImageARGBARGB(buffer_vin, buffer_in, w, h);
 
-    float kernel[5] = { 0.0f };
-    MakeGaussianKernel1D(kernel, 5, 1.0f);
+    const int window_size = 5;
+
+    float gaussian_kernel[window_size * window_size] = { 0.0f };
+    float kernel[window_size * window_size] = { 0.0f };
+    MakeGaussianKernel2D(gaussian_kernel, window_size, window_size, spatial_sigma);
 
     ImageView view(w, h);
+
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const glm::simdVec4 p = buffer_vin[view.indexof(x, y)];
+
+            // TODO: cache intensity convolution filters for all intensity at 0..255 detail
+
+            for (int wy = 0; wy < window_size; ++wy)
+            {
+                for (int wx = 0; wx < window_size; ++wx)
+                {
+                    // get intensity difference for this window pixel
+                    const glm::simdVec4 wp = buffer_vin[view.indexof(x + wx, y + wy)];
+                    const glm::simdVec4 iv = (wp - p);
+
+                    // TODO: find a way to not cast
+                    const glm::vec4 ivv = glm::vec4_cast(iv);
+                    const float i = ivv.y * ivv.z * ivv.w;
+                    
+                    // multiply gaussian filter for custom kernel
+                    const int index = wx + wy * window_size;
+                    kernel[index] = gaussian_kernel[index] * i;
+                }
+            }
+
+            MakeGaussianKernel2D(kernel, window_size, window_size, spatial_sigma);
+
+            ConvolveSingle5x5(buffer_vout, buffer_vin, x, y, view, kernel);
+        }
+    }
 
     // how do we convolve bilateral?
 
@@ -1015,8 +1169,9 @@ void Filters::BilateralARGB(StrongHandle<Texture> out, StrongHandle<Texture> in,
     //    > a and b for position is bounded around -window to window (window*window*sizeof(float), 16kb for window=4)
     // 
 
-    Convolve5x1(buffer_vout, buffer_vin, view, kernel);
-    Convolve1x5(buffer_vout, buffer_vout, view, kernel);
+    // DEBUG: gaussian blur
+    //Convolve5x1(buffer_vout, buffer_vin, view, kernel);
+    //Convolve1x5(buffer_vout, buffer_vout, view, kernel);
 
     UnvectorizeImageARGBARGB(buffer_out, buffer_vout, w, h);
 
@@ -1132,8 +1287,6 @@ void Filters::HoughTransformARGB(StrongHandle<Texture> out, StrongHandle<Texture
                 // 0 .. pi/2 ..  pi
                 // |  \   -   /   |
 
-                // NOTE: not giving correct results for lines over pi/2
-                
                 const float theta = PI / float(steps) * float(i);
                 const float p = float(x) * ::cos(theta) + float(y) * ::sin(theta);
 
@@ -1235,9 +1388,6 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
     const float rho_max = ::sqrtf(float(w * w + h * h));
     const float rho_scale = 1.0f / float(h) * rho_max;
 
-    static float call_count = 0.0f;
-    call_count += 1.0f;
-
     for (int y = 0; y < h; ++y)
     {
         for (int x = 0; x < w; ++x)
@@ -1250,22 +1400,11 @@ void Filters::HoughLinesARGB(StrongHandle<Texture> out, StrongHandle<Texture> in
             if (luminosity < peak_threshold)
                 continue;
 
-            // we have a line of p = x cos t + y sin t
-            // lets render a full line
-            // the peak threshold should be the distance from the pure value?
-            // TODO: compare a short line and a long line (just vote count differs?)
-            // perhaps nearby pixels need examining
-
             // scale theta from 0..w to 0..pi
             // scale rho from 0..h to 0..h
 
             const float theta = PI / float(theta_steps) * float(x);
             const float rho = float(y);
-
-            //const float theta = peak_threshold * PI;
-            //const float rho = h / 2.0f;
-
-            // BUG: rho needs independent x/y scaling for image size (because bins becomes y)
 
             // theta must be scaled from 0..STEPS to 0..PI
 

@@ -154,8 +154,8 @@ global MakeImageFilters = function()
         filter.Gui = function()
         {
             Gui.Print("Bilateral Filter");
-            .spatial_sigma = Gui.SliderFloat("Spatial Sigma", .spatial_sigma, 0.0f, 0.5f);
-            .edge_sigma = Gui.SliderFloat("Edge Sigma", .edge_sigma, 0.0f, 0.5f);
+            .spatial_sigma = Gui.SliderFloat("Spatial Sigma", .spatial_sigma, 0.0f, 1.0f);
+            .edge_sigma = Gui.SliderFloat("Edge Sigma", .edge_sigma, 0.0f, 1.0f);
         };
 
         filter.Apply = function(out, in_)
