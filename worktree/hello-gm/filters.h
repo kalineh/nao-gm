@@ -1,30 +1,8 @@
-/*
- * Copyright (c) 2012 Aldebaran Robotics. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the COPYING file.
- */
+//
+// filters.h
+//
 
-#include <cstdlib>
-#include <string>
-#include <vector>
-
-#include "gm/gmMachine.h"
-#include "gm/gmBindHeader.h"
-
-#include "Core.h"
-#include <common/HandledObj.h>
-#include <common/StrongHandle.h>
-
-#include <alproxies/alvideodeviceproxy.h>
-#include <alproxies/alsonarproxy.h>
-#include <alproxies/almemoryproxy.h>
-
-#define GLM_MESSAGES
-#define GLM_FORCE_INLINE
-#define GLM_FORCE_SSE2
-#include <glm/glm.hpp>
-#include <glm/gtx/simd_vec4.hpp>
-#include <glm/gtc/swizzle.hpp>
+#include "main.h"
 
 using namespace funk;
 

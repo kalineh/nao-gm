@@ -1,0 +1,4 @@
+
+// init.gm
+
+Log("init.gm: Initializing...");

@@ -1,21 +1,10 @@
-/*
- * Copyright (c) 2012 Aldebaran Robotics. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the COPYING file.
- */
+//
+// main.cpp
+//
 
-#include <cstdlib>
-#include <string>
-
-#include "gm/gmMachine.h"
-#include "gm/gmBind.h"
-
-#include "Core.h"
-
-#include "vision.h"
-#include "gmalproxy.h"
-
-using namespace funk;
+#include "main.h"
+#include "filters.h"
+#include "opencv_tests.h"
 
 void RegisterProjectLibs(gmMachine* vm)
 {

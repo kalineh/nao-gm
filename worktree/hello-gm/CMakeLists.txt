@@ -22,16 +22,20 @@ add_custom_target(AUX_FILES SOURCES ${FUNK_HDRS} ${FUNK_GM} ${HDRS} ${GMS})
 
 # TODO: copy the dlls to output somehow!
 
-qi_submodule_create(funk SRC ${FUNK_SRCS})
+qi_submodule_create(funk SRC ${FUNK_SRCS} ${FUNK_HDRS})
 
 qi_create_bin(hello-gm
 	${SRCS}
+	${HDRS}
 	# */*.cpp  # for subtrees, but will fail without at least one folder
 	SUBMODULE funk
 )
 
 qi_use_lib(hello-gm ALCOMMON)
+qi_use_lib(hello-gm ALVISION)
+qi_use_lib(hello-gm OPENCV)
 qi_use_lib(hello-gm SDL)
 qi_use_lib(hello-gm GLEW)
 qi_use_lib(hello-gm FMOD)
 qi_use_lib(hello-gm DEVIL)
+

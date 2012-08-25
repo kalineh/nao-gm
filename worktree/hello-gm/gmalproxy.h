@@ -1,18 +1,10 @@
-/*
- * Copyright (c) 2012 Aldebaran Robotics. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the COPYING file.
- */
+//
+// gmalproxy.h
+//
 
-#include <string>
+#pragma once
 
-#include "gm/gmMachine.h"
-#include "gm/gmBindHeader.h"
-
-#include "Core.h"
-#include <common/HandledObj.h>
-
-#include <alcommon/alproxy.h>
+#include "main.h"
 
 using namespace funk;
 

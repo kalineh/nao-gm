@@ -1,25 +1,8 @@
-/*
- * Copyright (c) 2012 Aldebaran Robotics. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the COPYING file.
- */
+//
+// filters.cpp
+//
 
-#include "vision.h"
-
-#include "gm/gmBind.h"
-
-#include <common/Debug.h>
-#include <common/StrongHandle.h>
-#include <vm/VirtualMachine.h>
-#include <gfx/Texture.h>
-#include <math.h>
-
-#include <alcommon/alproxy.h>
-#include <alproxies/alvideodeviceproxy.h>
-#include <alvision/alvisiondefinitions.h>
-#include <alproxies/alsonarproxy.h>
-
-#include <math.h>
+#include "filters.h"
 
 const float PI = 3.1415926535f;
 
