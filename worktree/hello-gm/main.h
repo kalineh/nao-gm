@@ -3,6 +3,8 @@
 //
 
 #pragma once
+#ifndef _MAIN_H
+#define _MAIN_H
 
 // clib
 
@@ -28,10 +30,11 @@
 #include <alproxies/alvideodeviceproxy.h>
 #include <alproxies/alsonarproxy.h>
 #include <alvision/alvisiondefinitions.h>
+#include <almemoryfastaccess/almemoryfastaccess.h>
 
 // glm
 
-#define GLM_MESSAGES
+//#define GLM_MESSAGES
 #define GLM_FORCE_INLINE
 #define GLM_FORCE_SSE2
 
@@ -52,3 +55,5 @@
 // common
 
 #include "gmalproxy.h"
+
+#endif // _MAIN_H

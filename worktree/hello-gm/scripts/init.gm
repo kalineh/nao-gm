@@ -15,8 +15,10 @@ global g_norobot = true;
 global g_dual_video_test = true;
 
 global g_proxies = MakeProxies(g_ip, g_port);
-global g_filters_test = MakeFiltersTest(g_ip, g_port);
-global g_status_display = MakeStatusDisplay(g_ip, g_port);
+
+//global g_filters_test = MakeFiltersTest(g_ip, g_port);
+//global g_status_display = MakeStatusDisplay(g_ip, g_port);
+global g_opencv_test = MakeOpenCVTest(g_ip, g_port);
 
 while (true)
 {

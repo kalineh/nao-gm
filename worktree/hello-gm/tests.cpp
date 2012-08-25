@@ -19,6 +19,7 @@
 #include <alproxies/altexttospeechproxy.h>
 #include <alproxies/alspeechrecognitionproxy.h>
 #include <alproxies/almemoryproxy.h>
+#include <almemoryfastaccess/almemoryfastaccess.h>
 
 #include <qi/log.hpp>
 #include <qi/os.hpp>

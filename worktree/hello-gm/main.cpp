@@ -12,6 +12,7 @@ void RegisterProjectLibs(gmMachine* vm)
 
 	GM_BIND_INIT( GMALProxy, vm );
 	GM_BIND_INIT( GMVideoDisplay, vm );
+	GM_BIND_INIT( GMOpenCVMat, vm );
 }
 
 int main(int argc, char** argv)

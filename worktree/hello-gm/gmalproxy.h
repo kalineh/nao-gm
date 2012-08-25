@@ -28,4 +28,16 @@ private:
     int _current_call;
 };
 
+class GMALBulkMemoryProxy
+    : public HandledObj<GMALBulkMemoryProxy>
+{
+public:
+    GM_BIND_TYPEID(GMALBulkMemoryProxy);
+
+    GMALBulkMemoryProxy(const char* ip, int port);
+
+private:
+    //std::vector<
+};
+
 GM_BIND_DECL(GMALProxy);

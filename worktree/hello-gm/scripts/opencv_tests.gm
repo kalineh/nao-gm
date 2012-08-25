@@ -1,4 +1,117 @@
 
-// init.gm
+// opencv_tests.gm
 
-Log("init.gm: Initializing...");
+Log("opencv_tests.gm: Initializing...");
+
+global MakeOpenCVTest = function()
+{
+    local Main = {
+    };
+
+    Main.Init = function()
+    {
+        .update_id = this:thread(.Update);
+
+        .stream_video0 = false;
+        .stream_video1 = false;
+
+		.cam2d = Cam2d();
+		.cam2d.InitScreenSpaceSize( Window.GetDimen() );
+		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
+
+        .videoleft = Texture( g_resourcePathPrefix + "common/img/videoleft.png" );
+        .videoright = Texture( g_resourcePathPrefix + "common/img/videoright.png" );
+        .videodisparity = Texture( .videoleft.Dimen() );
+
+        .matleft = GMOpenCVMat(.videoleft.Dimen());
+        .matleft.ReadFromTexture(.videoleft);
+    };
+
+    Main.Release = function()
+    {
+        threadKill(.update_id);
+    };
+
+    Main.ClearScreen = function()
+    {
+		Gfx.ClearColor( Gfx.BLUE * v3(0.1f), 1.0f );
+		Gfx.ClearDepth(1.0f);
+		Gfx.Clear( Gfx.COLOR_BUFFER_BIT | Gfx.DEPTH_BUFFER_BIT );
+    };
+
+    Main.Gui = function()
+    {
+        //if (!g_norobot)
+        //{
+            Gui.Begin("OpenCV Test", g_core.screenDimen.x.Int()-230, g_core.screenDimen.y.Int() - 5);
+
+            //.stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
+            //.stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
+
+            if (Gui.Button("Blur"))
+            {
+                .matleft.GaussianBlur();
+                .matleft.WriteToTexture(.videodisparity);
+            }
+
+            Gui.End();
+
+            //.video0.SetActive(.stream_video0);
+            //.video1.SetActive(.stream_video1);
+
+            //.video0.Update();
+            //.video1.Update();
+        //}
+
+        .DrawDualVideo();
+    };
+
+    Main.DrawDualVideo = function()
+    {
+		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
+		Gfx.BeginDefaultShader();
+
+        .cam2d.Begin();
+
+		Gfx.Color(Gfx.WHITE, 1.0f);
+
+        local vscale = 2.0f;
+		local vsize = v2(160.0f, 120.0f) * vscale;
+		local vpos = g_core.screenDimen * v2(0.2f, 0.2f) - vsize * 0.5f;
+
+        .videoleft.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        .videoleft.Unbind();
+        
+        vpos = vpos + v2(vsize.x + 32.0f, 0.0f);
+
+        .videoright.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        .videoright.Unbind();
+
+        vpos = vpos + v2(vsize.x * -0.5f - 16.0f, vsize.y + 32.0f);
+
+        .videodisparity.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        .videodisparity.Unbind();
+
+        .cam2d.End();
+
+		Gfx.EndDefaultShader();
+		Gfx.Viewport( v2(0), g_core.screenDimen );
+    };
+
+    Main.Update = function()
+    {
+        while (true)
+        {
+    		RegisterDraw( DrawLayers.Clear, .ClearScreen, this );
+    		RegisterGui( .Gui, this );			
+
+            yield();
+        }
+    };
+
+    Main.Init();
+    return Main;
+};

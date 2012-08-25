@@ -18,7 +18,7 @@ file(GLOB_RECURSE SRCS *.cpp)
 file(GLOB_RECURSE HDRS *.h)
 file(GLOB_RECURSE GMS *.gm)
 
-add_custom_target(AUX_FILES SOURCES ${FUNK_HDRS} ${FUNK_GM} ${HDRS} ${GMS})
+add_custom_target(AUX_FILES SOURCES ${FUNK_HDRS} ${FUNK_GM} ${HDRS} ${GMS} ${OPENCV_HDRS})
 
 # TODO: copy the dlls to output somehow!
 

@@ -109,7 +109,6 @@ global MakeProxies = function(ip, port)
     }
 
     Proxies.Init();
-    assert(Proxies.memory != null);
     return Proxies;
 };
 
