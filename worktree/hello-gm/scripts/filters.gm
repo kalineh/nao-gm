@@ -3,22 +3,6 @@
 
 Log("init.gm: Initializing...");
 
-local MakeSoundLooker = function()
-{
-    local SoundLooker = table();
-
-    SoundLooker.Update = function()
-    {
-        while (true)
-        {
-            yield();
-        }
-    };
-
-    return SoundLooker;
-};
-
-
 /*
 
 generate sets of lines from sobel filter
@@ -36,82 +20,6 @@ look for similar blocks in other image
 
 
 */
-
-global MakeALProxy = function(type, ip, port)
-{
-    assert(?type);
-    assert(?ip);
-    assert(?port);
-
-    local ALProxy = table();
-
-    ALProxy.type = type;
-    ALProxy.ip = ip;
-    ALProxy.port = port;
-    ALProxy.proxy = GMALProxy(type, ip, port);
-    ALProxy.next = null;
-
-    ALProxy.Init = function()
-    {
-        .update_id = this:thread(.Update);
-    };
-
-    ALProxy.Release = function()
-    {
-        threadKill(.update_id);
-    };
-
-    ALProxy.CallReturnVariable = function(f, a)
-    {
-        return .proxy.CallReturnVariable(f, a);
-    };
-
-    ALProxy.CallReturnFloat = function(f, a)
-    {
-        return .proxy.CallReturnFloat(f, a);
-    };
-
-    ALProxy.CallVoid = function(f, a)
-    {
-        Log("CallVoid: " + f);
-        .proxy.CallVoid(f, a);
-    };
-
-    ALProxy.PostCall = function(f, a)
-    {
-        Log("PostCall: " + f);
-        .proxy.PostCall(f, a);
-
-        while (.proxy.IsRunning())
-        {
-            yield();
-        }
-    };
-
-    ALProxy.Update = function()
-    {
-        while (true)
-        {
-            if (.next != null)
-            {
-                local fun = .next.fun;
-                local arg = .next.arg;
-                .next = null;
-                .PostCall(fun, arg);
-            }
-
-            yield();
-        }
-    };
-
-    ALProxy.Queue = function(f, a)
-    {
-        .next = { fun=f, arg=a };
-    };
-
-    ALProxy.Init();
-    return ALProxy;
-};
 
 global MakeImageFilters = function()
 {
@@ -364,191 +272,18 @@ global MakeImageFilters = function()
     return ImageFilters;
 };
 
-global MakeStatusDisplay = function()
-{
-    local StatusDisplay = {
-        show = {
-            LHand = false,
-            RHand = false,
-            LArm = false,
-            RArm = false,
-            Head = false,
-            Battery = false,
-            ChestLed = false,
-        },
-    };
-
-    StatusDisplay.Init = function()
-    {
-        .update_id = this:thread(.Update);
-    };
-
-    StatusDisplay.Update = function()
-    {
-        while (true)
-        {
-    		RegisterGui( .Gui, this );			
-            yield();
-        }
-    };
-
-    StatusDisplay.Gui = function()
-    {
-        Gui.Begin("Status", g_core.screenDimen.x.Int()-450, g_core.screenDimen.y.Int() - 5);
-
-        .show.LHand = Gui.CheckBox("Hand - Left", .show.LHand);
-        .show.RHand = Gui.CheckBox("Hand - Right", .show.RHand);
-        .show.LArm = Gui.CheckBox("Arm - Left", .show.LArm);
-        .show.RArm = Gui.CheckBox("Arm - Right", .show.RArm);
-        .show.Head = Gui.CheckBox("Head", .show.Head);
-        .show.Battery = Gui.CheckBox("Battery", .show.Battery);
-        .show.ChestLed = Gui.CheckBox("Chest Led", .show.ChestLed);
-
-        Gui.Separator();
-            
-        local display = function(name, key)
-        {
-            local value = g_proxies.memory.CallReturnVariable("getData", key);
-            if (!?value) { value = "null"; }
-            local str = name + ": " + value.String();
-            Gui.Print(str);
-        };
-
-        // Retrieving memory data like this is slow. Replace with memory.getDataPtr() in some kind of memory key/cache object.
-
-        if (.show.LHand)
-        {
-            Gui.Print("Hand - Left");
-            this:display("Current", "Device/SubDeviceList/LHand/ElectricCurrent/Sensor/Value");
-            this:display("Position", "Device/SubDeviceList/LHand/Position/Sensor/Value");
-            this:display("Temperature", "Device/SubDeviceList/LHand/Temperature/Sensor/Value");
-            this:display("Touch - Back", "Device/SubDeviceList/LHand/Touch/Back/Sensor/Value");
-            this:display("Touch - Left", "Device/SubDeviceList/LHand/Touch/Left/Sensor/Value");
-            this:display("Touch - Right", "Device/SubDeviceList/LHand/Touch/Right/Sensor/Value");
-            Gui.Separator();
-        }
-
-        if (.show.RHand)
-        {
-            Gui.Print("Hand - Right");
-            this:display("Current", "Device/SubDeviceList/RHand/ElectricCurrent/Sensor/Value");
-            this:display("Position", "Device/SubDeviceList/RHand/Position/Sensor/Value");
-            this:display("Temperature", "Device/SubDeviceList/RHand/Temperature/Sensor/Value");
-            this:display("Touch - Back", "Device/SubDeviceList/RHand/Touch/Back/Sensor/Value");
-            this:display("Touch - Left", "Device/SubDeviceList/RHand/Touch/Left/Sensor/Value");
-            this:display("Touch - Right", "Device/SubDeviceList/RHand/Touch/Right/Sensor/Value");
-            Gui.Separator();
-        }
-
-        if (.show.LArm)
-        {
-            Gui.Print("Arm - Left");
-            this:display("Shoulder Pitch - Current", "Device/SubDeviceList/LShoulderPitch/ElectricCurrent/Sensor/Value");
-            this:display("Shoulder Pitch - Hardness", "Device/SubDeviceList/LShoulderPitch/Hardness/Actuator/Value");
-            this:display("Shoulder Pitch - Position", "Device/SubDeviceList/LShoulderPitch/Position/Sensor/Value");
-            this:display("Shoulder Pitch - Temperature", "Device/SubDeviceList/LShoulderPitch/Temperature/Sensor/Value");
-            this:display("Shoulder Roll - Current", "Device/SubDeviceList/LShoulderRoll/ElectricCurrent/Sensor/Value");
-            this:display("Shoulder Roll - Hardness", "Device/SubDeviceList/LShoulderRoll/Hardness/Actuator/Value");
-            this:display("Shoulder Roll - Position", "Device/SubDeviceList/LShoulderRoll/Position/Sensor/Value");
-            this:display("Shoulder Roll - Temperature", "Device/SubDeviceList/LShoulderRoll/Temperature/Sensor/Value");
-            Gui.Separator();
-        }
-
-        if (.show.RArm)
-        {
-            Gui.Print("Arm - Right");
-            this:display("Shoulder Pitch - Current", "Device/SubDeviceList/RShoulderPitch/ElectricCurrent/Sensor/Value");
-            this:display("Shoulder Pitch - Hardness", "Device/SubDeviceList/RShoulderPitch/Hardness/Actuator/Value");
-            this:display("Shoulder Pitch - Position", "Device/SubDeviceList/RShoulderPitch/Position/Sensor/Value");
-            this:display("Shoulder Pitch - Temperature", "Device/SubDeviceList/RShoulderPitch/Temperature/Sensor/Value");
-            this:display("Shoulder Roll - Current", "Device/SubDeviceList/RShoulderRoll/ElectricCurrent/Sensor/Value");
-            this:display("Shoulder Roll - Hardness", "Device/SubDeviceList/RShoulderRoll/Hardness/Actuator/Value");
-            this:display("Shoulder Roll - Position", "Device/SubDeviceList/RShoulderRoll/Position/Sensor/Value");
-            this:display("Shoulder Roll - Temperature", "Device/SubDeviceList/RShoulderRoll/Temperature/Sensor/Value");
-            Gui.Separator();
-        }
-
-        if (.show.Head)
-        {
-            Gui.Print("Head");
-            this:display("Temperature", "Device/SubDeviceList/Head/Temperature/Sensor/Value");
-            this:display("Pitch - Hardness", "Device/SubDeviceList/HeadPitch/Hardness/Actuator/Value");
-            this:display("Pitch - Position", "Device/SubDeviceList/HeadPitch/Position/Actuator/Value");
-            this:display("Yaw - Hardness", "Device/SubDeviceList/HeadYaw/Hardness/Actuator/Value");
-            this:display("Yaw - Position", "Device/SubDeviceList/HeadYaw/Position/Actuator/Value");
-            Gui.Separator();
-        }
-
-        if (.show.Battery)
-        {
-            Gui.Print("Battery");
-            this:display("Temperature", "Device/SubDeviceList/Battery/Temperature/Sensor/Value");
-            this:display("Plugged In", "Device/SubDeviceList/HeadPitch/Position/Actuator/Value");
-            this:display("Charge", "Device/SubDeviceList/Battery/Charge/Sensor/Value");
-            Gui.Separator();
-        }
-
-        if (.show.ChestLed)
-        {
-            Gui.Print("Chest Led");
-            this:display("Ear - Left - Blue", "Device/SubDeviceList/ChestBoard/Led/Blue/Actuator/Value");
-            this:display("Ear - Let - Red", "Device/SubDeviceList/ChestBoard/Led/Red/Actuator/Value");
-            this:display("Chest - Blue", "Device/SubDeviceList/ChestBoard/Led/Blue/Actuator/Value");
-            this:display("Chest - Red", "Device/SubDeviceList/ChestBoard/Led/Red/Actuator/Value");
-            Gui.Separator();
-        }
-
-        Gui.End();
-    };
-
-    StatusDisplay.Init();
-    return StatusDisplay;
-};
-
-global MakeProxies = function(ip, port)
-{
-    local Proxies = {
-        ip = ip,
-        port = port,
-    };
-
-    Proxies.Init = function()
-    {
-        .motion = MakeALProxy("ALMotion", .ip, .port);
-        .speech = MakeALProxy("ALTextToSpeech", .ip, .port);
-        .memory = MakeALProxy("ALMemory", .ip, .port);
-    };
-
-    Proxies.Release = function()
-    {
-        .motion.Release();
-        .speech.Release();
-        .memory.Release();
-    };
-
-    if (g_norobot)
-    {
-        Proxies.Init = function() {};
-        Proxies.Release = function() {};
-    }
-
-    Proxies.Init();
-    return Proxies;
-};
-
 global MakeFiltersTest = function()
 {
     local Main = {
-        status = MakeStatusDisplay(),
     };
 
     Main.Init = function()
     {
+        .update_id = this:thread(.Update);
+
         .speech_text = "hello";
         .stream_video0 = false;
         .stream_video1 = false;
-
-        .status.Init();
 
 		.cam2d = Cam2d();
 		.cam2d.InitScreenSpaceSize( Window.GetDimen() );
@@ -581,14 +316,8 @@ global MakeFiltersTest = function()
         }
     };
 
-    Main.Run = function()
-    {
-        .update_id = this:thread(.Update);
-    };
-
     Main.Release = function()
     {
-        .status.Release();
         threadKill(.update_id);
     };
 

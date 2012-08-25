@@ -1,0 +1,130 @@
+
+// al.gm
+
+Log("al.gm: Initializing...");
+
+global MakeALProxy = function(type, ip, port)
+{
+    assert(?type);
+    assert(?ip);
+    assert(?port);
+
+    print("MAKEPROXY", type);
+
+    local ALProxy = table();
+
+    ALProxy.type = type;
+    ALProxy.ip = ip;
+    ALProxy.port = port;
+    ALProxy.proxy = GMALProxy(type, ip, port);
+    ALProxy.next = null;
+
+    ALProxy.Init = function()
+    {
+        .update_id = this:thread(.Update);
+    };
+
+    ALProxy.Release = function()
+    {
+        threadKill(.update_id);
+    };
+
+    ALProxy.CallReturnVariable = function(f, a)
+    {
+        return .proxy.CallReturnVariable(f, a);
+    };
+
+    ALProxy.CallReturnFloat = function(f, a)
+    {
+        return .proxy.CallReturnFloat(f, a);
+    };
+
+    ALProxy.CallVoid = function(f, a)
+    {
+        Log("CallVoid: " + f);
+        .proxy.CallVoid(f, a);
+    };
+
+    ALProxy.PostCall = function(f, a)
+    {
+        Log("PostCall: " + f);
+        .proxy.PostCall(f, a);
+
+        while (.proxy.IsRunning())
+        {
+            yield();
+        }
+    };
+
+    ALProxy.Update = function()
+    {
+        while (true)
+        {
+            if (.next != null)
+            {
+                local fun = .next.fun;
+                local arg = .next.arg;
+                .next = null;
+                .PostCall(fun, arg);
+            }
+
+            yield();
+        }
+    };
+
+    ALProxy.Queue = function(f, a)
+    {
+        .next = { fun=f, arg=a };
+    };
+
+    ALProxy.Init();
+    return ALProxy;
+};
+
+global MakeProxies = function(ip, port)
+{
+    local Proxies = {
+        ip = ip,
+        port = port,
+    };
+
+    Proxies.Init = function()
+    {
+        .motion = MakeALProxy("ALMotion", .ip, .port);
+        .speech = MakeALProxy("ALTextToSpeech", .ip, .port);
+        .memory = MakeALProxy("ALMemory", .ip, .port);
+    };
+
+    Proxies.Release = function()
+    {
+        .motion.Release();
+        .speech.Release();
+        .memory.Release();
+    };
+
+    if (g_norobot)
+    {
+        Proxies.Init = function() {};
+        Proxies.Release = function() {};
+    }
+
+    Proxies.Init();
+    assert(Proxies.memory != null);
+    return Proxies;
+};
+
+local MakeSoundLooker = function()
+{
+    local SoundLooker = table();
+
+    SoundLooker.Update = function()
+    {
+        while (true)
+        {
+            yield();
+        }
+    };
+
+    return SoundLooker;
+};
+

@@ -3,6 +3,8 @@
 
 Log("init.gm: Initializing...");
 
+system.DoFile(g_resourcePathPrefix + "scripts/al.gm");
+system.DoFile(g_resourcePathPrefix + "scripts/status_display.gm");
 system.DoFile(g_resourcePathPrefix + "scripts/filters.gm");
 system.DoFile(g_resourcePathPrefix + "scripts/opencv_tests.gm");
 
@@ -13,10 +15,8 @@ global g_norobot = true;
 global g_dual_video_test = true;
 
 global g_proxies = MakeProxies(g_ip, g_port);
-
 global g_filters_test = MakeFiltersTest(g_ip, g_port);
-
-g_filters_test.Run();
+global g_status_display = MakeStatusDisplay(g_ip, g_port);
 
 while (true)
 {

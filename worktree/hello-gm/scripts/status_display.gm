@@ -1,0 +1,146 @@
+
+// status_display.gm
+
+Log("status_display.gm: Initializing...");
+
+global MakeStatusDisplay = function()
+{
+    local StatusDisplay = {
+        show = {
+            LHand = false,
+            RHand = false,
+            LArm = false,
+            RArm = false,
+            Head = false,
+            Battery = false,
+            ChestLed = false,
+        },
+    };
+
+    StatusDisplay.Init = function()
+    {
+        .update_id = this:thread(.Update);
+    };
+
+    StatusDisplay.Update = function()
+    {
+        while (true)
+        {
+    		RegisterGui( .Gui, this );			
+            yield();
+        }
+    };
+
+    StatusDisplay.Gui = function()
+    {
+        Gui.Begin("Status", g_core.screenDimen.x.Int()-450, g_core.screenDimen.y.Int() - 5);
+
+        .show.LHand = Gui.CheckBox("Hand - Left", .show.LHand);
+        .show.RHand = Gui.CheckBox("Hand - Right", .show.RHand);
+        .show.LArm = Gui.CheckBox("Arm - Left", .show.LArm);
+        .show.RArm = Gui.CheckBox("Arm - Right", .show.RArm);
+        .show.Head = Gui.CheckBox("Head", .show.Head);
+        .show.Battery = Gui.CheckBox("Battery", .show.Battery);
+        .show.ChestLed = Gui.CheckBox("Chest Led", .show.ChestLed);
+
+        Gui.Separator();
+            
+        local display = function(name, key)
+        {
+            local value = g_proxies.memory.CallReturnVariable("getData", key);
+            if (!?value) { value = "null"; }
+            local str = name + ": " + value.String();
+            Gui.Print(str);
+        };
+
+        // Retrieving memory data like this is slow. Replace with memory.getDataPtr() in some kind of memory key/cache object.
+
+        if (.show.LHand)
+        {
+            Gui.Print("Hand - Left");
+            this:display("Current", "Device/SubDeviceList/LHand/ElectricCurrent/Sensor/Value");
+            this:display("Position", "Device/SubDeviceList/LHand/Position/Sensor/Value");
+            this:display("Temperature", "Device/SubDeviceList/LHand/Temperature/Sensor/Value");
+            this:display("Touch - Back", "Device/SubDeviceList/LHand/Touch/Back/Sensor/Value");
+            this:display("Touch - Left", "Device/SubDeviceList/LHand/Touch/Left/Sensor/Value");
+            this:display("Touch - Right", "Device/SubDeviceList/LHand/Touch/Right/Sensor/Value");
+            Gui.Separator();
+        }
+
+        if (.show.RHand)
+        {
+            Gui.Print("Hand - Right");
+            this:display("Current", "Device/SubDeviceList/RHand/ElectricCurrent/Sensor/Value");
+            this:display("Position", "Device/SubDeviceList/RHand/Position/Sensor/Value");
+            this:display("Temperature", "Device/SubDeviceList/RHand/Temperature/Sensor/Value");
+            this:display("Touch - Back", "Device/SubDeviceList/RHand/Touch/Back/Sensor/Value");
+            this:display("Touch - Left", "Device/SubDeviceList/RHand/Touch/Left/Sensor/Value");
+            this:display("Touch - Right", "Device/SubDeviceList/RHand/Touch/Right/Sensor/Value");
+            Gui.Separator();
+        }
+
+        if (.show.LArm)
+        {
+            Gui.Print("Arm - Left");
+            this:display("Shoulder Pitch - Current", "Device/SubDeviceList/LShoulderPitch/ElectricCurrent/Sensor/Value");
+            this:display("Shoulder Pitch - Hardness", "Device/SubDeviceList/LShoulderPitch/Hardness/Actuator/Value");
+            this:display("Shoulder Pitch - Position", "Device/SubDeviceList/LShoulderPitch/Position/Sensor/Value");
+            this:display("Shoulder Pitch - Temperature", "Device/SubDeviceList/LShoulderPitch/Temperature/Sensor/Value");
+            this:display("Shoulder Roll - Current", "Device/SubDeviceList/LShoulderRoll/ElectricCurrent/Sensor/Value");
+            this:display("Shoulder Roll - Hardness", "Device/SubDeviceList/LShoulderRoll/Hardness/Actuator/Value");
+            this:display("Shoulder Roll - Position", "Device/SubDeviceList/LShoulderRoll/Position/Sensor/Value");
+            this:display("Shoulder Roll - Temperature", "Device/SubDeviceList/LShoulderRoll/Temperature/Sensor/Value");
+            Gui.Separator();
+        }
+
+        if (.show.RArm)
+        {
+            Gui.Print("Arm - Right");
+            this:display("Shoulder Pitch - Current", "Device/SubDeviceList/RShoulderPitch/ElectricCurrent/Sensor/Value");
+            this:display("Shoulder Pitch - Hardness", "Device/SubDeviceList/RShoulderPitch/Hardness/Actuator/Value");
+            this:display("Shoulder Pitch - Position", "Device/SubDeviceList/RShoulderPitch/Position/Sensor/Value");
+            this:display("Shoulder Pitch - Temperature", "Device/SubDeviceList/RShoulderPitch/Temperature/Sensor/Value");
+            this:display("Shoulder Roll - Current", "Device/SubDeviceList/RShoulderRoll/ElectricCurrent/Sensor/Value");
+            this:display("Shoulder Roll - Hardness", "Device/SubDeviceList/RShoulderRoll/Hardness/Actuator/Value");
+            this:display("Shoulder Roll - Position", "Device/SubDeviceList/RShoulderRoll/Position/Sensor/Value");
+            this:display("Shoulder Roll - Temperature", "Device/SubDeviceList/RShoulderRoll/Temperature/Sensor/Value");
+            Gui.Separator();
+        }
+
+        if (.show.Head)
+        {
+            Gui.Print("Head");
+            this:display("Temperature", "Device/SubDeviceList/Head/Temperature/Sensor/Value");
+            this:display("Pitch - Hardness", "Device/SubDeviceList/HeadPitch/Hardness/Actuator/Value");
+            this:display("Pitch - Position", "Device/SubDeviceList/HeadPitch/Position/Actuator/Value");
+            this:display("Yaw - Hardness", "Device/SubDeviceList/HeadYaw/Hardness/Actuator/Value");
+            this:display("Yaw - Position", "Device/SubDeviceList/HeadYaw/Position/Actuator/Value");
+            Gui.Separator();
+        }
+
+        if (.show.Battery)
+        {
+            Gui.Print("Battery");
+            this:display("Temperature", "Device/SubDeviceList/Battery/Temperature/Sensor/Value");
+            this:display("Plugged In", "Device/SubDeviceList/HeadPitch/Position/Actuator/Value");
+            this:display("Charge", "Device/SubDeviceList/Battery/Charge/Sensor/Value");
+            Gui.Separator();
+        }
+
+        if (.show.ChestLed)
+        {
+            Gui.Print("Chest Led");
+            this:display("Ear - Left - Blue", "Device/SubDeviceList/ChestBoard/Led/Blue/Actuator/Value");
+            this:display("Ear - Let - Red", "Device/SubDeviceList/ChestBoard/Led/Red/Actuator/Value");
+            this:display("Chest - Blue", "Device/SubDeviceList/ChestBoard/Led/Blue/Actuator/Value");
+            this:display("Chest - Red", "Device/SubDeviceList/ChestBoard/Led/Red/Actuator/Value");
+            Gui.Separator();
+        }
+
+        Gui.End();
+    };
+
+    StatusDisplay.Init();
+    return StatusDisplay;
+};
+
