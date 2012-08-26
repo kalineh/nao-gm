@@ -4,10 +4,12 @@
 
 #include "opencv_tests.h"
 
+#include <opencv/highgui.h>
+
 using namespace funk;
 
 GMOpenCVMat::GMOpenCVMat(v2 dimen)
-    : _data(int(dimen.x), int(dimen.y), CV_32F)
+    : _data(int(dimen.y), int(dimen.x), CV_8UC4)
 {
 }
 
@@ -26,16 +28,52 @@ void GMOpenCVMat::WriteToTexture(StrongHandle<Texture> dst)
 {
     uint8_t* p = _data.ptr();
 
+    for (int i = 0; i < 160 * 120; i += 4)
+    {
+        //p[i+3] = 0xff;
+    }
+
+    //cv::Vec4b alpha(0, 0, 0, 255);
+    //cv::Mat out = _data | alpha;
+    //_data.mul
+
     dst->Bind();
     dst->SubData(p, dst->Sizei().x, dst->Sizei().y, 0, 0);
     dst->Unbind();
+
+    glFinish();
 }
 
 void GMOpenCVMat::GaussianBlur()
 {
     ASSERT(_data.ptr() != NULL);
     //cv::GaussianBlur(_data, _data, cv::Size(3, 3), 1.0f, 0.0f, IPL_BORDER_REPLICATE);
-    cv::Sobel(_data, _data, CV_32F, 1, 0);
+    //cv::boxFilter(_data, _data, _data.depth(), cv::Size(7, 1));
+
+    //cv::imshow("before", _data);
+
+    cv::Mat gray;
+    cv::Mat out;
+    cv::cvtColor(_data, gray, CV_RGBA2GRAY);
+    cv::Sobel(gray, out, gray.depth(), 1, 0);
+    cv::Sobel(gray, out, gray.depth(), 0, 1);
+    cv::cvtColor(out, _data, CV_GRAY2RGBA);
+
+    // we lose alpha, so mix it back in
+    ASSERT(_data.isContinuous());
+    cv::bitwise_or(_data, cv::Scalar(cv::Vec4b(0, 0, 0, 255)), _data);
+
+    //ShowFlipped("gray", &gray);
+    //ShowFlipped("out", &out);
+    ShowFlipped("after", &_data);
+}
+
+void GMOpenCVMat::ShowFlipped(const char* title, cv::Mat* mat)
+{
+    cv::Mat flipped, resized;
+    cv::flip(*mat, flipped, 0);
+    cv::resize(flipped, resized, flipped.size() * 2);
+    cv::imshow(title, resized);
 }
 
 GM_REG_NAMESPACE(GMOpenCVMat)
@@ -62,7 +100,7 @@ GM_REG_NAMESPACE(GMOpenCVMat)
         GM_CHECK_NUM_PARAMS(1);
         GM_CHECK_USER_PARAM_PTR(Texture, dst, 0);
         GM_GET_THIS_PTR(GMOpenCVMat, self);
-        GM_AL_EXCEPTION_WRAPPER(self->ReadFromTexture(dst));
+        GM_AL_EXCEPTION_WRAPPER(self->WriteToTexture(dst));
         return GM_OK;
     }
 

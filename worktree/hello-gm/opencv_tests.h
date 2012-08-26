@@ -22,6 +22,8 @@ public:
     void GaussianBlur();
 
 private:
+    void ShowFlipped(const char* title, cv::Mat* mat);
+
     cv::Mat _data;
 };
 

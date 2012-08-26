@@ -48,11 +48,12 @@ global MakeOpenCVTest = function()
             //.stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
             //.stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
 
-            if (Gui.Button("Blur"))
-            {
+            //if (Gui.Button("Blur"))
+            //{
+                .matleft.ReadFromTexture(.videoleft);
                 .matleft.GaussianBlur();
                 .matleft.WriteToTexture(.videodisparity);
-            }
+            //}
 
             Gui.End();
 
