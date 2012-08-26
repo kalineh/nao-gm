@@ -19,7 +19,9 @@ public:
     void ReadFromTexture(StrongHandle<Texture> src);
     void WriteToTexture(StrongHandle<Texture> dst);
 
-    void GaussianBlur();
+    void GaussianBlur(int kernel_size, float sigma1, float sigma2);
+    void BilateralFilter(int diameter, float sigma_color, float sigma_space);
+    void SobelFilter(int kernel_size, float scale, float delta);
 
 private:
     void ShowFlipped(const char* title, cv::Mat* mat);

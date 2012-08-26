@@ -25,6 +25,15 @@ global MakeOpenCVTest = function()
 
         .matleft = GMOpenCVMat(.videoleft.Dimen());
         .matleft.ReadFromTexture(.videoleft);
+
+        .gauss_sigma1 = 1.0f;
+        .gauss_sigma2 = 0.0f;
+        .bilat_diameter = 1;
+        .bilat_sigma1 = 5.0f;
+        .bilat_sigma2 = 5.0f;
+        .sobel_kernel_size = 3;
+        .sobel_scale = 1.0f;
+        .sobel_delta = 0.0f;
     };
 
     Main.Release = function()
@@ -48,10 +57,30 @@ global MakeOpenCVTest = function()
             //.stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
             //.stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
 
+            .gauss_sigma1 = Gui.SliderFloat("Guass - Sigma 1", .gauss_sigma1, 0.01f, 2.0f);
+            .gauss_sigma2 = Gui.SliderFloat("Guass - Sigma 2", .gauss_sigma2, 0.01f, 2.0f);
+            .bilat_diameter = Gui.SliderInt("Bilat - Diameter", .bilat_diameter, 1, 20);
+            .bilat_sigma1 = Gui.SliderFloat("Bilat - Sigma 1", .bilat_sigma1, 0.01f, 100.0f);
+            .bilat_sigma2 = Gui.SliderFloat("Bilat - Sigma 2", .bilat_sigma2, 0.01f, 100.0f);
+            .sobel_kernel_size = Gui.SliderInt("Sobel - Kernel Size", .sobel_kernel_size, 1, 15);
+            .sobel_scale = Gui.SliderFloat("Sobel - Scale", .sobel_scale, 0.01f, 10.0f);
+            .sobel_delta = Gui.SliderFloat("Sobel - Delta", .sobel_delta, 0.0f, 10.0f);
+
             //if (Gui.Button("Blur"))
             //{
                 .matleft.ReadFromTexture(.videoleft);
-                .matleft.GaussianBlur();
+
+                // basic filter tests
+                //.matleft.GaussianBlur(3, .gauss_sigma1, .gauss_sigma2);
+                //.matleft.BilateralFilter(.bilat_diameter, .bilat_sigma1, .bilat_sigma2);
+                //.matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
+
+                // filter chain test
+
+                .matleft.GaussianBlur(3, .gauss_sigma1, .gauss_sigma2);
+                .matleft.BilateralFilter(.bilat_diameter, .bilat_sigma1, .bilat_sigma2);
+                .matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
+
                 .matleft.WriteToTexture(.videodisparity);
             //}
 
