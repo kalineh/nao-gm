@@ -26,18 +26,25 @@ global MakeOpenCVTest = function()
         .matleft = GMOpenCVMat(.videoleft.Dimen());
         .matleft.ReadFromTexture(.videoleft);
 
+        .gauss_kernel_size = 3;
         .gauss_sigma1 = 1.0f;
         .gauss_sigma2 = 0.0f;
-        .bilat_iterations = 1;
-        .bilat_diameter = 1;
-        .bilat_sigma1 = 5.0f;
-        .bilat_sigma2 = 5.0f;
+        .bilat_iterations = 3;
+        .bilat_diameter = 7;
+        .bilat_sigma_color = 255.0f;
+        .bilat_sigma_space = 1.0f;
         .sobel_kernel_size = 3;
         .sobel_scale = 1.0f;
         .sobel_delta = 0.0f;
         .canny_kernel_size = 3;
-        .canny_threshold_low = 1.0f;
-        .canny_threshold_high = 1.0f;
+        .canny_threshold_low = 0.01f;
+        .canny_threshold_high = 75.0f;
+
+        .filters = table();
+
+        // default test for good results
+        .filters[] = { fun="BilateralFilter", args=null };
+        .filters[] = { fun="CannyThreshold", args=null };
     };
 
     Main.Release = function()
@@ -54,39 +61,60 @@ global MakeOpenCVTest = function()
 
     Main.Gui = function()
     {
+        Gui.Begin("OpenCV Filter Chain", g_core.screenDimen.x.Int() - 410, g_core.screenDimen.y.Int() - 5);
+
+        if (Gui.Button("Gauss")) { .filters[] = { fun="GaussianBlur", args=null }; }
+        if (Gui.Button("Bilat")) { .filters[] = { fun="BilateralFilter", args=null }; }
+        if (Gui.Button("Sobel")) { .filters[] = { fun="SobelFilter", args=null }; }
+        if (Gui.Button("Canny")) { .filters[] = { fun="CannyThreshold", args=null }; }
+        if (Gui.Button("Clear All")) { .filters = table(); }
+
+        local s = "";
+        local index = 0;
+        foreach (f in .filters)
+        {
+            Gui.Print(index.String() + ": " + f.fun);
+            index += 1;
+        }
+
+        Gui.End();
+
         //if (!g_norobot)
         //{
-            Gui.Begin("OpenCV Test", g_core.screenDimen.x.Int()-230, g_core.screenDimen.y.Int() - 5);
+            Gui.Begin("OpenCV Test Settings", g_core.screenDimen.x.Int()-230, g_core.screenDimen.y.Int() - 5);
 
             //.stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
             //.stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
 
-            .gauss_sigma1 = Gui.SliderFloat("Guass - Sigma 1", .gauss_sigma1, 0.01f, 2.0f);
-            .gauss_sigma2 = Gui.SliderFloat("Guass - Sigma 2", .gauss_sigma2, 0.01f, 2.0f);
+            .gauss_kernel_size = Gui.SliderInt("Gauss - Kernel Size", .gauss_kernel_size, 1, 15);
+            .gauss_sigma1 = Gui.SliderFloat("Gauss - Sigma 1", .gauss_sigma1, 0.01f, 2.0f);
+            .gauss_sigma2 = Gui.SliderFloat("Gauss - Sigma 2", .gauss_sigma2, 0.01f, 2.0f);
             .bilat_iterations = Gui.SliderInt("Bilat - Iterations", .bilat_iterations, 1, 8);
             .bilat_diameter = Gui.SliderInt("Bilat - Diameter", .bilat_diameter, 1, 20);
-            .bilat_sigma1 = Gui.SliderFloat("Bilat - Sigma 1", .bilat_sigma1, 0.01f, 100.0f);
-            .bilat_sigma2 = Gui.SliderFloat("Bilat - Sigma 2", .bilat_sigma2, 0.01f, 100.0f);
+            .bilat_sigma_color = Gui.SliderFloat("Bilat - Sigma Color", .bilat_sigma_color, 0.01f, 255.0f);
+            .bilat_sigma_space = Gui.SliderFloat("Bilat - Sigma Space", .bilat_sigma_space, 0.01f, 1.0f);
             .sobel_kernel_size = Gui.SliderInt("Sobel - Kernel Size", .sobel_kernel_size, 1, 15);
             .sobel_scale = Gui.SliderFloat("Sobel - Scale", .sobel_scale, 0.01f, 10.0f);
             .sobel_delta = Gui.SliderFloat("Sobel - Delta", .sobel_delta, -25.0f, 25.0f);
             .canny_kernel_size = Gui.SliderInt("Canny - Kernel Size", .canny_kernel_size, 1, 15);
             .canny_threshold_low = Gui.SliderFloat("Canny - Threshold Low", .canny_threshold_low, 0.01f, 50.0f);
-            .canny_threshold_high = Gui.SliderFloat("Canny - Threshold High", .canny_threshold_high, 0.1f, 50.0f);
+            .canny_threshold_high = Gui.SliderFloat("Canny - Threshold High", .canny_threshold_high, 0.1f, 255.0f);
 
-            //if (Gui.Button("Blur"))
-            //{
+            local test_loop = false;
+
+            if (test_loop)
+            {
                 .matleft.ReadFromTexture(.videoleft);
 
                 // basic filter tests
-                //.matleft.GaussianBlur(3, .gauss_sigma1, .gauss_sigma2);
-                //.matleft.BilateralFilter(.bilat_diameter, .bilat_sigma1, .bilat_sigma2);
+                //.matleft.GaussianBlur(.gauss_kernel_size, .gauss_sigma1, .gauss_sigma2);
+                //.matleft.BilateralFilter(.bilat_diameter, .bilat_sigma_color, .bilat_sigma_space);
                 //.matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
 
                 // filter chain test
 
-                //.matleft.GaussianBlur(3, .gauss_sigma1, .gauss_sigma2);
-                .matleft.BilateralFilter(.bilat_iterations, .bilat_diameter, .bilat_sigma1, .bilat_sigma2);
+                //.matleft.GaussianBlur(.gauss_kernel_size, .gauss_sigma1, .gauss_sigma2);
+                .matleft.BilateralFilter(.bilat_iterations, .bilat_diameter, .bilat_sigma_color, .bilat_sigma_space);
                 .matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
 
                 // random test
@@ -94,7 +122,32 @@ global MakeOpenCVTest = function()
                 .matleft.CannyThreshold(.canny_kernel_size, .canny_threshold_low, .canny_threshold_high);
 
                 .matleft.WriteToTexture(.videodisparity);
-            //}
+            }
+            else
+            {
+                .matleft.ReadFromTexture(.videoleft);
+
+                foreach (f in .filters)
+                {
+                    // note: we cant lookup string func on c++ objects!?
+                    //local fun = .matleft[f.fun];
+                    local fun = f.fun;
+                    local obj = .matleft;
+                    //fun:obj(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]);
+
+                    if (f.fun == "GaussianBlur") { f.args = { .gauss_kernel_size, .gauss_sigma1, .gauss_sigma2 }; }
+                    if (f.fun == "BilateralFilter") { f.args = { .bilat_iterations, .bilat_diameter, .bilat_sigma_color, .bilat_sigma_space }; }
+                    if (f.fun == "SobelFilter") { f.args = { .sobel_kernel_size, .sobel_scale, .sobel_delta }; }
+                    if (f.fun == "CannyThreshold") { f.args = { .canny_kernel_size, .canny_threshold_low, .canny_threshold_high }; }
+
+                    if (fun == "GaussianBlur") { obj.GaussianBlur(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                    if (fun == "BilateralFilter") { obj.BilateralFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                    if (fun == "SobelFilter") { obj.SobelFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                    if (fun == "CannyThreshold") { obj.CannyThreshold(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                }
+
+                .matleft.WriteToTexture(.videodisparity);
+            }
 
             Gui.End();
 
