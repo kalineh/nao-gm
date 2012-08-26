@@ -34,6 +34,9 @@ global MakeOpenCVTest = function()
         .sobel_kernel_size = 3;
         .sobel_scale = 1.0f;
         .sobel_delta = 0.0f;
+        .canny_kernel_size = 3;
+        .canny_threshold_low = 1.0f;
+        .canny_threshold_high = 1.0f;
     };
 
     Main.Release = function()
@@ -65,6 +68,9 @@ global MakeOpenCVTest = function()
             .sobel_kernel_size = Gui.SliderInt("Sobel - Kernel Size", .sobel_kernel_size, 1, 15);
             .sobel_scale = Gui.SliderFloat("Sobel - Scale", .sobel_scale, 0.01f, 10.0f);
             .sobel_delta = Gui.SliderFloat("Sobel - Delta", .sobel_delta, 0.0f, 10.0f);
+            .canny_kernel_size = Gui.SliderInt("Canny - Kernel Size", .canny_kernel_size, 1, 15);
+            .canny_threshold_low = Gui.SliderFloat("Canny - Threshold Low", .canny_threshold_low, 0.01f, 50.0f);
+            .canny_threshold_high = Gui.SliderFloat("Canny - Threshold High", .canny_threshold_high, 0.1f, 50.0f);
 
             //if (Gui.Button("Blur"))
             //{
@@ -80,6 +86,10 @@ global MakeOpenCVTest = function()
                 .matleft.GaussianBlur(3, .gauss_sigma1, .gauss_sigma2);
                 .matleft.BilateralFilter(.bilat_diameter, .bilat_sigma1, .bilat_sigma2);
                 .matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
+
+                // random test
+
+                .matleft.CannyThreshold(.canny_kernel_size, .canny_threshold_low, .canny_threshold_high);
 
                 .matleft.WriteToTexture(.videodisparity);
             //}

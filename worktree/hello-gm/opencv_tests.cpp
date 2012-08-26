@@ -93,7 +93,6 @@ void GMOpenCVMat::SobelFilter(int kernel_size, float scale, float delta)
     cv::Mat abs_gradient_x = cv::Mat(_data.size(), CV_32F);
     cv::Mat abs_gradient_y = cv::Mat(_data.size(), CV_32F);
 
-//convertScaleAbs( grad_x, abs_grad_x );
     cv::cvtColor(_data, gray, CV_RGBA2GRAY);
 
     cv::Sobel(gray, gradient_x, gray.depth(), 1, 0, kernel_size_odd, scale, delta, IPL_BORDER_REPLICATE);
@@ -105,6 +104,21 @@ void GMOpenCVMat::SobelFilter(int kernel_size, float scale, float delta)
     cv::addWeighted(abs_gradient_x, 0.5f, abs_gradient_y, 0.5f, 0.0f, gradient);
 
     cv::cvtColor(gradient, _data, CV_GRAY2RGBA);
+    cv::bitwise_or(_data, cv::Scalar(cv::Vec4b(0, 0, 0, 255)), _data);
+}
+
+void GMOpenCVMat::CannyThreshold(int kernel_size, float threshold_low, float threshold_high)
+{
+    const int kernel_size_odd = kernel_size | 1;
+
+    cv::Mat gray = cv::Mat(_data.size(), CV_32F);
+    cv::Mat edges = cv::Mat(_data.size(), CV_32F);
+
+    cv::cvtColor(_data, gray, CV_RGBA2GRAY);
+
+    cv::Canny(gray, edges, threshold_low, threshold_high);
+
+    cv::cvtColor(edges, _data, CV_GRAY2RGBA);
     cv::bitwise_or(_data, cv::Scalar(cv::Vec4b(0, 0, 0, 255)), _data);
 }
 
@@ -176,6 +190,17 @@ GM_REG_NAMESPACE(GMOpenCVMat)
         GM_OPENCV_EXCEPTION_WRAPPER(self->SobelFilter(kernel_size, scale, delta));
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(CannyThreshold)
+    {
+        GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_INT_PARAM(kernel_size, 0);
+        GM_CHECK_FLOAT_PARAM(threshold_low, 1);
+        GM_CHECK_FLOAT_PARAM(threshold_high, 2);
+		GM_GET_THIS_PTR(GMOpenCVMat, self);
+        GM_OPENCV_EXCEPTION_WRAPPER(self->CannyThreshold(kernel_size, threshold_low, threshold_high));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMOpenCVMat)
@@ -184,6 +209,7 @@ GM_REG_MEMFUNC( GMOpenCVMat, WriteToTexture )
 GM_REG_MEMFUNC( GMOpenCVMat, GaussianBlur )
 GM_REG_MEMFUNC( GMOpenCVMat, BilateralFilter )
 GM_REG_MEMFUNC( GMOpenCVMat, SobelFilter )
+GM_REG_MEMFUNC( GMOpenCVMat, CannyThreshold )
 //GM_REG_MEMFUNC( GMOpenCVMat, Threshold )
 GM_REG_MEM_END()
 
