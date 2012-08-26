@@ -20,7 +20,7 @@ public:
     void WriteToTexture(StrongHandle<Texture> dst);
 
     void GaussianBlur(int kernel_size, float sigma1, float sigma2);
-    void BilateralFilter(int diameter, float sigma_color, float sigma_space);
+    void BilateralFilter(int iterations, int diameter, float sigma_color, float sigma_space);
     void SobelFilter(int kernel_size, float scale, float delta);
     void CannyThreshold(int kernel_size, float threshold_low, float threshold_high);
 

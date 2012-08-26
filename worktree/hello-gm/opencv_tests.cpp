@@ -70,14 +70,17 @@ void GMOpenCVMat::GaussianBlur(int kernel_size, float sigma1, float sigma2)
     cv::GaussianBlur(_data, _data, cv::Size(3, 3), sigma1, sigma2, IPL_BORDER_REPLICATE);
 }
 
-void GMOpenCVMat::BilateralFilter(int diameter, float sigma_color, float sigma_space)
+void GMOpenCVMat::BilateralFilter(int iterations, int diameter, float sigma_color, float sigma_space)
 {
     cv::Mat src = cv::Mat(_data.size(), CV_8UC3);
     cv::Mat dst = cv::Mat(_data.size(), CV_8UC3);
 
-    cv::cvtColor(_data, src, CV_RGBA2RGB);
-    cv::bilateralFilter(src, dst, diameter, sigma_color, sigma_space, IPL_BORDER_REPLICATE);
-    cv::cvtColor(dst, _data, CV_RGB2RGBA);
+    for (int i = 0; i < iterations; ++i)
+    {
+        cv::cvtColor(_data, src, CV_RGBA2RGB);
+        cv::bilateralFilter(src, dst, diameter, sigma_color, sigma_space, IPL_BORDER_REPLICATE);
+        cv::cvtColor(dst, _data, CV_RGB2RGBA);
+    }
 
     cv::bitwise_or(_data, cv::Scalar(cv::Vec4b(0, 0, 0, 255)), _data);
 }
@@ -171,12 +174,13 @@ GM_REG_NAMESPACE(GMOpenCVMat)
 
     GM_MEMFUNC_DECL(BilateralFilter)
     {
-        GM_CHECK_NUM_PARAMS(3);
-        GM_CHECK_INT_PARAM(diameter, 0);
-        GM_CHECK_FLOAT_PARAM(sigma_color, 1);
-        GM_CHECK_FLOAT_PARAM(sigma_space, 2);
+        GM_CHECK_NUM_PARAMS(4);
+        GM_CHECK_INT_PARAM(iterations, 0);
+        GM_CHECK_INT_PARAM(diameter, 1);
+        GM_CHECK_FLOAT_PARAM(sigma_color, 2);
+        GM_CHECK_FLOAT_PARAM(sigma_space, 3);
 		GM_GET_THIS_PTR(GMOpenCVMat, self);
-        GM_OPENCV_EXCEPTION_WRAPPER(self->BilateralFilter(diameter, sigma_color, sigma_space));
+        GM_OPENCV_EXCEPTION_WRAPPER(self->BilateralFilter(iterations, diameter, sigma_color, sigma_space));
         return GM_OK;
     }
 

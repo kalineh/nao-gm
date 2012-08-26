@@ -28,6 +28,7 @@ global MakeOpenCVTest = function()
 
         .gauss_sigma1 = 1.0f;
         .gauss_sigma2 = 0.0f;
+        .bilat_iterations = 1;
         .bilat_diameter = 1;
         .bilat_sigma1 = 5.0f;
         .bilat_sigma2 = 5.0f;
@@ -62,12 +63,13 @@ global MakeOpenCVTest = function()
 
             .gauss_sigma1 = Gui.SliderFloat("Guass - Sigma 1", .gauss_sigma1, 0.01f, 2.0f);
             .gauss_sigma2 = Gui.SliderFloat("Guass - Sigma 2", .gauss_sigma2, 0.01f, 2.0f);
+            .bilat_iterations = Gui.SliderInt("Bilat - Iterations", .bilat_iterations, 1, 8);
             .bilat_diameter = Gui.SliderInt("Bilat - Diameter", .bilat_diameter, 1, 20);
             .bilat_sigma1 = Gui.SliderFloat("Bilat - Sigma 1", .bilat_sigma1, 0.01f, 100.0f);
             .bilat_sigma2 = Gui.SliderFloat("Bilat - Sigma 2", .bilat_sigma2, 0.01f, 100.0f);
             .sobel_kernel_size = Gui.SliderInt("Sobel - Kernel Size", .sobel_kernel_size, 1, 15);
             .sobel_scale = Gui.SliderFloat("Sobel - Scale", .sobel_scale, 0.01f, 10.0f);
-            .sobel_delta = Gui.SliderFloat("Sobel - Delta", .sobel_delta, 0.0f, 10.0f);
+            .sobel_delta = Gui.SliderFloat("Sobel - Delta", .sobel_delta, -25.0f, 25.0f);
             .canny_kernel_size = Gui.SliderInt("Canny - Kernel Size", .canny_kernel_size, 1, 15);
             .canny_threshold_low = Gui.SliderFloat("Canny - Threshold Low", .canny_threshold_low, 0.01f, 50.0f);
             .canny_threshold_high = Gui.SliderFloat("Canny - Threshold High", .canny_threshold_high, 0.1f, 50.0f);
@@ -83,8 +85,8 @@ global MakeOpenCVTest = function()
 
                 // filter chain test
 
-                .matleft.GaussianBlur(3, .gauss_sigma1, .gauss_sigma2);
-                .matleft.BilateralFilter(.bilat_diameter, .bilat_sigma1, .bilat_sigma2);
+                //.matleft.GaussianBlur(3, .gauss_sigma1, .gauss_sigma2);
+                .matleft.BilateralFilter(.bilat_iterations, .bilat_diameter, .bilat_sigma1, .bilat_sigma2);
                 .matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
 
                 // random test
