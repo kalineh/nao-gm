@@ -24,8 +24,11 @@ public:
     void SobelFilter(int kernel_size, float scale, float delta);
     void CannyThreshold(int kernel_size, float threshold_low, float threshold_high);
 
+    void StereoMatch(StrongHandle<Texture> left, StrongHandle<Texture> right);
+
 private:
     void ShowFlipped(const char* title, cv::Mat* mat);
+    void ReadIntoMat(cv::Mat* mat, StrongHandle<Texture> tex);
 
     cv::Mat _data;
 };

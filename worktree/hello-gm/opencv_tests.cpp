@@ -125,12 +125,63 @@ void GMOpenCVMat::CannyThreshold(int kernel_size, float threshold_low, float thr
     cv::bitwise_or(_data, cv::Scalar(cv::Vec4b(0, 0, 0, 255)), _data);
 }
 
+void GMOpenCVMat::StereoMatch(StrongHandle<Texture> left, StrongHandle<Texture> right)
+{
+    CvStereoBMState* state = cvCreateStereoBMState(CV_STEREO_BM_BASIC);
+
+    cv::Mat mat_left = cv::Mat(_data.size(), CV_8UC4);
+    cv::Mat mat_right = cv::Mat(_data.size(), CV_8UC4);
+    cv::Mat disparity = cv::Mat(_data.size(), CV_32F);
+
+    ReadIntoMat(&mat_left, left);
+    ReadIntoMat(&mat_right, right);
+
+    cv::Mat mat_left_gray = cv::Mat(mat_left.size(), CV_8U);
+    cv::Mat mat_right_gray = cv::Mat(mat_right.size(), CV_8U);
+
+    cv::cvtColor(mat_left, mat_left_gray, CV_RGBA2GRAY);
+    cv::cvtColor(mat_right, mat_right_gray, CV_RGBA2GRAY);
+
+    //state->preFilterSize=31;
+    //state->preFilterCap=31;
+    //state->SADWindowSize=15;//255;
+    //state->minDisparity=-192;
+    //state->numberOfDisparities=192;
+    //state->textureThreshold=10;
+    //state->uniquenessRatio=15;
+
+    //cvFindStereoCorrespondenceBM(&mat_left_gray, &mat_right_gray, &disparity, state);
+
+    cv::StereoBM stereo = cv::StereoBM(CV_STEREO_BM_BASIC);
+
+    stereo(mat_left_gray, mat_right_gray, disparity);
+
+    cv::imshow("left", mat_left_gray);
+    cv::imshow("right", mat_right_gray);
+    cv::imshow("foo", disparity);
+
+    //ShowFlipped("disp", &disparity);
+}
+
 void GMOpenCVMat::ShowFlipped(const char* title, cv::Mat* mat)
 {
     cv::Mat flipped, resized;
     cv::flip(*mat, flipped, 0);
     cv::resize(flipped, resized, flipped.size() * 2);
     cv::imshow(title, resized);
+}
+
+void GMOpenCVMat::ReadIntoMat(cv::Mat* mat, StrongHandle<Texture> tex)
+{
+    ASSERT(mat->type() == CV_8UC4);
+
+    uint8_t* p = mat->ptr();
+
+    tex->Bind(0);
+    tex->GetTexImage(p);
+    tex->Unbind();
+
+    glFinish();
 }
 
 GM_REG_NAMESPACE(GMOpenCVMat)
@@ -205,6 +256,16 @@ GM_REG_NAMESPACE(GMOpenCVMat)
         GM_OPENCV_EXCEPTION_WRAPPER(self->CannyThreshold(kernel_size, threshold_low, threshold_high));
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(StereoMatch)
+    {
+        GM_CHECK_NUM_PARAMS(2);
+        GM_CHECK_USER_PARAM_PTR(Texture, left, 0);
+        GM_CHECK_USER_PARAM_PTR(Texture, right, 1);
+		GM_GET_THIS_PTR(GMOpenCVMat, self);
+        GM_OPENCV_EXCEPTION_WRAPPER(self->StereoMatch(left, right));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMOpenCVMat)
@@ -214,7 +275,7 @@ GM_REG_MEMFUNC( GMOpenCVMat, GaussianBlur )
 GM_REG_MEMFUNC( GMOpenCVMat, BilateralFilter )
 GM_REG_MEMFUNC( GMOpenCVMat, SobelFilter )
 GM_REG_MEMFUNC( GMOpenCVMat, CannyThreshold )
-//GM_REG_MEMFUNC( GMOpenCVMat, Threshold )
+GM_REG_MEMFUNC( GMOpenCVMat, StereoMatch )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMOpenCVMat);

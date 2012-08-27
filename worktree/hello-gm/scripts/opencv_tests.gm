@@ -26,6 +26,9 @@ global MakeOpenCVTest = function()
         .matleft = GMOpenCVMat(.videoleft.Dimen());
         .matleft.ReadFromTexture(.videoleft);
 
+        .matdisparity = GMOpenCVMat(.videoleft.Dimen());
+        .stereo_test = false;
+
         .gauss_kernel_size = 3;
         .gauss_sigma1 = 1.0f;
         .gauss_sigma2 = 0.0f;
@@ -77,10 +80,17 @@ global MakeOpenCVTest = function()
             index += 1;
         }
 
+        .stereo_test = Gui.CheckBox("StereoTest", .stereo_test);
+        if (.stereo_test)
+        {
+            .matdisparity.StereoMatch(.videoleft, .videoright);
+            .matdisparity.WriteToTexture(.videodisparity);
+        }
+
         Gui.End();
 
-        //if (!g_norobot)
-        //{
+        if (!stereo_test)
+        {
             Gui.Begin("OpenCV Test Settings", g_core.screenDimen.x.Int()-230, g_core.screenDimen.y.Int() - 5);
 
             //.stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
@@ -156,7 +166,7 @@ global MakeOpenCVTest = function()
 
             //.video0.Update();
             //.video1.Update();
-        //}
+        }
 
         .DrawDualVideo();
     };
