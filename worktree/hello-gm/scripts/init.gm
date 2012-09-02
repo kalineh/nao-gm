@@ -9,7 +9,7 @@ system.DoFile(g_resourcePathPrefix + "scripts/filters.gm");
 system.DoFile(g_resourcePathPrefix + "scripts/opencv_tests.gm");
 
 
-global g_ip = "192.168.11.2";
+global g_ip = "192.168.11.8";
 global g_port = 9559;
 global g_norobot = true;
 global g_dual_video_test = true;

@@ -121,13 +121,146 @@ void GMOpenCVMat::CannyThreshold(int kernel_size, float threshold_low, float thr
 
     cv::Canny(gray, edges, threshold_low, threshold_high);
 
+    // gives fat lines, maybe is useful, but at low-res it blobs things together too much
+    //cv::dilate(edges, edges, cv::Mat());
+
     cv::cvtColor(edges, _data, CV_GRAY2RGBA);
     cv::bitwise_or(_data, cv::Scalar(cv::Vec4b(0, 0, 0, 255)), _data);
 }
 
+void testPoly()
+{
+    IplImage* src = cvLoadImage("../common/img/videoleft.png", 1);
+    CvMemStorage* storage = cvCreateMemStorage(0);
+    CvSeq* contour = 0;
+
+    CvMat* gray = cvCreateMat(src->height, src->width, CV_8U);
+    cvCvtColor(src, gray, CV_BGR2GRAY);
+    cvCanny(gray, gray, 30.5f, 50.5f);
+    cvDilate(gray, gray, 0, 1);
+
+    CvSeq* poly = NULL;
+
+    //find the contours (edges) of the silhouette, in terms of pixels.
+    cvFindContours( gray,
+                    storage,
+                    &contour,
+                    sizeof(CvContour),
+                    CV_RETR_LIST );
+
+    //convert the pixel contours to line segments in a polygon.
+
+    IplImage* dst = cvCreateImage(cvGetSize(src), 8, 3);
+    cvZero(dst);
+
+    while (contour != nullptr)
+    {
+        // while it gives us some circle, it's not really useful
+        //CvPoint2D32f center = { 0 };
+        //float radius = 0.0f;
+        //const int result = cvMinEnclosingCircle(contour, &center, &radius);
+        //cvDrawCircle(dst, cvPoint(center.x, center.y), radius, CV_RGB(255, 1, 0));
+
+        poly = cvApproxPoly(contour, 
+                                 sizeof(CvContour), 
+                                 storage,
+                                 CV_POLY_APPROX_DP,
+                                 2,
+                                 1);
+
+        const CvScalar color = cvScalar(
+            (rand() % 255),
+            (rand() % 255),
+            (rand() % 255)
+        );
+
+        for (int p = 0; p < poly->total; ++p)
+        {
+            CvPoint* a = (CvPoint*)cvGetSeqElem(poly, (p + 0) % poly->total);
+            CvPoint* b = (CvPoint*)cvGetSeqElem(poly, (p + 1) % poly->total);
+
+            cvDrawLine(dst, *a, *b, color);
+        }
+
+        contour = contour->h_next;
+    }
+
+    CvMat* resized = cvCreateMat(dst->height * 4, dst->width * 4, CV_8UC3);
+    //cvZero(resized);
+    cvResize(dst, resized);
+
+    cvNamedWindow("cont", 1);
+    cvShowImage("cont", resized);
+    cvWaitKey(0);
+}
+
+void testContours()
+{
+    IplImage* src = cvLoadImage("../common/img/videoleft.png", 1);
+    CvMemStorage* storage = cvCreateMemStorage(0);
+    CvSeq* contour = 0;
+
+    CvMat* gray = cvCreateMat(src->height, src->width, CV_8U);
+    cvCvtColor(src, gray, CV_BGR2GRAY);
+    cvCanny(gray, gray, 30.5f, 50.5f);
+    //cvThreshold(gray, gray, 1.0f, 255.0f, CV_THRESH_BINARY);
+
+    cvNamedWindow("source", 1);
+    cvShowImage("source", gray);
+
+    cvFindContours(gray, storage, &contour, sizeof(CvContour), CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+    IplImage* dst = cvCreateImage(cvGetSize(src), 8, 3);
+    cvZero(dst);
+
+    for (; contour != 0; contour = contour->h_next)
+    {
+        CvScalar color = CV_RGB(rand(), 0, 0);
+        cvDrawContours(dst, contour, color, color, -1, CV_FILLED, 8);
+    }
+
+    cvNamedWindow("cont", 1);
+    cvShowImage("cont", dst);
+    cvWaitKey(0);
+}
+
 void GMOpenCVMat::StereoMatch(StrongHandle<Texture> left, StrongHandle<Texture> right)
 {
-    CvStereoBMState* state = cvCreateStereoBMState(CV_STEREO_BM_BASIC);
+    return testPoly();
+    return testContours();
+    IplImage* srcLeft = cvLoadImage("../common/img/videoleft2.png", 1);
+    IplImage* srcRight = cvLoadImage("../common/img/videoright2.png", 1);
+
+    IplImage* leftImage = cvCreateImage(cvGetSize(srcLeft), IPL_DEPTH_8U, 1);
+    IplImage* rightImage = cvCreateImage(cvGetSize(srcRight), IPL_DEPTH_8U, 1);
+
+    cvCvtColor(srcLeft, leftImage, CV_BGR2GRAY);
+    cvCvtColor(srcRight, rightImage, CV_BGR2GRAY);
+
+    CvSize size = cvGetSize(srcLeft);
+
+    CvMat* disparity_left = cvCreateMat( size.height, size.width, CV_16S );
+    CvMat* disparity_right = cvCreateMat( size.height, size.width, CV_16S );
+
+    CvStereoGCState* state = cvCreateStereoGCState( 8, 4 );
+
+    cvFindStereoCorrespondenceGC( leftImage, rightImage, disparity_left, disparity_right, state, 0 );
+
+    cvReleaseStereoGCState( &state );
+
+    CvMat* disparity_left_visual = cvCreateMat( size.height, size.width, CV_8U );
+
+    cvConvertScale( disparity_left, disparity_left_visual, -16 );
+
+    cvNamedWindow("win1", 1);
+    cvNamedWindow("win2", 1);
+    cvNamedWindow("win3", 1);
+
+    cvShowImage("win1", srcLeft);
+    cvShowImage("win2", leftImage);
+    cvShowImage("win3", disparity_left_visual);
+
+/*
+    CvStereoGCState* state = cvCreateStereoGCState(256, 25000);
 
     cv::Mat mat_left = cv::Mat(_data.size(), CV_8UC4);
     cv::Mat mat_right = cv::Mat(_data.size(), CV_8UC4);
@@ -142,25 +275,18 @@ void GMOpenCVMat::StereoMatch(StrongHandle<Texture> left, StrongHandle<Texture> 
     cv::cvtColor(mat_left, mat_left_gray, CV_RGBA2GRAY);
     cv::cvtColor(mat_right, mat_right_gray, CV_RGBA2GRAY);
 
-    //state->preFilterSize=31;
-    //state->preFilterCap=31;
-    //state->SADWindowSize=15;//255;
-    //state->minDisparity=-192;
-    //state->numberOfDisparities=192;
-    //state->textureThreshold=10;
-    //state->uniquenessRatio=15;
-
-    //cvFindStereoCorrespondenceBM(&mat_left_gray, &mat_right_gray, &disparity, state);
-
     cv::StereoBM stereo = cv::StereoBM(CV_STEREO_BM_BASIC);
+    cv::Mat disp = cv::Mat(mat_left.size(), CV_32F);
+    stereo(mat_left_gray, mat_right_gray, disp);
 
-    stereo(mat_left_gray, mat_right_gray, disparity);
+    cv::Mat dispn = cv::Mat(_data.size(), CV_32F);
+    cv::normalize(disp, dispn, 0.0f, 1.0f, CV_L2);
 
-    cv::imshow("left", mat_left_gray);
-    cv::imshow("right", mat_right_gray);
-    cv::imshow("foo", disparity);
+    cv::imshow("disp", disp);
+    cv::imshow("dispn", dispn);
 
     //ShowFlipped("disp", &disparity);
+    */
 }
 
 void GMOpenCVMat::ShowFlipped(const char* title, cv::Mat* mat)
