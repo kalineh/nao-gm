@@ -42,6 +42,8 @@ global MakeOpenCVTest = function()
         .canny_kernel_size = 3;
         .canny_threshold_low = 0.01f;
         .canny_threshold_high = 75.0f;
+        .contours_mode = 1;
+        .contours_method = 1;
 
         .filters = table();
 
@@ -70,6 +72,7 @@ global MakeOpenCVTest = function()
         if (Gui.Button("Bilat")) { .filters[] = { fun="BilateralFilter", args=null }; }
         if (Gui.Button("Sobel")) { .filters[] = { fun="SobelFilter", args=null }; }
         if (Gui.Button("Canny")) { .filters[] = { fun="CannyThreshold", args=null }; }
+        if (Gui.Button("Contours")) { .filters[] = { fun="FindContours", args=null }; }
         if (Gui.Button("Clear All")) { .filters = table(); }
 
         local s = "";
@@ -109,6 +112,8 @@ global MakeOpenCVTest = function()
             .canny_kernel_size = Gui.SliderInt("Canny - Kernel Size", .canny_kernel_size, 1, 15);
             .canny_threshold_low = Gui.SliderFloat("Canny - Threshold Low", .canny_threshold_low, 0.01f, 50.0f);
             .canny_threshold_high = Gui.SliderFloat("Canny - Threshold High", .canny_threshold_high, 0.1f, 255.0f);
+            .contours_mode = Gui.SliderInt("Contours - Mode", .contours_mode, 0, 3);
+            .contours_method = Gui.SliderInt("Contours - Method", .contours_method, 0, 5);
 
             local test_loop = false;
 
@@ -149,11 +154,13 @@ global MakeOpenCVTest = function()
                     if (f.fun == "BilateralFilter") { f.args = { .bilat_iterations, .bilat_diameter, .bilat_sigma_color, .bilat_sigma_space }; }
                     if (f.fun == "SobelFilter") { f.args = { .sobel_kernel_size, .sobel_scale, .sobel_delta }; }
                     if (f.fun == "CannyThreshold") { f.args = { .canny_kernel_size, .canny_threshold_low, .canny_threshold_high }; }
+                    if (f.fun == "FindContours") { f.args = { .contours_mode, .contours_method }; }
 
                     if (fun == "GaussianBlur") { obj.GaussianBlur(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                     if (fun == "BilateralFilter") { obj.BilateralFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                     if (fun == "SobelFilter") { obj.SobelFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                     if (fun == "CannyThreshold") { obj.CannyThreshold(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                    if (fun == "FindContours") { obj.FindContours(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                 }
 
                 .matleft.WriteToTexture(.videodisparity);

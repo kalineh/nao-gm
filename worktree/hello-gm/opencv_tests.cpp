@@ -223,10 +223,59 @@ void testContours()
     cvWaitKey(0);
 }
 
+void GMOpenCVMat::FindContours(int mode, int method)
+{
+    //ASSERT(_data.type() == CV_32F || _data.type() == CV_8U);
+
+    std::vector<std::vector<cv::Point> > contours;
+
+    // The contour retrieval mode
+    // CV_RETR_EXTERNAL retrieves only the extreme outer contours; It will set hierarchy[i][2]=hierarchy[i][3]=-1 for all the contours
+    // CV_RETR_LIST retrieves all of the contours without establishing any hierarchical relationships
+    // CV_RETR_CCOMP retrieves all of the contours and organizes them into a two-level hierarchy: on the top level are the external boundaries of the components, on the second level are the boundaries of the holes. If inside a hole of a connected component there is another contour, it will still be put on the top level
+    // CV_RETR_TREE retrieves all of the contours and reconstructs the full hierarchy of nested contours. 
+
+    // The contour approximation method.
+    // CV_CHAIN_APPROX_NONE stores absolutely all the contour points. That is, every 2 points of a contour stored with this method are 8-connected neighbors of each other
+    // CV_CHAIN_APPROX_SIMPLE compresses horizontal, vertical, and diagonal segments and leaves only their end points. E.g. an up-right rectangular contour will be encoded with 4 points
+    // CV_CHAIN_APPROX_TC89_L1,CV_CHAIN_APPROX_TC89_KCOS applies one of the flavors of the Teh-Chin chain approximation algorithm; see TehChin89
+
+    ASSERT(mode >= CV_RETR_EXTERNAL);
+    ASSERT(mode <= CV_RETR_TREE);
+    ASSERT(method >= CV_CHAIN_CODE);
+    ASSERT(method <= CV_LINK_RUNS);
+
+    cv::Mat gray = cv::Mat(_data.size(), CV_8U);
+    cv::cvtColor(_data, gray, CV_RGBA2GRAY);
+
+    cv::findContours(gray, contours, mode, method);
+
+    cv::Scalar color = cv::Scalar(255, 255, 255, 255);
+    cv::Mat result = cv::Mat::zeros(_data.size(), _data.type());
+
+    for (int i = 0; i < int(contours.size()); ++i)
+    {
+        // seems to be a bug
+        //cv::drawContours(result, contours, i, cv::Scalar(1.0f));
+
+        const std::vector<cv::Point>& vertices = contours[i];
+        const int count = vertices.size();
+        for (int j = 0; j < count; ++j)
+        {
+            cv::line(result, vertices[j], vertices[(j + 1) % count], color);
+        }
+    }
+
+    _data = result;
+}
+
 void GMOpenCVMat::StereoMatch(StrongHandle<Texture> left, StrongHandle<Texture> right)
 {
     return testPoly();
     return testContours();
+
+    // TODO: convert to new cv:: api
+
     IplImage* srcLeft = cvLoadImage("../common/img/videoleft2.png", 1);
     IplImage* srcRight = cvLoadImage("../common/img/videoright2.png", 1);
 
@@ -392,6 +441,16 @@ GM_REG_NAMESPACE(GMOpenCVMat)
         GM_OPENCV_EXCEPTION_WRAPPER(self->StereoMatch(left, right));
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(FindContours)
+    {
+        GM_CHECK_NUM_PARAMS(2);
+        GM_CHECK_INT_PARAM(mode, 0);
+        GM_CHECK_INT_PARAM(method, 1);
+		GM_GET_THIS_PTR(GMOpenCVMat, self);
+        GM_OPENCV_EXCEPTION_WRAPPER(self->FindContours(mode, method));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMOpenCVMat)
@@ -402,6 +461,7 @@ GM_REG_MEMFUNC( GMOpenCVMat, BilateralFilter )
 GM_REG_MEMFUNC( GMOpenCVMat, SobelFilter )
 GM_REG_MEMFUNC( GMOpenCVMat, CannyThreshold )
 GM_REG_MEMFUNC( GMOpenCVMat, StereoMatch )
+GM_REG_MEMFUNC( GMOpenCVMat, FindContours )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMOpenCVMat);
