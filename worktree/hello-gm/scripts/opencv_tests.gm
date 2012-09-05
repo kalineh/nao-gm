@@ -44,6 +44,8 @@ global MakeOpenCVTest = function()
         .canny_threshold_high = 75.0f;
         .contours_mode = 1;
         .contours_method = 1;
+        .polys_epsilon = 0.5f;
+        .polys_closed = 1;
 
         .filters = table();
 
@@ -73,6 +75,7 @@ global MakeOpenCVTest = function()
         if (Gui.Button("Sobel")) { .filters[] = { fun="SobelFilter", args=null }; }
         if (Gui.Button("Canny")) { .filters[] = { fun="CannyThreshold", args=null }; }
         if (Gui.Button("Contours")) { .filters[] = { fun="FindContours", args=null }; }
+        if (Gui.Button("Polys")) { .filters[] = { fun="ApproxPolys", args=null }; }
         if (Gui.Button("Clear All")) { .filters = table(); }
 
         local s = "";
@@ -114,6 +117,8 @@ global MakeOpenCVTest = function()
             .canny_threshold_high = Gui.SliderFloat("Canny - Threshold High", .canny_threshold_high, 0.1f, 255.0f);
             .contours_mode = Gui.SliderInt("Contours - Mode", .contours_mode, 0, 3);
             .contours_method = Gui.SliderInt("Contours - Method", .contours_method, 0, 5);
+            .polys_epsilon = Gui.SliderFloat("Polys - Epsilon", .polys_epsilon, 0.0f, 10.0f);
+            .polys_closed = Gui.SliderInt("Polys - Closed", .polys_closed, 0, 1);
 
             local test_loop = false;
 
@@ -155,12 +160,14 @@ global MakeOpenCVTest = function()
                     if (f.fun == "SobelFilter") { f.args = { .sobel_kernel_size, .sobel_scale, .sobel_delta }; }
                     if (f.fun == "CannyThreshold") { f.args = { .canny_kernel_size, .canny_threshold_low, .canny_threshold_high }; }
                     if (f.fun == "FindContours") { f.args = { .contours_mode, .contours_method }; }
+                    if (f.fun == "ApproxPolys") { f.args = { .contours_mode, .contours_method, .polys_epsilon, .polys_closed }; }
 
                     if (fun == "GaussianBlur") { obj.GaussianBlur(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                     if (fun == "BilateralFilter") { obj.BilateralFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                     if (fun == "SobelFilter") { obj.SobelFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                     if (fun == "CannyThreshold") { obj.CannyThreshold(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                     if (fun == "FindContours") { obj.FindContours(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                    if (fun == "ApproxPolys") { obj.ApproxPolys(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
                 }
 
                 .matleft.WriteToTexture(.videodisparity);

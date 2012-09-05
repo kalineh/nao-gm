@@ -24,6 +24,7 @@ public:
     void SobelFilter(int kernel_size, float scale, float delta);
     void CannyThreshold(int kernel_size, float threshold_low, float threshold_high);
     void FindContours(int mode, int method);
+    void ApproxPolys(int mode, int method, float epsilon, bool closed);
 
     void StereoMatch(StrongHandle<Texture> left, StrongHandle<Texture> right);
 

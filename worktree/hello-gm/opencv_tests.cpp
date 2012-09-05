@@ -227,8 +227,6 @@ void GMOpenCVMat::FindContours(int mode, int method)
 {
     //ASSERT(_data.type() == CV_32F || _data.type() == CV_8U);
 
-    std::vector<std::vector<cv::Point> > contours;
-
     // The contour retrieval mode
     // CV_RETR_EXTERNAL retrieves only the extreme outer contours; It will set hierarchy[i][2]=hierarchy[i][3]=-1 for all the contours
     // CV_RETR_LIST retrieves all of the contours without establishing any hierarchical relationships
@@ -248,6 +246,7 @@ void GMOpenCVMat::FindContours(int mode, int method)
     cv::Mat gray = cv::Mat(_data.size(), CV_8U);
     cv::cvtColor(_data, gray, CV_RGBA2GRAY);
 
+    std::vector<std::vector<cv::Point> > contours;
     cv::findContours(gray, contours, mode, method);
 
     cv::Scalar color = cv::Scalar(255, 255, 255, 255);
@@ -269,11 +268,42 @@ void GMOpenCVMat::FindContours(int mode, int method)
     _data = result;
 }
 
+void GMOpenCVMat::ApproxPolys(int mode, int method, float epsilon, bool closed)
+{
+    // (const Mat& curve, vector<Point2f>& approxCurve, double epsilon, bool closed)
+
+    cv::Mat gray = cv::Mat(_data.size(), CV_32F);
+    cv::cvtColor(_data, gray, CV_RGBA2GRAY);
+
+    std::vector<std::vector<cv::Point> > contours;
+
+    cv::findContours(gray, contours, mode, method);
+
+    cv::Mat result = cv::Mat::zeros(_data.size(), _data.type());
+
+    for (int i = 0; i < int(contours.size()); ++i)
+    {
+        const int r = i * 1000;
+        const int g = i * 2000;
+        const int b = i * 3000;
+        cv::Scalar color = cv::Scalar(r % 255, g % 255, b % 255, 255);
+        cv::Mat contour_mat = cv::Mat(contours[i]);
+        std::vector<cv::Point> points;
+
+        cv::approxPolyDP(contour_mat, points, epsilon, closed);
+
+        const int count = points.size();
+        for (int j = 0; j < count; ++j)
+        {
+            cv::line(result, points[j], points[(j + 1) % count], color);
+        }
+    }
+
+    _data = result;
+}
+
 void GMOpenCVMat::StereoMatch(StrongHandle<Texture> left, StrongHandle<Texture> right)
 {
-    return testPoly();
-    return testContours();
-
     // TODO: convert to new cv:: api
 
     IplImage* srcLeft = cvLoadImage("../common/img/videoleft2.png", 1);
@@ -451,6 +481,18 @@ GM_REG_NAMESPACE(GMOpenCVMat)
         GM_OPENCV_EXCEPTION_WRAPPER(self->FindContours(mode, method));
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(ApproxPolys)
+    {
+        GM_CHECK_NUM_PARAMS(4);
+        GM_CHECK_INT_PARAM(mode, 0);
+        GM_CHECK_INT_PARAM(method, 1);
+        GM_CHECK_FLOAT_PARAM(epsilon, 2);
+        GM_CHECK_INT_PARAM(closed, 3);
+		GM_GET_THIS_PTR(GMOpenCVMat, self);
+        GM_OPENCV_EXCEPTION_WRAPPER(self->ApproxPolys(mode, method, epsilon, closed != 0));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMOpenCVMat)
@@ -462,6 +504,7 @@ GM_REG_MEMFUNC( GMOpenCVMat, SobelFilter )
 GM_REG_MEMFUNC( GMOpenCVMat, CannyThreshold )
 GM_REG_MEMFUNC( GMOpenCVMat, StereoMatch )
 GM_REG_MEMFUNC( GMOpenCVMat, FindContours )
+GM_REG_MEMFUNC( GMOpenCVMat, ApproxPolys )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMOpenCVMat);
