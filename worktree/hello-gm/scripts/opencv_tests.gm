@@ -19,15 +19,36 @@ global MakeOpenCVTest = function()
 		.cam2d.InitScreenSpaceSize( Window.GetDimen() );
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
-        .videoleft = Texture( g_resourcePathPrefix + "common/img/videoleft.png" );
-        .videoright = Texture( g_resourcePathPrefix + "common/img/videoright.png" );
-        .videodisparity = Texture( .videoleft.Dimen() );
+        .dimen = v2(160.0f, 120.0f); 
 
-        .matleft = GMOpenCVMat(.videoleft.Dimen());
-        .matleft.ReadFromTexture(.videoleft);
+        if (g_no_robot)
+        {
+            .video0 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/videoleft.png" ), };
+            .video1 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/videoright.png" ), };
+            .videodisparity = Texture( .dimen );
+        }
+        else
+        {
+            .video0 = GMVideoDisplay("top", g_ip, g_port);
+            .video1 = GMVideoDisplay("bottom", g_ip, g_port);
 
-        .matdisparity = GMOpenCVMat(.videoleft.Dimen());
+            .video0.SetColorspace("RGB");
+            .video1.SetColorspace("RGB");
+
+            .video0.SetResolution("QQVGA");
+            .video1.SetResolution("QQVGA");
+
+            .videodisparity = Texture( .dimen );
+        }
+
+        .matleft = GMOpenCVMat(.dimen);
+        .matleft.ReadFromTexture(.video0.GetTexture());
+
+        .matdisparity = GMOpenCVMat(.dimen);
         .stereo_test = false;
+
+        .stream_video0 = false;
+        .stream_video1 = false;
 
         .gauss_kernel_size = 3;
         .gauss_sigma1 = 1.0f;
@@ -44,7 +65,7 @@ global MakeOpenCVTest = function()
         .canny_threshold_high = 75.0f;
         .contours_mode = 1;
         .contours_method = 1;
-        .polys_epsilon = 0.5f;
+        .polys_epsilon = 1.5f;
         .polys_closed = 1;
 
         .filters = table();
@@ -52,6 +73,7 @@ global MakeOpenCVTest = function()
         // default test for good results
         .filters[] = { fun="BilateralFilter", args=null };
         .filters[] = { fun="CannyThreshold", args=null };
+        .filters[] = { fun="ApproxPolys", args=null };
     };
 
     Main.Release = function()
@@ -89,7 +111,7 @@ global MakeOpenCVTest = function()
         .stereo_test = Gui.CheckBox("StereoTest", .stereo_test);
         if (.stereo_test)
         {
-            .matdisparity.StereoMatch(.videoleft, .videoright);
+            .matdisparity.StereoMatch(.video0.GetTexture(), .video1.GetTexture());
             .matdisparity.WriteToTexture(.videodisparity);
         }
 
@@ -99,8 +121,8 @@ global MakeOpenCVTest = function()
         {
             Gui.Begin("OpenCV Test Settings", g_core.screenDimen.x.Int()-230, g_core.screenDimen.y.Int() - 5);
 
-            //.stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
-            //.stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
+            .stream_video0 = Gui.CheckBox("Stream Video (Top)", .stream_video0);
+            .stream_video1 = Gui.CheckBox("Stream Video (Bottom)", .stream_video1);
 
             .gauss_kernel_size = Gui.SliderInt("Gauss - Kernel Size", .gauss_kernel_size, 1, 15);
             .gauss_sigma1 = Gui.SliderFloat("Gauss - Sigma 1", .gauss_sigma1, 0.01f, 2.0f);
@@ -120,67 +142,41 @@ global MakeOpenCVTest = function()
             .polys_epsilon = Gui.SliderFloat("Polys - Epsilon", .polys_epsilon, 0.0f, 10.0f);
             .polys_closed = Gui.SliderInt("Polys - Closed", .polys_closed, 0, 1);
 
-            local test_loop = false;
+            .matleft.ReadFromTexture(.video0.GetTexture());
 
-            if (test_loop)
+            foreach (f in .filters)
             {
-                .matleft.ReadFromTexture(.videoleft);
+                // note: we cant lookup string func on c++ objects!?
+                //local fun = .matleft[f.fun];
+                local fun = f.fun;
+                local obj = .matleft;
+                //fun:obj(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]);
 
-                // basic filter tests
-                //.matleft.GaussianBlur(.gauss_kernel_size, .gauss_sigma1, .gauss_sigma2);
-                //.matleft.BilateralFilter(.bilat_diameter, .bilat_sigma_color, .bilat_sigma_space);
-                //.matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
+                if (f.fun == "GaussianBlur") { f.args = { .gauss_kernel_size, .gauss_sigma1, .gauss_sigma2 }; }
+                if (f.fun == "BilateralFilter") { f.args = { .bilat_iterations, .bilat_diameter, .bilat_sigma_color, .bilat_sigma_space }; }
+                if (f.fun == "SobelFilter") { f.args = { .sobel_kernel_size, .sobel_scale, .sobel_delta }; }
+                if (f.fun == "CannyThreshold") { f.args = { .canny_kernel_size, .canny_threshold_low, .canny_threshold_high }; }
+                if (f.fun == "FindContours") { f.args = { .contours_mode, .contours_method }; }
+                if (f.fun == "ApproxPolys") { f.args = { .contours_mode, .contours_method, .polys_epsilon, .polys_closed }; }
 
-                // filter chain test
-
-                //.matleft.GaussianBlur(.gauss_kernel_size, .gauss_sigma1, .gauss_sigma2);
-                .matleft.BilateralFilter(.bilat_iterations, .bilat_diameter, .bilat_sigma_color, .bilat_sigma_space);
-                .matleft.SobelFilter(.sobel_kernel_size, .sobel_scale, .sobel_delta);
-
-                // random test
-
-                .matleft.CannyThreshold(.canny_kernel_size, .canny_threshold_low, .canny_threshold_high);
-
-                .matleft.WriteToTexture(.videodisparity);
+                if (fun == "GaussianBlur") { obj.GaussianBlur(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                if (fun == "BilateralFilter") { obj.BilateralFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                if (fun == "SobelFilter") { obj.SobelFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                if (fun == "CannyThreshold") { obj.CannyThreshold(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                if (fun == "FindContours") { obj.FindContours(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
+                if (fun == "ApproxPolys") { obj.ApproxPolys(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
             }
-            else
-            {
-                .matleft.ReadFromTexture(.videoleft);
 
-                foreach (f in .filters)
-                {
-                    // note: we cant lookup string func on c++ objects!?
-                    //local fun = .matleft[f.fun];
-                    local fun = f.fun;
-                    local obj = .matleft;
-                    //fun:obj(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]);
-
-                    if (f.fun == "GaussianBlur") { f.args = { .gauss_kernel_size, .gauss_sigma1, .gauss_sigma2 }; }
-                    if (f.fun == "BilateralFilter") { f.args = { .bilat_iterations, .bilat_diameter, .bilat_sigma_color, .bilat_sigma_space }; }
-                    if (f.fun == "SobelFilter") { f.args = { .sobel_kernel_size, .sobel_scale, .sobel_delta }; }
-                    if (f.fun == "CannyThreshold") { f.args = { .canny_kernel_size, .canny_threshold_low, .canny_threshold_high }; }
-                    if (f.fun == "FindContours") { f.args = { .contours_mode, .contours_method }; }
-                    if (f.fun == "ApproxPolys") { f.args = { .contours_mode, .contours_method, .polys_epsilon, .polys_closed }; }
-
-                    if (fun == "GaussianBlur") { obj.GaussianBlur(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
-                    if (fun == "BilateralFilter") { obj.BilateralFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
-                    if (fun == "SobelFilter") { obj.SobelFilter(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
-                    if (fun == "CannyThreshold") { obj.CannyThreshold(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
-                    if (fun == "FindContours") { obj.FindContours(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
-                    if (fun == "ApproxPolys") { obj.ApproxPolys(f.args[0], f.args[1], f.args[2], f.args[3], f.args[4]); }
-                }
-
-                .matleft.WriteToTexture(.videodisparity);
-            }
+            .matleft.WriteToTexture(.videodisparity);
 
             Gui.End();
-
-            //.video0.SetActive(.stream_video0);
-            //.video1.SetActive(.stream_video1);
-
-            //.video0.Update();
-            //.video1.Update();
         }
+
+        .video0.SetActive(.stream_video0);
+        .video1.SetActive(.stream_video1);
+
+        .video0.Update();
+        .video1.Update();
 
         .DrawDualVideo();
     };
@@ -198,15 +194,15 @@ global MakeOpenCVTest = function()
 		local vsize = v2(160.0f, 120.0f) * vscale;
 		local vpos = g_core.screenDimen * v2(0.2f, 0.2f) - vsize * 0.5f;
 
-        .videoleft.Bind(0);
+        .video0.GetTexture().Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-        .videoleft.Unbind();
+        .video0.GetTexture().Unbind();
         
         vpos = vpos + v2(vsize.x + 32.0f, 0.0f);
 
-        .videoright.Bind(0);
+        .video1.GetTexture().Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-        .videoright.Unbind();
+        .video1.GetTexture().Unbind();
 
         vpos = vpos + v2(vsize.x * -0.5f - 16.0f, vsize.y + 32.0f);
 

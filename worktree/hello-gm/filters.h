@@ -23,6 +23,7 @@ public:
 
 void RegisterGmFiltersLib(gmMachine* a_vm);
 
+// TODO: move to seperate file
 class GMVideoDisplay
     : public HandledObj<GMVideoDisplay>
 {

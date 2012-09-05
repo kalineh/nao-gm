@@ -283,9 +283,10 @@ void GMOpenCVMat::ApproxPolys(int mode, int method, float epsilon, bool closed)
 
     for (int i = 0; i < int(contours.size()); ++i)
     {
-        const int r = i * 1000;
-        const int g = i * 2000;
-        const int b = i * 3000;
+        const int f = int(contours[i][0].x * contours[i][0].y);
+        const int r = f * 2;
+        const int g = f * 3;
+        const int b = f * 4;
         cv::Scalar color = cv::Scalar(r % 255, g % 255, b % 255, 255);
         cv::Mat contour_mat = cv::Mat(contours[i]);
         std::vector<cv::Point> points;
