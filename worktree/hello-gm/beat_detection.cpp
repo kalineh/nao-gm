@@ -8,6 +8,7 @@
 
 ALSoundProcessing::ALSoundProcessing(boost::shared_ptr<AL::ALBroker> broker, std::string name)
     : AL::ALSoundExtractor(broker, name)
+    , _process_mutex(AL::ALMutex::createALMutex())
 {
     setModuleDescription("Collect raw microphone data to a local double buffer.");
 }
@@ -60,6 +61,8 @@ void ALSoundProcessing::process(const int& channels, const int& samples, const A
 {
     const int length = channels * samples;
 
+    AL::ALCriticalSection section(_process_mutex);
+
     _buffer.clear();
     _buffer.resize(length);
 
@@ -69,6 +72,8 @@ void ALSoundProcessing::process(const int& channels, const int& samples, const A
 
 void ALSoundProcessing::ExtractChannel(int channel, std::vector<float>& results)
 {
+    AL::ALCriticalSection section(_process_mutex);
+
     const int channels = 4;
     const int samples = _buffer.size() / channels;
 

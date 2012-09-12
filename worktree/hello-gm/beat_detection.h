@@ -24,6 +24,7 @@ public:
 
 private:
     std::vector<float> _buffer;
+    boost::shared_ptr<AL::ALMutex> _process_mutex;
 };
 
 // TODO: move to seperate file
