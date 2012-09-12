@@ -1,0 +1,88 @@
+
+// audio_tests.gm
+
+Log("audio_tests.gm: Initializing...");
+
+global MakeAudioTest = function()
+{
+    local Main = {
+    };
+
+    Main.Init = function()
+    {
+        .update_id = this:thread(.Update);
+
+        .audio = GMAudioStream("audio", g_ip, g_port);
+    };
+
+    Main.Release = function()
+    {
+        threadKill(.update_id);
+    };
+
+    Main.ClearScreen = function()
+    {
+		Gfx.ClearColor( Gfx.BLUE * v3(0.1f), 1.0f );
+		Gfx.ClearDepth(1.0f);
+		Gfx.Clear( Gfx.COLOR_BUFFER_BIT | Gfx.DEPTH_BUFFER_BIT );
+    };
+
+    Main.Gui = function()
+    {
+        Gui.Begin("Audio", g_core.screenDimen.x.Int() - 310, g_core.screenDimen.y.Int() - 5);
+
+        Gui.End();
+    };
+
+    Main.DrawDualVideo = function()
+    {
+		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
+		Gfx.BeginDefaultShader();
+
+        .cam2d.Begin();
+
+		Gfx.Color(Gfx.WHITE, 1.0f);
+
+        local vscale = 2.0f;
+		local vsize = v2(160.0f, 120.0f) * vscale;
+		local vpos = g_core.screenDimen * v2(0.2f, 0.2f) - vsize * 0.5f;
+
+        local v0 = .video0.GetTexture();
+        local v1 = .video1.GetTexture();
+
+        v0.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        v0.Unbind();
+
+        vpos = vpos + v2(vsize.x + 32.0f, 0.0f);
+
+        v1.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        v1.Unbind();
+
+        vpos = vpos + v2(vsize.x * -0.5f - 16.0f, vsize.y + 32.0f);
+
+        .videodisparity.Bind(0);
+		Gfx.DrawRectTexCoords( vpos, vsize );
+        .videodisparity.Unbind();
+
+        .cam2d.End();
+
+		Gfx.EndDefaultShader();
+		Gfx.Viewport( v2(0), g_core.screenDimen );
+    };
+
+    Main.Update = function()
+    {
+        while (true)
+        {
+    		RegisterDraw( DrawLayers.Clear, .ClearScreen, this );
+    		RegisterGui( .Gui, this );			
+
+            yield();
+        }
+    };
+
+    Main.Init();
+    return Main;
+};
