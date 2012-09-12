@@ -5,6 +5,7 @@
 #include "main.h"
 #include "filters.h"
 #include "opencv_tests.h"
+#include "beat_detection.h"
 
 void RegisterProjectLibs(gmMachine* vm)
 {
@@ -13,6 +14,7 @@ void RegisterProjectLibs(gmMachine* vm)
 	GM_BIND_INIT( GMALProxy, vm );
 	GM_BIND_INIT( GMVideoDisplay, vm );
 	GM_BIND_INIT( GMOpenCVMat, vm );
+	GM_BIND_INIT( GMAudioStream, vm );
 }
 
 int main(int argc, char** argv)

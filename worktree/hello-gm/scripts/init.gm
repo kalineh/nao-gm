@@ -7,18 +7,20 @@ system.DoFile(g_resourcePathPrefix + "scripts/al.gm");
 system.DoFile(g_resourcePathPrefix + "scripts/status_display.gm");
 system.DoFile(g_resourcePathPrefix + "scripts/filters.gm");
 system.DoFile(g_resourcePathPrefix + "scripts/opencv_tests.gm");
+system.DoFile(g_resourcePathPrefix + "scripts/audio_tests.gm");
 
 
 global g_ip = "192.168.11.8";
 global g_port = 9559;
-global g_norobot = false;
+global g_norobot = true;
 global g_dual_video_test = true;
 
 global g_proxies = MakeProxies(g_ip, g_port);
 
 //global g_filters_test = MakeFiltersTest(g_ip, g_port);
 //global g_status_display = MakeStatusDisplay(g_ip, g_port);
-global g_opencv_test = MakeOpenCVTest(g_ip, g_port);
+//global g_opencv_test = MakeOpenCVTest(g_ip, g_port);
+global g_audio_test = MakeAudioTest(g_ip, g_port);
 
 while (true)
 {

@@ -31,6 +31,7 @@
 #include <alproxies/alsonarproxy.h>
 #include <alvision/alvisiondefinitions.h>
 #include <almemoryfastaccess/almemoryfastaccess.h>
+#include <alaudio/alsoundextractor.h>
 
 // glm
 

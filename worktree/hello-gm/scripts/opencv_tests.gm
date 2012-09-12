@@ -21,7 +21,7 @@ global MakeOpenCVTest = function()
 
         .dimen = v2(160.0f, 120.0f); 
 
-        if (g_no_robot)
+        if (g_norobot)
         {
             .video0 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/videoleft.png" ), };
             .video1 = { GetTexture = function() { return .tex; }, tex = Texture( g_resourcePathPrefix + "common/img/videoright.png" ), };
@@ -55,7 +55,7 @@ global MakeOpenCVTest = function()
         .gauss_sigma2 = 0.0f;
         .bilat_iterations = 3;
         .bilat_diameter = 7;
-        .bilat_sigma_color = 255.0f;
+        .bilat_sigma_color = 170.0f;
         .bilat_sigma_space = 1.0f;
         .sobel_kernel_size = 3;
         .sobel_scale = 1.0f;
@@ -172,11 +172,14 @@ global MakeOpenCVTest = function()
             Gui.End();
         }
 
-        .video0.SetActive(.stream_video0);
-        .video1.SetActive(.stream_video1);
+        if (!g_norobot)
+        {
+            .video0.SetActive(.stream_video0);
+            .video1.SetActive(.stream_video1);
 
-        .video0.Update();
-        .video1.Update();
+            .video0.Update();
+            .video1.Update();
+        }
 
         .DrawDualVideo();
     };
@@ -194,15 +197,18 @@ global MakeOpenCVTest = function()
 		local vsize = v2(160.0f, 120.0f) * vscale;
 		local vpos = g_core.screenDimen * v2(0.2f, 0.2f) - vsize * 0.5f;
 
-        .video0.GetTexture().Bind(0);
+        local v0 = .video0.GetTexture();
+        local v1 = .video1.GetTexture();
+
+        v0.Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-        .video0.GetTexture().Unbind();
-        
+        v0.Unbind();
+
         vpos = vpos + v2(vsize.x + 32.0f, 0.0f);
 
-        .video1.GetTexture().Bind(0);
+        v1.Bind(0);
 		Gfx.DrawRectTexCoords( vpos, vsize );
-        .video1.GetTexture().Unbind();
+        v1.Unbind();
 
         vpos = vpos + v2(vsize.x * -0.5f - 16.0f, vsize.y + 32.0f);
 

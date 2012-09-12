@@ -33,6 +33,7 @@ qi_create_bin(hello-gm
 
 qi_use_lib(hello-gm ALCOMMON)
 qi_use_lib(hello-gm ALVISION)
+qi_use_lib(hello-gm ALAUDIO)
 qi_use_lib(hello-gm OPENCV)
 qi_use_lib(hello-gm SDL)
 qi_use_lib(hello-gm GLEW)
