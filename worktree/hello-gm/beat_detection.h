@@ -38,20 +38,24 @@ public:
     void SetActive(bool active);
     void Update();
 
+public:
+    void GetRemoteAudioData();
+    void GenerateSineWave(int frequency);
+
+    void CalcBeatFFT();
+    void CalcBeatEnergy();
+
+    void DrawWaveform(int channel, v3 color, float aplha);
+
 private:
     void Subscribe();
-
-    void GetRemoteAudioData();
-
-    void BeatFFT();
-    void BeatEnergy();
 
     bool _active;
     boost::shared_ptr<ALSoundProcessing> _sound_processing;
     std::string _name;
     std::string _subscriber_id;
 
-    typedef std::vector<unsigned char> Channel;
+    typedef std::vector<float> Channel;
     typedef std::vector<Channel> Data;
     
     Data _data;

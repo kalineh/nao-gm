@@ -24,6 +24,8 @@
 // AL
 
 #include <alcommon/alproxy.h>
+#include <alcommon/albroker.h>
+#include <alcommon/albrokermanager.h>
 #include <alproxies/alvideodeviceproxy.h>
 #include <alproxies/alsonarproxy.h>
 #include <alproxies/almemoryproxy.h>

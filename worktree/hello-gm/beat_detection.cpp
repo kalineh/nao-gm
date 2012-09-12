@@ -4,6 +4,8 @@
 
 #include "beat_detection.h"
 
+#include <gfx/DrawPrimitives.h>
+
 ALSoundProcessing::ALSoundProcessing(boost::shared_ptr<AL::ALBroker> broker, std::string name)
     : AL::ALSoundExtractor(broker, name)
 {
@@ -65,12 +67,25 @@ void ALSoundProcessing::process(const int& channels, const int& samples, const A
         _buffer[i] = float(buffer[i]);
 }
 
+void ALSoundProcessing::ExtractChannel(int channel, std::vector<float>& results)
+{
+    const int channels = 4;
+    const int samples = _buffer.size() / channels;
+
+    const int start = samples * channel;
+
+    results.resize(samples);
+    for (int i = 0; i < samples; ++i)
+        results[i] = _buffer[start + i];
+}
+
 GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     : _active(false)
-    //, _proxy(std::string(ip), port)
     , _name(name)
     , _subscriber_id(name)
 {
+    AL::ALBroker::Ptr broker = AL::ALBroker::createBroker("main", "0.0.0.0", 54000, ip, port);
+    _sound_processing = AL::ALModule::createModule<ALSoundProcessing>(broker, "ALSoundProcessing");
 }
 
 void GMAudioStream::SetActive(bool active)
@@ -84,7 +99,7 @@ void GMAudioStream::SetActive(bool active)
 
     if (!active && _active)
     {
-        //_proxy.unsubscribe(_subscriber_id);        
+        _sound_processing->unsubscribe(_subscriber_id);
         _active = active;
         _subscriber_id = _name;
     }
@@ -98,32 +113,87 @@ void GMAudioStream::Update()
     GetRemoteAudioData();
 }
 
-void GMAudioStream::BeatFFT()
+void GMAudioStream::CalcBeatFFT()
 {
     // TODO!
 }
 
-void GMAudioStream::BeatEnergy()
+void GMAudioStream::CalcBeatEnergy()
 {
+}
+
+void GMAudioStream::DrawWaveform(int channel, v3 color, float alpha)
+{
+    const std::vector<float>& data = _data[channel];
+    const int count = data.size();
+
+    const v2 bl = v2(0.0f, 0.0f);
+    const v2 tr = v2(640.0f, 480.0f);
+
+    const float step = (tr.x - bl.x) / float(data.size());
+    const float range = (tr.y - bl.y) / 32768.0f;
+
+    //glColor(
+
+    for (int i = 1; i < count; ++i)
+    {
+        const float value0 = data[i - 1];
+        const float value1 = data[i - 0];
+        const v2 a = bl + v2( step * float(i), range * value0 );
+        const v2 b = bl + v2( step * float(i), range * value1 );
+
+        DrawLine(a, b);
+    }
 }
 
 void GMAudioStream::Subscribe()
 {
     try
     {
-        //_proxy.unsubscribe(_subscriber_id);
+        _sound_processing->unsubscribe(_subscriber_id);
     }
     catch (const AL::ALError&)
     {
         // ignore, just attempting to avoid hanging subscriptions
     }
 
-    //_subscriber_id = _proxy.subscribe(_name);
+    try
+    {
+        _sound_processing->subscribe(_subscriber_id);
+    }
+    catch (const AL::ALError&)
+    {
+    }
 
-    //_proxy.setParam(AL::kCameraVFlipID, 0);
+    // TODO: does subscribe call init?
+    //_sound_processing->init();
+
+    //const int request_interleaving = 1;
+    //audioDevice->callVoid(
+        //"setClientPreferences",
+        //getName(),
+        //48000,
+        //int(AL::ALLCHANNELS),
+        //request_interleaving
+    //);
+
+
 }
 
 void GMAudioStream::GetRemoteAudioData()
+{
+    const int channels = 4;
+
+    _data.resize(4);
+
+    for (int i = 0; i < channels; ++i)
+    {
+        _sound_processing->ExtractChannel(i, _data[i]);
+        break;
+    }
+}
+
+void GMAudioStream::GenerateSineWave(int frequency)
 {
 }
 
@@ -156,11 +226,33 @@ GM_REG_NAMESPACE(GMAudioStream)
         GM_AL_EXCEPTION_WRAPPER(self->Update());
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(GenerateSineWave)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_INT_PARAM(frequency, 0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->GenerateSineWave(frequency));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(DrawWaveform)
+    {
+        GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_INT_PARAM(channel, 0);
+        GM_CHECK_VEC3_PARAM(color, 1);
+        GM_CHECK_FLOAT_PARAM(alpha, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->DrawWaveform(channel, color, alpha));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMAudioStream)
 GM_REG_MEMFUNC( GMAudioStream, SetActive )
 GM_REG_MEMFUNC( GMAudioStream, Update )
+GM_REG_MEMFUNC( GMAudioStream, GenerateSineWave )
+GM_REG_MEMFUNC( GMAudioStream, DrawWaveform )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);
