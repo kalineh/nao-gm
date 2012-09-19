@@ -43,23 +43,28 @@ public:
     void GetRemoteAudioData();
     void GenerateSineWave(int frequency);
 
-    void CalcBeatFFT();
-    void CalcBeatEnergy();
+    void CalcBeatFFT(int channel);
+    void CalcBeatEnergy(int channel);
 
     void DrawWaveform(int channel, v3 color, float aplha);
+    void DrawBeatWaveform(int channel, v3 color, float aplha);
 
 private:
+    typedef std::vector<float> Channel;
+    typedef std::vector<Channel> Data;
+
+    void DrawWaveformImpl(const Channel& channel, v3 color, float alpha);
     void Subscribe();
 
     bool _active;
     boost::shared_ptr<ALSoundProcessing> _sound_processing;
     std::string _name;
     std::string _subscriber_id;
-
-    typedef std::vector<float> Channel;
-    typedef std::vector<Channel> Data;
+    std::string _ip;
+    int _port;
     
     Data _data;
+    Channel _transformed;
 };
 
 GM_BIND_DECL(GMAudioStream);

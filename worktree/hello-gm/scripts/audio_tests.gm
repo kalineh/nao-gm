@@ -17,7 +17,17 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
-        .audio.SetActive(true);
+        .sine_frequency = 128;
+
+        if ( !g_norobot )
+        {
+            .audio.SetActive(true);
+        }
+        else
+        {
+            // TODO: fix update order so we don't need to do this first
+            .audio.GenerateSineWave(0);
+        }
     };
 
     Main.Release = function()
@@ -36,6 +46,8 @@ global MakeAudioTest = function()
     {
         Gui.Begin("Audio", g_core.screenDimen.x.Int() - 310, g_core.screenDimen.y.Int() - 5);
 
+        .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 0, 256);
+
         Gui.End();
     };
 
@@ -48,7 +60,9 @@ global MakeAudioTest = function()
 
 		Gfx.Color(Gfx.WHITE, 1.0f);
 
-        .audio.DrawWaveform(0, v3(1.0f), 1.0f);
+        //.audio.DrawWaveform(0, v3(1.0f), 1.0f);
+        .audio.CalcBeatFFT(0);
+        .audio.DrawBeatWaveform(0, v3(1.0f), 1.0f);
 
         .cam2d.End();
 
@@ -102,7 +116,14 @@ global MakeAudioTest = function()
     		RegisterDraw( DrawLayers.Scene, .DrawWaveform, this );
     		RegisterGui( .Gui, this );			
 
-            .audio.Update();
+            if (g_norobot)
+            {
+                .audio.GenerateSineWave(.sine_frequency);
+            }
+            else
+            {
+                .audio.Update();
+            }
 
             yield();
         }
