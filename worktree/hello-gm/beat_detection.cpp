@@ -246,6 +246,49 @@ void FFT::bitReverseCopy(const std::vector<Complex>& src, std::vector<Complex>& 
     }
 }
 
+// reference implementation
+void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag)
+{
+    int n = count;
+    for (int k = 0; k < n; k++)
+    {
+        float sumreal = 0;
+        float sumimag = 0;
+        for (int t = 0; t < n; t++)
+        {
+            sumreal +=  inreal[t]*cosf(2*PI * t * k / n) + inimag[t]*sin(2*PI * t * k / n);
+            sumimag += -inreal[t]*sinf(2*PI * t * k / n) + inimag[t]*cos(2*PI * t * k / n);
+        }
+        outreal[k] = sumreal;
+        outimag[k] = sumimag;
+    }
+}
+
+void GMAudioStream::CalcBeatDFT(int channel)
+{
+    int count = 1024;
+
+    std::vector<float> ir(count);
+    std::vector<float> ii(count);
+    std::vector<float> or(count);
+    std::vector<float> oi(count);
+
+    for (int i = 0; i < count; ++i)
+    {
+        ir[i] = _data[channel][i];
+        ii[i] = 0.0f;
+    }
+
+    dft(count, &ir[0], &ii[0], &or[0], &oi[0]);
+
+    _transformed.resize(count);
+
+    for (int i = 0; i < count; ++i)
+    {
+        _transformed[i] = or[i];
+    }
+}
+
 void GMAudioStream::CalcBeatFFT(int channel)
 {
     const int count = _data[channel].size();
@@ -357,7 +400,12 @@ void GMAudioStream::GetRemoteAudioData()
     }
 }
 
-void GMAudioStream::GenerateSineWave(int frequency)
+void GMAudioStream::ClearSineWave()
+{
+    _data.clear();
+}
+
+void GMAudioStream::AddSineWave(int frequency)
 {
     const int channels = 4;
 
@@ -374,7 +422,7 @@ void GMAudioStream::GenerateSineWave(int frequency)
             const float t = float(j * frequency);
             const float s = std::sinf(t) * 0.5f + 1.0f;
             const float r = 32768.0f / 4.0f;
-            _data[i][j] = s * r;
+            _data[i][j] += s * r;
         }
     }
 }
@@ -409,12 +457,20 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(GenerateSineWave)
+    GM_MEMFUNC_DECL(ClearSineWave)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->ClearSineWave());
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(AddSineWave)
     {
         GM_CHECK_NUM_PARAMS(1);
         GM_CHECK_INT_PARAM(frequency, 0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->GenerateSineWave(frequency));
+        GM_AL_EXCEPTION_WRAPPER(self->AddSineWave(frequency));
         return GM_OK;
     }
 
@@ -440,6 +496,15 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
+    GM_MEMFUNC_DECL(CalcBeatDFT)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_INT_PARAM(channel, 0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->CalcBeatDFT(channel));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(CalcBeatFFT)
     {
         GM_CHECK_NUM_PARAMS(1);
@@ -453,7 +518,9 @@ GM_REG_NAMESPACE(GMAudioStream)
 GM_REG_MEM_BEGIN(GMAudioStream)
 GM_REG_MEMFUNC( GMAudioStream, SetActive )
 GM_REG_MEMFUNC( GMAudioStream, Update )
-GM_REG_MEMFUNC( GMAudioStream, GenerateSineWave )
+GM_REG_MEMFUNC( GMAudioStream, ClearSineWave )
+GM_REG_MEMFUNC( GMAudioStream, AddSineWave )
+GM_REG_MEMFUNC( GMAudioStream, CalcBeatDFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcBeatFFT )
 GM_REG_MEMFUNC( GMAudioStream, DrawWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawBeatWaveform )

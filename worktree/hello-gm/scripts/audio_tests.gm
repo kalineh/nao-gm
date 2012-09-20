@@ -26,7 +26,7 @@ global MakeAudioTest = function()
         else
         {
             // TODO: fix update order so we don't need to do this first
-            .audio.GenerateSineWave(0);
+            .audio.AddSineWave(0);
         }
     };
 
@@ -118,7 +118,12 @@ global MakeAudioTest = function()
 
             if (g_norobot)
             {
-                .audio.GenerateSineWave(.sine_frequency);
+                .audio.ClearSineWave(.sine_frequency);
+                .audio.AddSineWave(.sine_frequency);
+                .audio.AddSineWave(.sine_frequency * 2);
+                .audio.AddSineWave(.sine_frequency * 3);
+                .audio.AddSineWave(.sine_frequency * 4);
+                .audio.AddSineWave(.sine_frequency * 5);
             }
             else
             {

@@ -41,8 +41,11 @@ public:
 
 public:
     void GetRemoteAudioData();
-    void GenerateSineWave(int frequency);
 
+    void ClearSineWave();
+    void AddSineWave(int frequency);
+
+    void CalcBeatDFT(int channel);
     void CalcBeatFFT(int channel);
     void CalcBeatEnergy(int channel);
 
