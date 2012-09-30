@@ -260,7 +260,7 @@ void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag
         outreal[i] /= n / 2;
         outimag[i] /= n / 2;
 
-        outreal[i] = std::powf( outreal[i] * outreal[i] * outimag[i] * outimag[i], 0.5f ) * 10000000.0f;
+        outreal[i] = std::powf( outreal[i] * outreal[i] * outimag[i] * outimag[i], 0.5f );
         outimag[i] = 0.0f;
     }
 }
@@ -290,7 +290,7 @@ void DFTref(int count, float* inreal, float* inimag, float* outreal, float* outi
     }
 }
 
-#define FFT_ENTRIES 64
+#define FFT_ENTRIES 256
 
 void GMAudioStream::CalcBeatDFT(int channel)
 {
@@ -350,14 +350,27 @@ void GMAudioStream::DrawWaveform(int channel, v3 color, float alpha)
 
 void GMAudioStream::DrawBeatWaveform(int channel, v3 color, float alpha)
 {
-    //std::vector<float> phases(_transformed.size());
-    //for (int i = 0; i < (int)phases.size(); ++i)
-        //phases[i] = float( FFT::getPhase(_transformed[i]) );
-    //DrawWaveformImpl(phases, 1.0f, color, alpha);
-
     std::vector<float> phases(_transformed.size());
     for (int i = 0; i < (int)phases.size(); ++i)
         phases[i] = _transformed[i].real();
+
+    // normalize
+    float min = 0.0f;
+    float max = 0.0f;
+
+    for (int i = 0; i < (int)phases.size(); ++i)
+    {
+        min = std::min<float>(phases[i], min);
+        max = std::max<float>(phases[i], max);
+    }
+
+    const float range = max - min;
+    for (int i = 0; i < (int)phases.size(); ++i)
+    {
+        phases[i] += min;
+        phases[i] /= range;
+    }
+
     DrawWaveformImpl(phases, 1.0f, color, alpha);
 }
 
@@ -429,8 +442,8 @@ void GMAudioStream::DrawWaveformImpl(const Channel& channel, float scale, v3 col
     {
         const float value0 = channel[i - 1];
         const float value1 = channel[i - 0];
-        const v2 a = bl + v2( step * float(i), range * value0 );
-        const v2 b = bl + v2( step * float(i), range * value1 );
+        const v2 a = bl + v2( step * float(i - 1), range * value0 );
+        const v2 b = bl + v2( step * float(i - 0), range * value1 );
 
         DrawLine(a, b);
     }
