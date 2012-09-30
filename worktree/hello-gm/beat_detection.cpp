@@ -118,33 +118,7 @@ void GMAudioStream::Update()
     GetRemoteAudioData();
 }
 
-/*
-Output:  complex values   
-   
-   
-        which are the Fourier Transform of the input.
-BitReverseData(data)
-mmax = 1
-while (n > mmax)
-   istep = 2 * mmax
-   theta = 3.14159265358979323846 * b / mmax
-   wp = cos(theta) + i * sin(theta)
-   w = 1
-for (m = 1; m <= mmax; m = m + 1)      for (k = m - 1; k < n; k = k + istep)
-         j = k + mmax
-temp = w * x[j]
-x[j] = x[k] - temp
-         x[k] = x[k] + temp
-      endfor
-   w = w*wp
-endfor
-mmax = istep
-endwhile
-ScaleData(data)
-*/
-
-#define PI 3.14159265
-
+#define PI 3.14159265f
 
 #include <complex>
 #include <vector>
@@ -152,7 +126,7 @@ ScaleData(data)
 class FFT
 {
     public:
-        typedef std::complex<double> Complex;
+        typedef std::complex<float> Complex;
         
         /* Initializes FFT. n must be a power of 2. */
         FFT(int n, bool inverse = false);
@@ -160,8 +134,8 @@ class FFT
         /* Computes Discrete Fourier Transform of given buffer. */
         std::vector<Complex> transform(const std::vector<Complex>& buf);
 
-        static double getIntensity(Complex c);
-        static double getPhase(Complex c);
+        static float getIntensity(Complex c);
+        static float getPhase(Complex c);
         
     private:
         int n, lgN;
@@ -189,9 +163,9 @@ FFT::FFT(int n, bool inverse)
     {
         m <<= 1;
         if (inverse)
-            omega[s] = exp(Complex(0, 2.0 * PI / m));
+            omega[s] = exp(Complex(0.0f, 2.0f * PI / m));
         else
-            omega[s] = exp(Complex(0, -2.0 * PI / m));
+            omega[s] = exp(Complex(0.0f, -2.0f * PI / m));
     }
 }
 
@@ -217,16 +191,16 @@ std::vector<FFT::Complex> FFT::transform(const std::vector<Complex>& buf)
     }
     if (inverse == false)
         for (int i = 0; i < n; ++i)
-            result[i] /= n;
+            result[i] /= float(n);
     return result;
 }
 
-double FFT::getIntensity(Complex c)
+float FFT::getIntensity(Complex c)
 {
     return abs(c);
 }
 
-double FFT::getPhase(Complex c)
+float FFT::getPhase(Complex c)
 {
     return arg(c);
 }
@@ -246,27 +220,81 @@ void FFT::bitReverseCopy(const std::vector<Complex>& src, std::vector<Complex>& 
     }
 }
 
-// reference implementation
+
+// good for verifying results
+// http://home.fuse.net/clymer/graphs/fourier.html
+//
+//
 void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag)
+{
+    // DFT only evaluates frequencies up to N / 2
+
+    // for each candidate frequency
+    //    for each data point
+    //        sum sin/cos complex
+
+    const int n = count;
+
+    memset(outreal, 0, sizeof(float) * n);
+    memset(outimag, 0, sizeof(float) * n);
+
+    for (int i = 0; i < n / 2; ++i)
+    {
+        float real = 0.0f;
+        float imag = 0.0f;
+
+        for (int j = 0; j < n; ++j)
+        {
+            const float f = inreal[j];
+
+            real += f * std::sinf(i * j * 2 * PI / n);
+            imag += f * std::cosf(i * j * 2 * PI / n);
+        }
+
+        outreal[i] = real;
+        outimag[i] = imag;
+    }
+    
+    for (int i = 0; i < n / 2; ++i)
+    {
+        outreal[i] /= n / 2;
+        outimag[i] /= n / 2;
+
+        outreal[i] = std::powf( outreal[i] * outreal[i] * outimag[i] * outimag[i], 0.5f ) * 10000000.0f;
+        outimag[i] = 0.0f;
+    }
+}
+
+// reference implementation
+void DFTref(int count, float* inreal, float* inimag, float* outreal, float* outimag)
 {
     int n = count;
     for (int k = 0; k < n; k++)
     {
         float sumreal = 0;
         float sumimag = 0;
+
+        // equalize contribution
+        const float divisor = float(k) / float(n);
+
         for (int t = 0; t < n; t++)
         {
-            sumreal +=  inreal[t]*cosf(2*PI * t * k / n) + inimag[t]*sin(2*PI * t * k / n);
-            sumimag += -inreal[t]*sinf(2*PI * t * k / n) + inimag[t]*cos(2*PI * t * k / n);
+            sumreal +=  inreal[t]*cosf(2*PI * t * k / n) + inimag[t]*sinf(2*PI * t * k / n);
+            sumimag += -inreal[t]*sinf(2*PI * t * k / n) + inimag[t]*cosf(2*PI * t * k / n);
+            //sumreal +=  inreal[t]*cosf(2*PI * t * k / n) + inimag[t]*sinf(2*PI * t * k / n);
+            //sumimag += -inreal[t]*sinf(2*PI * t * k / n) + inimag[t]*cosf(2*PI * t * k / n);
         }
+
         outreal[k] = sumreal;
         outimag[k] = sumimag;
     }
 }
 
+#define FFT_ENTRIES 64
+
 void GMAudioStream::CalcBeatDFT(int channel)
 {
-    int count = 1024;
+    int count = FFT_ENTRIES;
 
     std::vector<float> ir(count);
     std::vector<float> ii(count);
@@ -279,13 +307,13 @@ void GMAudioStream::CalcBeatDFT(int channel)
         ii[i] = 0.0f;
     }
 
-    dft(count, &ir[0], &ii[0], &or[0], &oi[0]);
+    DFT(count, &ir[0], &ii[0], &or[0], &oi[0]);
 
     _transformed.resize(count);
 
     for (int i = 0; i < count; ++i)
     {
-        _transformed[i] = or[i];
+        _transformed[i] = std::complex<float>(or[i], oi[i]);
     }
 }
 
@@ -307,7 +335,7 @@ void GMAudioStream::CalcBeatFFT(int channel)
     _transformed.resize(count);
     for (int i = 0; i < count; ++i)
     {
-        _transformed[i] = float(results[i].real());
+        _transformed[i] = std::complex<float>(results[i].real(), results[i].imag());
     }
 }
 
@@ -317,25 +345,85 @@ void GMAudioStream::CalcBeatEnergy(int channel)
 
 void GMAudioStream::DrawWaveform(int channel, v3 color, float alpha)
 {
-    DrawWaveformImpl(_data[channel], color, alpha);
+    DrawWaveformImpl(_data[channel], 1.0f, color, alpha);
 }
 
 void GMAudioStream::DrawBeatWaveform(int channel, v3 color, float alpha)
 {
-    DrawWaveformImpl(_transformed, color, alpha);
+    //std::vector<float> phases(_transformed.size());
+    //for (int i = 0; i < (int)phases.size(); ++i)
+        //phases[i] = float( FFT::getPhase(_transformed[i]) );
+    //DrawWaveformImpl(phases, 1.0f, color, alpha);
+
+    std::vector<float> phases(_transformed.size());
+    for (int i = 0; i < (int)phases.size(); ++i)
+        phases[i] = _transformed[i].real();
+    DrawWaveformImpl(phases, 1.0f, color, alpha);
 }
 
-void GMAudioStream::DrawWaveformImpl(const Channel& channel, v3 color, float alpha)
+void test_fft()
 {
+    const int samples = FFT_ENTRIES;
+    const int bands = 256;
+    const float frequency = 44100.0f;
+    const float wave = 33.0f;
+
+    std::vector<float> input_real(samples);
+    std::vector<float> input_imag(samples);
+    std::vector<float> output_real(samples);
+    std::vector<float> output_imag(samples);
+
+    std::vector<float> magnitudes(bands);
+
+    for (int i = 0; i < samples; ++i)
+    {
+        input_real[i] = sinf(i * wave) + 1.0f * 0.5f;
+        input_imag[i] = 0.0f;
+    }
+
+    DFT(samples, &input_real[0], &input_imag[0], &output_real[0], &output_imag[0]);
+
+    const v2 bl = v2(0.0f, 0.0f);
+    const v2 tr = v2(1024.0f, 768.0f);
+
+    const float step = (tr.x - bl.x) / float(bands);
+    const float range = (tr.y - bl.y) / 1.0f;
+
+    for (int i = 1; i < bands; ++i)
+    {
+        // frequency to extract
+        const float hz = 256.0f / float(bands) * float(i);
+
+        const float real0 = output_real[i - 1];
+        const float imag0 = output_imag[i - 1];
+        const float value0 = sqrtf(real0 * real0 + imag0 * imag0);
+
+        const float real1 = output_real[i + 0];
+        const float imag1 = output_imag[i + 0];
+        const float value1 = sqrtf(real1 * real1 + imag1 * imag1);
+
+        const v2 a = bl + v2( step * float(i), range * value0 );
+        const v2 b = bl + v2( step * float(i), range * value1 );
+
+        DrawLine(a, b);
+    }
+}
+
+// http://stackoverflow.com/questions/4364823/how-to-get-frequency-from-fft-result
+
+void GMAudioStream::DrawWaveformImpl(const Channel& channel, float scale, v3 color, float alpha)
+{
+    //return test_fft();
+
     const int count = channel.size();
 
     const v2 bl = v2(0.0f, 0.0f);
     const v2 tr = v2(1024.0f, 768.0f);
 
     const float step = (tr.x - bl.x) / float(channel.size());
-    const float range = (tr.y - bl.y) / 32768.0f / 4.0f;
+    const float range = (tr.y - bl.y) / scale;
 
-    //glColor(
+	glColor4f( color.x, color.y, color.z, alpha );
 
     for (int i = 1; i < count; ++i)
     {
@@ -413,16 +501,16 @@ void GMAudioStream::AddSineWave(int frequency)
 
     for (int i = 0; i < channels; ++i)
     {
-        const int entries = 1024;
+        const int entries = FFT_ENTRIES;
 
         _data[i].resize(entries);
 
         for (int j = 0; j < entries; ++j)
         {
-            const float t = float(j * frequency);
-            const float s = std::sinf(t) * 0.5f + 1.0f;
-            const float r = 32768.0f / 4.0f;
-            _data[i][j] += s * r;
+            const float d = float(j) / float(entries) * PI * 2.0f;
+            const float t = float(d * frequency);
+            const float s = std::sinf(t) * 0.5f + 0.5f;
+            _data[i][j] += s;
         }
     }
 }

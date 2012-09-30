@@ -4,6 +4,8 @@
 
 #include "main.h"
 
+#include <complex>
+
 using namespace funk;
 
 void RegisterGmAudioLib(gmMachine* a_vm);
@@ -55,8 +57,9 @@ public:
 private:
     typedef std::vector<float> Channel;
     typedef std::vector<Channel> Data;
+    typedef std::vector<std::complex<float> > ComplexChannel;
 
-    void DrawWaveformImpl(const Channel& channel, v3 color, float alpha);
+    void DrawWaveformImpl(const Channel& channel, float scale, v3 color, float alpha);
     void Subscribe();
 
     bool _active;
@@ -67,7 +70,7 @@ private:
     int _port;
     
     Data _data;
-    Channel _transformed;
+    ComplexChannel _transformed;
 };
 
 GM_BIND_DECL(GMAudioStream);

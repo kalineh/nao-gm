@@ -17,7 +17,7 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
-        .sine_frequency = 128;
+        .sine_frequency = 5;
 
         if ( !g_norobot )
         {
@@ -46,7 +46,7 @@ global MakeAudioTest = function()
     {
         Gui.Begin("Audio", g_core.screenDimen.x.Int() - 310, g_core.screenDimen.y.Int() - 5);
 
-        .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 0, 256);
+        .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, 64);
 
         Gui.End();
     };
@@ -60,9 +60,12 @@ global MakeAudioTest = function()
 
 		Gfx.Color(Gfx.WHITE, 1.0f);
 
-        //.audio.DrawWaveform(0, v3(1.0f), 1.0f);
-        .audio.CalcBeatFFT(0);
-        .audio.DrawBeatWaveform(0, v3(1.0f), 1.0f);
+        .audio.ClearSineWave(.sine_frequency); // DEBUG 
+        .audio.AddSineWave(.sine_frequency); // DEBUG 
+        .audio.DrawWaveform(0, Gfx.BLUE, 1.0f);
+
+        .audio.CalcBeatDFT(0);
+        .audio.DrawBeatWaveform(0, Gfx.RED, 0.5f);
 
         .cam2d.End();
 
@@ -118,12 +121,8 @@ global MakeAudioTest = function()
 
             if (g_norobot)
             {
-                .audio.ClearSineWave(.sine_frequency);
-                .audio.AddSineWave(.sine_frequency);
-                .audio.AddSineWave(.sine_frequency * 2);
-                .audio.AddSineWave(.sine_frequency * 3);
-                .audio.AddSineWave(.sine_frequency * 4);
-                .audio.AddSineWave(.sine_frequency * 5);
+                //.audio.ClearSineWave(.sine_frequency);
+                //.audio.AddSineWave(.sine_frequency);
             }
             else
             {
