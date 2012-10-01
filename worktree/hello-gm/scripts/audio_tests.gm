@@ -60,12 +60,13 @@ global MakeAudioTest = function()
 
 		Gfx.Color(Gfx.WHITE, 1.0f);
 
-        .audio.ClearSineWave(.sine_frequency); // DEBUG 
-        .audio.AddSineWave(.sine_frequency); // DEBUG 
         .audio.DrawWaveform(0, Gfx.BLUE, 1.0f);
 
         .audio.CalcBeatDFT(0);
         .audio.DrawBeatWaveform(0, Gfx.RED, 0.5f);
+
+        .audio.CalcAverageEnergies();
+        .audio.DrawEnergyDifferenceWaveform(Gfx.WHITE, 1.0f);
 
         .cam2d.End();
 
@@ -121,8 +122,8 @@ global MakeAudioTest = function()
 
             if (g_norobot)
             {
-                //.audio.ClearSineWave(.sine_frequency);
-                //.audio.AddSineWave(.sine_frequency);
+                .audio.ClearSineWave(.sine_frequency);
+                .audio.AddSineWave(.sine_frequency);
             }
             else
             {

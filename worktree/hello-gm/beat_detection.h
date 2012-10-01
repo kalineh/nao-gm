@@ -49,10 +49,12 @@ public:
 
     void CalcBeatDFT(int channel);
     void CalcBeatFFT(int channel);
-    void CalcBeatEnergy(int channel);
+
+    void CalcAverageEnergies();
 
     void DrawWaveform(int channel, v3 color, float aplha);
     void DrawBeatWaveform(int channel, v3 color, float aplha);
+    void DrawEnergyDifferenceWaveform(v3 color, float aplha);
 
 private:
     typedef std::vector<float> Channel;
@@ -68,9 +70,21 @@ private:
     std::string _subscriber_id;
     std::string _ip;
     int _port;
+
+    float _rolling_ft_min;
+    float _rolling_ft_max;
     
     Data _data;
     ComplexChannel _transformed;
+
+    // TODO: cleaner
+    float _last_phase_min;
+    float _last_phase_max;
+
+    Data _energy_history;
+    std::vector<float> _average_energy;
+    int _average_energy_index;
+    std::vector<float> _energy_differences;
 };
 
 GM_BIND_DECL(GMAudioStream);

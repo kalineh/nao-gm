@@ -81,7 +81,9 @@ void ALSoundProcessing::ExtractChannel(int channel, std::vector<float>& results)
 
     results.resize(samples);
     for (int i = 0; i < samples; ++i)
-        results[i] = _buffer[start + i];
+    {
+        results[i] = _buffer[start + i] / USHRT_MAX;
+    }
 }
 
 GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
@@ -90,6 +92,9 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _subscriber_id(name)
     , _ip(ip)
     , _port(port)
+    , _rolling_ft_min(0.0f)
+    , _rolling_ft_max(0.0000001f)
+    , _average_energy_index(0)
 {
 }
 
@@ -296,6 +301,9 @@ void GMAudioStream::CalcBeatDFT(int channel)
 {
     int count = FFT_ENTRIES;
 
+    if (_data.empty() || _data[channel].empty())
+        return;
+
     std::vector<float> ir(count);
     std::vector<float> ii(count);
     std::vector<float> or(count);
@@ -339,8 +347,57 @@ void GMAudioStream::CalcBeatFFT(int channel)
     }
 }
 
-void GMAudioStream::CalcBeatEnergy(int channel)
+void GMAudioStream::CalcAverageEnergies()
 {
+    // TODO: improve timing, match mic data
+    const int FrameCount = 60;
+
+    // push latest energy values
+
+    _energy_history.resize(FrameCount);
+
+    std::vector<float>& data = _energy_history[_average_energy_index];
+
+    data.resize(_transformed.size());
+
+    for (int i = 0; i < int(_transformed.size()); ++i)
+    {
+        data[i] = _transformed[i].real();
+    }
+
+    _average_energy_index += 1;
+    _average_energy_index %= FrameCount;
+
+    // calc average
+
+    _average_energy.clear();
+    _average_energy.resize(_transformed.size());
+
+    for (int i = 0; i < FrameCount; ++i)
+    {
+        const int count = _energy_history[i].size();
+        for (int j = 0; j < count; ++j)
+        {
+            _average_energy[j] += _energy_history[i][j];
+        }
+    }
+
+    for (int i = 0; i < int(_average_energy.size()); ++i)
+    {
+        _average_energy[i] /= float(FrameCount);
+    }
+
+    // calc instant energy difference
+
+    _energy_differences.resize(_transformed.size());
+
+    for (int i = 0; i < int(data.size()); ++i)
+    {
+        const float d = data[i];
+        const float a = _average_energy[i];
+
+        _energy_differences[i] = std::abs(d - a);
+    }
 }
 
 void GMAudioStream::DrawWaveform(int channel, v3 color, float alpha)
@@ -355,6 +412,7 @@ void GMAudioStream::DrawBeatWaveform(int channel, v3 color, float alpha)
         phases[i] = _transformed[i].real();
 
     // normalize
+
     float min = 0.0f;
     float max = 0.0f;
 
@@ -364,6 +422,12 @@ void GMAudioStream::DrawBeatWaveform(int channel, v3 color, float alpha)
         max = std::max<float>(phases[i], max);
     }
 
+    //_rolling_ft_min = std::min<float>(_rolling_ft_min, min);
+    //_rolling_ft_max = std::max<float>(_rolling_ft_max, max);
+
+    //min = _rolling_ft_min;
+    //max = _rolling_ft_max;
+
     const float range = max - min;
     for (int i = 0; i < (int)phases.size(); ++i)
     {
@@ -371,63 +435,30 @@ void GMAudioStream::DrawBeatWaveform(int channel, v3 color, float alpha)
         phases[i] /= range;
     }
 
+    _last_phase_min = min;
+    _last_phase_max = max;
+
     DrawWaveformImpl(phases, 1.0f, color, alpha);
 }
 
-void test_fft()
+void GMAudioStream::DrawEnergyDifferenceWaveform(v3 color, float alpha)
 {
-    const int samples = FFT_ENTRIES;
-    const int bands = 256;
-    const float frequency = 44100.0f;
-    const float wave = 33.0f;
-
-    std::vector<float> input_real(samples);
-    std::vector<float> input_imag(samples);
-    std::vector<float> output_real(samples);
-    std::vector<float> output_imag(samples);
-
-    std::vector<float> magnitudes(bands);
-
-    for (int i = 0; i < samples; ++i)
+    for (int i = 0; i < int(_average_energy.size()); ++i)
     {
-        input_real[i] = sinf(i * wave) + 1.0f * 0.5f;
-        input_imag[i] = 0.0f;
+        _average_energy[i] *= 10000000.0f;
+        _average_energy[i] += 0.1f;
+        _energy_differences[i] *= 10000000.0f;
+        _energy_differences[i] += 0.1f;
     }
-
-    DFT(samples, &input_real[0], &input_imag[0], &output_real[0], &output_imag[0]);
-
-    const v2 bl = v2(0.0f, 0.0f);
-    const v2 tr = v2(1024.0f, 768.0f);
-
-    const float step = (tr.x - bl.x) / float(bands);
-    const float range = (tr.y - bl.y) / 1.0f;
-
-    for (int i = 1; i < bands; ++i)
-    {
-        // frequency to extract
-        const float hz = 256.0f / float(bands) * float(i);
-
-        const float real0 = output_real[i - 1];
-        const float imag0 = output_imag[i - 1];
-        const float value0 = sqrtf(real0 * real0 + imag0 * imag0);
-
-        const float real1 = output_real[i + 0];
-        const float imag1 = output_imag[i + 0];
-        const float value1 = sqrtf(real1 * real1 + imag1 * imag1);
-
-        const v2 a = bl + v2( step * float(i), range * value0 );
-        const v2 b = bl + v2( step * float(i), range * value1 );
-
-        DrawLine(a, b);
-    }
+    //const float scale = 1.0f / (_last_phase_max - _last_phase_min); 
+    //const float scale = 10000000000000.0f;
+    const float scale = 1.0f;
+    DrawWaveformImpl(_average_energy, scale, color, alpha);
+    DrawWaveformImpl(_energy_differences, scale, v3(1.0f,1.0f,0.0f), alpha);
 }
-
-// http://stackoverflow.com/questions/4364823/how-to-get-frequency-from-fft-result
 
 void GMAudioStream::DrawWaveformImpl(const Channel& channel, float scale, v3 color, float alpha)
 {
-    //return test_fft();
-
     const int count = channel.size();
 
     const v2 bl = v2(0.0f, 0.0f);
@@ -597,6 +628,16 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
+    GM_MEMFUNC_DECL(DrawEnergyDifferenceWaveform)
+    {
+        GM_CHECK_NUM_PARAMS(2);
+        GM_CHECK_VEC3_PARAM(color, 0);
+        GM_CHECK_FLOAT_PARAM(alpha, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->DrawEnergyDifferenceWaveform(color, alpha));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(CalcBeatDFT)
     {
         GM_CHECK_NUM_PARAMS(1);
@@ -614,6 +655,14 @@ GM_REG_NAMESPACE(GMAudioStream)
         GM_AL_EXCEPTION_WRAPPER(self->CalcBeatFFT(channel));
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(CalcAverageEnergies)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->CalcAverageEnergies());
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMAudioStream)
@@ -623,8 +672,10 @@ GM_REG_MEMFUNC( GMAudioStream, ClearSineWave )
 GM_REG_MEMFUNC( GMAudioStream, AddSineWave )
 GM_REG_MEMFUNC( GMAudioStream, CalcBeatDFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcBeatFFT )
+GM_REG_MEMFUNC( GMAudioStream, CalcAverageEnergies )
 GM_REG_MEMFUNC( GMAudioStream, DrawWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawBeatWaveform )
+GM_REG_MEMFUNC( GMAudioStream, DrawEnergyDifferenceWaveform )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);
