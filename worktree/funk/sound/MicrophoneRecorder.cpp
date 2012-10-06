@@ -11,8 +11,35 @@
 
 namespace funk
 {
-MicrophoneRecorder::MicrophoneRecorder( const char * file ) : 
-m_fmodsnd(0),m_fmodsys(0), m_fileName(file), m_fh(0), m_dataLength(0)
+
+MicrophoneRecorder::MicrophoneRecorder()
+    : m_fmodsnd(nullptr)
+    , m_fmodsys(nullptr)
+    , m_fh(0)
+    , m_dataLength(0)
+{
+	FMOD::System * fmodSys = SoundMngr::Get()->GetSys();
+
+	FMOD_CREATESOUNDEXINFO exinfo;
+	memset(&exinfo, 0, sizeof(FMOD_CREATESOUNDEXINFO));
+	exinfo.cbsize           = sizeof(FMOD_CREATESOUNDEXINFO);
+	exinfo.numchannels      = 1;
+	exinfo.format           = FMOD_SOUND_FORMAT_PCM16;
+	exinfo.defaultfrequency = 44100;
+	exinfo.length           = exinfo.defaultfrequency * sizeof(short) * exinfo.numchannels * 2;
+
+	unsigned int flags = FMOD_SOFTWARE | FMOD_2D | FMOD_OPENUSER;
+	FMOD_ERRCHECK(fmodSys->createSound(0, flags, &exinfo, &m_fmodsnd));
+
+	m_fmodsys = fmodSys;
+}
+
+MicrophoneRecorder::MicrophoneRecorder( const char * file )
+    : m_fmodsnd(nullptr)
+    , m_fmodsys(nullptr)
+    , m_fileName(file)
+    , m_fh(0)
+    , m_dataLength(0)
 {
 	FMOD::System * fmodSys = SoundMngr::Get()->GetSys();
 
@@ -32,7 +59,8 @@ m_fmodsnd(0),m_fmodsys(0), m_fileName(file), m_fh(0), m_dataLength(0)
 
 MicrophoneRecorder::~MicrophoneRecorder()
 {
-	if ( m_fmodsnd ) m_fmodsnd->release();
+	if ( m_fmodsnd )
+        m_fmodsnd->release();
 }
 
 void MicrophoneRecorder::RecordStart()
@@ -58,6 +86,62 @@ void MicrophoneRecorder::RecordEnd()
 	WriteWavHeader(m_dataLength);
 	FMOD_ERRCHECK(m_fmodsnd->release());
 	fclose(m_fh);
+}
+
+void MicrophoneRecorder::RecordStartNoFile()
+{
+	char name[256];
+	FMOD_ERRCHECK(m_fmodsys->getRecordDriverInfo(1, name, 256, 0));
+	m_recordDriver = 0;
+
+	FMOD_ERRCHECK(m_fmodsys->recordStart(m_recordDriver, m_fmodsnd, true));
+	FMOD_ERRCHECK(m_fmodsnd->getLength(&m_soundLength, FMOD_TIMEUNIT_PCM));
+
+	m_lastRecordPosLength  = 0;
+}
+
+void MicrophoneRecorder::RecordEndNoFile()
+{
+	FMOD_ERRCHECK(m_fmodsnd->release());
+}
+
+void MicrophoneRecorder::UpdateNoFile(std::vector<unsigned short>* left, std::vector<unsigned short>* right)
+{
+	unsigned int recordpos = 0;
+	m_fmodsys->getRecordPosition(m_recordDriver, &recordpos);
+
+	int numChannels = 1;
+
+	if (recordpos != m_lastRecordPosLength)        
+	{
+		void *ptr1, *ptr2;
+		int blocklength;
+		unsigned int len1, len2;
+
+		blocklength = (int)recordpos - (int)m_lastRecordPosLength;
+		if (blocklength < 0) blocklength += m_soundLength;
+
+		// Lock the sound to get access to the raw data.
+		m_fmodsnd->lock(m_lastRecordPosLength * numChannels * 2, blocklength * numChannels * 2, &ptr1, &ptr2, &len1, &len2);   /* * exinfo.numchannels * 2 = stereo 16bit.  1 sample = 4 bytes. */
+
+		// Write it to output.
+		if (ptr1 && len1)
+        {
+            left->resize(len1);
+            memcpy(&(*left)[0], ptr1, len1);
+        }
+
+		if (ptr2 && len2)
+        {
+            right->resize(len2);
+            memcpy(&(*right)[0], ptr2, len2);
+        }
+
+		//Unlock the sound to allow FMOD to use it again.
+		m_fmodsnd->unlock(ptr1, ptr2, len1, len2);
+	}
+
+	m_lastRecordPosLength = recordpos;
 }
 
 void MicrophoneRecorder::Update()

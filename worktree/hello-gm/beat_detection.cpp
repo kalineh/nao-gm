@@ -5,6 +5,14 @@
 #include "beat_detection.h"
 
 #include <gfx/DrawPrimitives.h>
+#include <sound/MicrophoneRecorder.h>
+
+// dsp guide
+// http://www.dspguide.com/ch8/2.htm
+
+// beat detection notes
+// http://www.flipcode.com/misc/BeatDetectionAlgorithms.pdf
+
 
 ALSoundProcessing::ALSoundProcessing(boost::shared_ptr<AL::ALBroker> broker, std::string name)
     : AL::ALSoundExtractor(broker, name)
@@ -297,6 +305,7 @@ void DFTref(int count, float* inreal, float* inimag, float* outreal, float* outi
 
 #define FFT_ENTRIES 256
 
+
 void GMAudioStream::CalcBeatDFT(int channel)
 {
     int count = FFT_ENTRIES;
@@ -389,6 +398,7 @@ void GMAudioStream::CalcAverageEnergies()
 
     // calc instant energy difference
 
+    _energy_differences.clear();
     _energy_differences.resize(_transformed.size());
 
     for (int i = 0; i < int(data.size()); ++i)
@@ -539,6 +549,42 @@ void GMAudioStream::ClearSineWave()
 
 void GMAudioStream::AddSineWave(int frequency)
 {
+    static StrongHandle<MicrophoneRecorder> recorder;
+    if (!recorder)
+    {
+        recorder = new MicrophoneRecorder();
+        recorder->RecordStartNoFile();
+    }
+
+    std::vector<unsigned short> left;
+    std::vector<unsigned short> right;
+
+    recorder->UpdateNoFile(&left, &right);
+    //recorder->RecordEndNoFile();
+
+    _data.resize(4);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        _data[i].resize(FFT_ENTRIES, 1.0f);
+    }
+
+    // pack into shorter buffer
+    printf("left:  %d\n", left.size());
+
+    for (int i = 0; i < left.size(); ++i)
+    {
+        //if (left[i] == 65535)
+            //left[i] = 0;
+    }
+
+    for (int i = 0; i < left.size() && i < _data[0].size(); ++i)
+    {
+        _data[0][i] = float(left[i]) / float(USHRT_MAX);
+    }
+
+    return;
+
     const int channels = 4;
 
     _data.resize(channels);

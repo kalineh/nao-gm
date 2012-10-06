@@ -5,6 +5,7 @@
 #include <gm/gmBindHeader.h>
 #include <fmod.hpp>
 #include <string>
+#include <vector>
 
 namespace funk
 {
@@ -17,7 +18,14 @@ namespace funk
 		void RecordEnd();
 		void Update();
 
+		void RecordStartNoFile();
+		void RecordEndNoFile();
+        void UpdateNoFile(std::vector<unsigned short>* left, std::vector<unsigned short>* right);
+
 		GM_BIND_TYPEID(MicrophoneRecorder);
+        // TODO: no-file ctor: replace with difference/subclass
+		MicrophoneRecorder();
+
 		MicrophoneRecorder( const char * file );
 		~MicrophoneRecorder();
 
