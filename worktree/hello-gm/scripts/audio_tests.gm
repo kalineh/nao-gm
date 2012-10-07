@@ -70,9 +70,9 @@ global MakeAudioTest = function()
 		Gfx.Color(Gfx.WHITE, 1.0f);
 
         .audio.DrawRawWaveform(0, Gfx.BLUE, 1.0f);
-        .audio.DrawFFTWaveform(0, Gfx.RED, 1.0f);
+        .audio.DrawFFTWaveform(0, Gfx.YELLOW, 0.5f);
         .audio.DrawAverageWaveform(Gfx.WHITE, 0.3f);
-        .audio.DrawDifferenceWaveform(Gfx.YELLOW, 0.3f);
+        .audio.DrawDifferenceWaveform(Gfx.RED, 1.0f);
 
         .cam2d.End();
 
@@ -115,6 +115,8 @@ global MakeAudioTest = function()
             .audio.CalcDFT(0);
             //.audio.CalcFFT(0);
             .audio.CalcAverageAndDifference(0);
+
+            .audio.EstimateBPM(0.0001f);
 
             yield();
         }

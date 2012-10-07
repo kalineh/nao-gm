@@ -382,7 +382,7 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
     {
         const std::complex<float> fft = c.fft[i];
         const float f = fft.real() * fft.real() + fft.imag() * fft.imag();
-        history[i] = f;
+        history[i] = std::powf(f * _fft_magnify_scale, _fft_magnify_power);
     }
 
     // accumulate history
@@ -414,43 +414,91 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
         const float e = _history_fft[_average_index][i];
         const float a = _average_fft[i];
 
-        _difference_fft[i] = std::powf(std::abs(e - a), 2.0f);
+        _difference_fft[i] = std::max<float>(e - a, 0.0f);
     }
 
     _average_index += 1;
     _average_index %= FrameCount;
 }
 
+int GMAudioStream::EstimateBPM(float threshold)
+{
+    // the difference of energy in this frame above
+    // a threshold means a beat on that fft band
+
+    // how can we map an fft band to a note?
+    // we are not handling mic data properly
+    // we will get overlap with data over time
+    // 
+
+    // for this, the index is equivalent to a sine wave of that frequency
+    // this is a frequency over the FFT window
+    // and this in real-time terms is (Window / Frequency) seconds
+
+    // for sample rate of 10000hz, we get frequencies from 0..5000hz
+    // with 128 fft bins we get (5000/128) = 39.06hz steps
+    // so peak in bin 16 is (5000/128)*16 = 625hz
+
+    // middle c = 440hz
+
+    //std::vector<float>& src = _average_fft;
+    std::vector<float>& src = _difference_fft;
+
+    char buffer[1024] = { 0 };
+    char* write = buffer;
+    for (int i = 0; i < (int)src.size(); ++i)
+    {
+        const float f = src[i];
+        if (f > threshold)
+        {
+            const float wave_frequency_over_window = float(i);
+            const float window_to_seconds = ((44100.0f / 4.0f) / 2.0f) / _fft_window_size;
+            const float est_frequency = wave_frequency_over_window * window_to_seconds;
+
+            const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
+
+            //write += sprintf(write, "%.2f, ", est_frequency);
+            write += sprintf(write, "%d, ", note_index);
+            //write += sprintf(write, "%.2f ", std::logf(est_frequency / 440.0f));
+        }
+    }
+
+    if (write != buffer)
+        printf("est: %s\n", buffer);
+
+    return 0;
+}
+
 void GMAudioStream::DrawRawWaveform(int channel, v3 color, float alpha)
 {
-    DrawWaveform(_channels[channel].raw, 1.0f, color, alpha);
+    DrawWaveform(_channels[channel].raw, v2(1.0f, 1.0f), color, alpha);
 }
 
 void GMAudioStream::DrawFFTWaveform(int channel, v3 color, float alpha)
 {
     const float scale = 1.0f / float(_fft_window_size);
-    DrawWaveform(_channels[channel].fft, 1.0f / 60.0f, color, alpha);
+    DrawWaveform(_channels[channel].fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
 }
 
 void GMAudioStream::DrawAverageWaveform(v3 color, float alpha)
 {
-    DrawWaveform(_average_fft, 1.0f / 60.0f, color, alpha);
+    DrawWaveform(_average_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
 }
 
 void GMAudioStream::DrawDifferenceWaveform(v3 color, float alpha)
 {
-    DrawWaveform(_difference_fft, 1.0f / 60.0f, color * 0.3f, alpha);
+    DrawWaveform(_difference_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
 }
 
-void GMAudioStream::DrawWaveform(const std::vector<float>& data, float scale, v3 color, float alpha)
+void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 color, float alpha)
 {
     const int count = data.size();
 
     const v2 bl = v2(0.0f, 0.0f);
     const v2 tr = v2(1024.0f, 768.0f);
 
-    const float step = (tr.x - bl.x) / float(data.size());
-    const float range = (tr.y - bl.y) / scale;
+    const float step = (tr.x - bl.x) / float(data.size()) * scale.x;
+    const float range = (tr.y - bl.y) / scale.y;
 
 	glColor4f( color.x, color.y, color.z, alpha );
 
@@ -465,7 +513,7 @@ void GMAudioStream::DrawWaveform(const std::vector<float>& data, float scale, v3
     }
 }
 
-void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, float scale, v3 color, float alpha)
+void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, v2 scale, v3 color, float alpha)
 {
     static std::vector<float> converted;
 
@@ -564,7 +612,7 @@ void GMAudioStream::AddInputDataMicrophone()
     const int MicrophoneDataTypeMaxValue = 255;
     const FMOD_SOUND_FORMAT format = FMOD_SOUND_FORMAT_PCM8;
     const int bytesize = sizeof(MicrophoneDataType);
-    const int _frequency = 44100;
+    const int _frequency = 44100 / 4;
 
     if (!_recorder)
     {
@@ -797,6 +845,15 @@ GM_REG_NAMESPACE(GMAudioStream)
         GM_AL_EXCEPTION_WRAPPER(self->CalcAverageAndDifference(channel));
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(EstimateBPM)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_FLOAT_PARAM(threshold, 0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->EstimateBPM(threshold)));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMAudioStream)
@@ -816,6 +873,7 @@ GM_REG_MEMFUNC( GMAudioStream, DrawRawWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFFTWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawAverageWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawDifferenceWaveform )
+GM_REG_MEMFUNC( GMAudioStream, EstimateBPM )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);
