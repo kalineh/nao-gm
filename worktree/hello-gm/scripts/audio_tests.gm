@@ -18,6 +18,8 @@ global MakeAudioTest = function()
 
         .audio = GMAudioStream("audio", g_ip, g_port);
         .fft_window_size = 256;
+        .fft_magnify_scale = 60.0f;
+        .fft_magnify_power = 1.0f;
         .use_microphone = true;
         .use_sine_wave = false;
         .sine_frequency = 5;
@@ -48,6 +50,8 @@ global MakeAudioTest = function()
         Gui.Begin("Audio", g_core.screenDimen.x.Int() - 310, g_core.screenDimen.y.Int() - 5);
 
         .fft_window_size = Gui.SliderInt("FFT Window Size", .fft_window_size, 1, 2048);
+        .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 1.0f, 60.0f * 10.0f);
+        .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 1.0f, 16.0f);
         .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
         .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
         .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, 64);
@@ -67,8 +71,8 @@ global MakeAudioTest = function()
 
         .audio.DrawRawWaveform(0, Gfx.BLUE, 1.0f);
         .audio.DrawFFTWaveform(0, Gfx.RED, 1.0f);
-        .audio.DrawAverageWaveform(Gfx.WHITE, 1.0f);
-        .audio.DrawDifferenceWaveform(Gfx.YELLOW, 1.0f);
+        .audio.DrawAverageWaveform(Gfx.WHITE, 0.3f);
+        .audio.DrawDifferenceWaveform(Gfx.YELLOW, 0.3f);
 
         .cam2d.End();
 
@@ -85,6 +89,8 @@ global MakeAudioTest = function()
     		RegisterGui( .Gui, this );			
 
             .audio.SetFFTWindowSize(.fft_window_size);
+            .audio.SetFFTMagnifyScale(.fft_magnify_scale);
+            .audio.SetFFTMagnifyPower(.fft_magnify_power);
 
             .audio.ClearInputData();
             .audio.Update();

@@ -101,6 +101,8 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _port(port)
     , _average_index(0)
     , _fft_window_size(256)
+    , _fft_magnify_scale(60.0f)
+    , _fft_magnify_power(1.0f)
 {
 }
 
@@ -285,9 +287,6 @@ void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag
     {
         outreal[i] /= n / 2;
         outimag[i] /= n / 2;
-
-        outreal[i] = std::powf( outreal[i] * outreal[i] * outimag[i] * outimag[i], 0.5f );
-        outimag[i] = 0.0f;
     }
 }
 
@@ -430,20 +429,17 @@ void GMAudioStream::DrawRawWaveform(int channel, v3 color, float alpha)
 void GMAudioStream::DrawFFTWaveform(int channel, v3 color, float alpha)
 {
     const float scale = 1.0f / float(_fft_window_size);
-
-    // TODO: is this the correct max?
-
-    DrawWaveform(_channels[channel].fft, scale, color, alpha);
+    DrawWaveform(_channels[channel].fft, 1.0f / 60.0f, color, alpha);
 }
 
 void GMAudioStream::DrawAverageWaveform(v3 color, float alpha)
 {
-    DrawWaveform(_average_fft, 1.0f, color, alpha);
+    DrawWaveform(_average_fft, 1.0f / 60.0f, color, alpha);
 }
 
 void GMAudioStream::DrawDifferenceWaveform(v3 color, float alpha)
 {
-    DrawWaveform(_difference_fft, 1.0f, color * 0.3f, alpha);
+    DrawWaveform(_difference_fft, 1.0f / 60.0f, color * 0.3f, alpha);
 }
 
 void GMAudioStream::DrawWaveform(const std::vector<float>& data, float scale, v3 color, float alpha)
@@ -479,7 +475,7 @@ void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, 
     {
         const std::complex<float> c = data[i];
         const float f = c.real() * c.real() + c.imag() * c.imag();
-        converted[i] = f;
+        converted[i] = std::powf(f * _fft_magnify_scale, _fft_magnify_power);
     }
 
     DrawWaveform(converted, scale, color, alpha);
@@ -536,6 +532,17 @@ void GMAudioStream::SetFFTWindowSize(int samples)
 {
     _fft_window_size = samples;
 }
+
+void GMAudioStream::SetFFTMagnifyScale(float scale)
+{
+    _fft_magnify_scale = scale;
+}
+
+void GMAudioStream::SetFFTMagnifyPower(float power)
+{
+    _fft_magnify_power = power;
+}
+
 void GMAudioStream::AddInputDataRemoteNao()
 {
     if (!_active)
@@ -704,6 +711,24 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
+    GM_MEMFUNC_DECL(SetFFTMagnifyScale)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_FLOAT_PARAM(scale, 0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->SetFFTMagnifyScale(scale));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(SetFFTMagnifyPower)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_FLOAT_PARAM(power, 0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->SetFFTMagnifyPower(power));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(DrawRawWaveform)
     {
         GM_CHECK_NUM_PARAMS(3);
@@ -782,6 +807,8 @@ GM_REG_MEMFUNC( GMAudioStream, AddInputDataSineWave )
 GM_REG_MEMFUNC( GMAudioStream, AddInputDataMicrophone )
 GM_REG_MEMFUNC( GMAudioStream, AddInputDataRemoteNao )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTWindowSize )
+GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyScale )
+GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyPower )
 GM_REG_MEMFUNC( GMAudioStream, CalcDFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcFFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcAverageAndDifference )

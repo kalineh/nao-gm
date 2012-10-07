@@ -51,6 +51,8 @@ public:
     void AddInputDataRemoteNao();
 
     void SetFFTWindowSize(int samples);
+    void SetFFTMagnifyScale(float scale);
+    void SetFFTMagnifyPower(float power);
 
     void CalcDFT(int channel);
     void CalcFFT(int channel);
@@ -79,6 +81,8 @@ private:
     int _port;
 
     int _fft_window_size;
+    float _fft_magnify_scale;
+    float _fft_magnify_power;
 
     struct Channel
     {
@@ -94,7 +98,7 @@ private:
     std::vector<float> _history_fft[60];
 
     StrongHandle<MicrophoneRecorder> _recorder;
-    std::vector<float> _microphone_buffer;
+    std::vector<signed char> _microphone_buffer;
 };
 
 GM_BIND_DECL(GMAudioStream);
