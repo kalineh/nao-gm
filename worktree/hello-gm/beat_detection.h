@@ -50,21 +50,25 @@ public:
     void AddInputDataMicrophone();
     void AddInputDataRemoteNao();
 
-    void CalcBeatDFT(int channel);
-    void CalcBeatFFT(int channel);
+    void SetFFTWindowSize(int samples);
 
-    void CalcAverageEnergies();
+    void CalcDFT(int channel);
+    void CalcFFT(int channel);
+    void CalcAverageAndDifference(int channel);
 
-    void DrawWaveform(int channel, v3 color, float aplha);
-    void DrawBeatWaveform(int channel, v3 color, float aplha);
-    void DrawEnergyDifferenceWaveform(v3 color, float aplha);
+    void DrawRawWaveform(int channel, v3 color, float alpha);
+    void DrawFFTWaveform(int channel, v3 color, float alpha);
+    void DrawAverageWaveform(v3 color, float alpha);
+    void DrawDifferenceWaveform(v3 color, float alpha);
+
+    // TODO: estimated musical notes + beat confidence
+    //std::vector<float> EstimateNotes(float fft_threshold);
+    //float EstimateBeat(float fft_threshold);
 
 private:
-    typedef std::vector<float> Channel;
-    typedef std::vector<Channel> Data;
-    typedef std::vector<std::complex<float> > ComplexChannel;
+    void DrawWaveform(const std::vector<float>& channel, float scale, v3 color, float alpha);
+    void DrawWaveform(const std::vector<std::complex<float> >& channel, float scale, v3 color, float alpha);
 
-    void DrawWaveformImpl(const Channel& channel, float scale, v3 color, float alpha);
     void Subscribe();
 
     bool _active;
@@ -74,22 +78,23 @@ private:
     std::string _ip;
     int _port;
 
-    float _rolling_ft_min;
-    float _rolling_ft_max;
-    
-    Data _data;
-    ComplexChannel _transformed;
+    int _fft_window_size;
 
-    // TODO: cleaner
-    float _last_phase_min;
-    float _last_phase_max;
+    struct Channel
+    {
+        std::vector<float> raw;
+        std::vector<std::complex<float> > fft;
+    };
 
-    Data _energy_history;
-    std::vector<float> _average_energy;
-    int _average_energy_index;
-    std::vector<float> _energy_differences;
+    std::vector<Channel> _channels;
+
+    int _average_index;
+    std::vector<float> _average_fft;
+    std::vector<float> _difference_fft;
+    std::vector<float> _history_fft[60];
 
     StrongHandle<MicrophoneRecorder> _recorder;
+    std::vector<float> _microphone_buffer;
 };
 
 GM_BIND_DECL(GMAudioStream);
