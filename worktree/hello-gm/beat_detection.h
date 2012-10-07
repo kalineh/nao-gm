@@ -5,6 +5,7 @@
 #include "main.h"
 
 #include <complex>
+#include <sound/MicrophoneRecorder.h>
 
 using namespace funk;
 
@@ -37,15 +38,17 @@ public:
 	GM_BIND_TYPEID(GMAudioStream);
 
     GMAudioStream(const char* name, const char* ip, int port);
+    ~GMAudioStream();
 
     void SetActive(bool active);
     void Update();
 
 public:
-    void GetRemoteAudioData();
-
-    void ClearSineWave();
-    void AddSineWave(int frequency);
+    void ClearInputData();
+    
+    void AddInputDataSineWave(int frequency, float amplitude);
+    void AddInputDataMicrophone();
+    void AddInputDataRemoteNao();
 
     void CalcBeatDFT(int channel);
     void CalcBeatFFT(int channel);
@@ -85,6 +88,8 @@ private:
     std::vector<float> _average_energy;
     int _average_energy_index;
     std::vector<float> _energy_differences;
+
+    StrongHandle<MicrophoneRecorder> _recorder;
 };
 
 GM_BIND_DECL(GMAudioStream);

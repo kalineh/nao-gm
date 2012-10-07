@@ -17,7 +17,10 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
+        .use_microphone = true;
+        .use_sine_wave = false;
         .sine_frequency = 5;
+        .sine_amplitude = 0.5f;
 
         if ( !g_norobot )
         {
@@ -26,7 +29,7 @@ global MakeAudioTest = function()
         else
         {
             // TODO: fix update order so we don't need to do this first
-            .audio.AddSineWave(0);
+            .audio.AddInputDataSineWave(0, 1.0f);
         }
     };
 
@@ -46,7 +49,10 @@ global MakeAudioTest = function()
     {
         Gui.Begin("Audio", g_core.screenDimen.x.Int() - 310, g_core.screenDimen.y.Int() - 5);
 
+        .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
+        .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
         .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, 64);
+        .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
 
         Gui.End();
     };
@@ -62,8 +68,8 @@ global MakeAudioTest = function()
 
         .audio.DrawWaveform(0, Gfx.BLUE, 1.0f);
 
-        //.audio.CalcBeatDFT(0);
-        //.audio.DrawBeatWaveform(0, Gfx.RED, 0.5f);
+        .audio.CalcBeatDFT(0);
+        .audio.DrawBeatWaveform(0, Gfx.RED, 0.5f);
 
         //.audio.CalcAverageEnergies();
         //.audio.DrawEnergyDifferenceWaveform(Gfx.WHITE, 1.0f);
@@ -84,8 +90,17 @@ global MakeAudioTest = function()
 
             if (g_norobot)
             {
-                .audio.ClearSineWave(.sine_frequency);
-                .audio.AddSineWave(.sine_frequency);
+                .audio.ClearInputData(.sine_frequency);
+
+                if (.use_microphone)
+                {
+                    .audio.AddInputDataMicrophone();
+                }
+
+                if (.use_sine_wave)
+                {
+                    .audio.AddInputDataSineWave(.sine_frequency, .sine_amplitude);
+                }
             }
             else
             {

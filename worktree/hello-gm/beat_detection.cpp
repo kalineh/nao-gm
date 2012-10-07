@@ -5,7 +5,6 @@
 #include "beat_detection.h"
 
 #include <gfx/DrawPrimitives.h>
-#include <sound/MicrophoneRecorder.h>
 
 // dsp guide
 // http://www.dspguide.com/ch8/2.htm
@@ -106,6 +105,14 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
 {
 }
 
+GMAudioStream::~GMAudioStream()
+{
+    if (_recorder)
+    {
+        _recorder->RecordEnd();
+    }
+}
+
 void GMAudioStream::SetActive(bool active)
 {
     if (active && !_active)
@@ -128,7 +135,7 @@ void GMAudioStream::Update()
     if (!_active)
         return;
 
-    GetRemoteAudioData();
+    AddInputDataRemoteNao();
 }
 
 #define PI 3.14159265f
@@ -535,7 +542,7 @@ void GMAudioStream::Subscribe()
 
 }
 
-void GMAudioStream::GetRemoteAudioData()
+void GMAudioStream::AddInputDataRemoteNao()
 {
     const int channels = 4;
 
@@ -547,29 +554,28 @@ void GMAudioStream::GetRemoteAudioData()
     }
 }
 
-void GMAudioStream::ClearSineWave()
+void GMAudioStream::ClearInputData()
 {
     _data.clear();
 }
 
-void GMAudioStream::AddSineWave(int frequency)
+void GMAudioStream::AddInputDataMicrophone()
 {
     const int bytesize = 1; // must be synced with format
-    const int _frequency = 44100;
+    const int _frequency = 44100 / 2;
 
-    static StrongHandle<MicrophoneRecorder> recorder;
-    if (!recorder)
+    if (!_recorder)
     {
-        recorder = new MicrophoneRecorder(_frequency, 1, FMOD_SOUND_FORMAT_PCM8);
-        recorder->RecordStart();
+        _recorder = new MicrophoneRecorder(_frequency, 1, FMOD_SOUND_FORMAT_PCM8);
+        _recorder->RecordStart();
     }
 
-    recorder->Update();
+    _recorder->Update();
 
     static std::vector<unsigned char> data;
 
-    const int samples_size = recorder->GetDataSize(0);
-    const unsigned char* samples_data = (unsigned char*)recorder->GetData(0);
+    const int samples_size = _recorder->GetDataSize(0);
+    const unsigned char* samples_data = (unsigned char*)_recorder->GetData(0);
     if (samples_size > 0)
     {
         // add new samples
@@ -620,11 +626,10 @@ void GMAudioStream::AddSineWave(int frequency)
             _data[0][i] = value;
         }
     }
+}
 
-    return;
-
-    // END TEST CODE
-
+void GMAudioStream::AddInputDataSineWave(int frequency, float amplitude)
+{
     const int channels = 4;
 
     _data.resize(channels);
@@ -639,7 +644,7 @@ void GMAudioStream::AddSineWave(int frequency)
         {
             const float d = float(j) / float(entries) * PI * 2.0f;
             const float t = float(d * frequency);
-            const float s = std::sinf(t) * 0.5f + 0.5f;
+            const float s = std::sinf(t) * 0.5f * amplitude + amplitude * 0.5f;
             _data[i][j] += s;
         }
     }
@@ -675,20 +680,29 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(ClearSineWave)
+    GM_MEMFUNC_DECL(ClearInputData)
     {
         GM_CHECK_NUM_PARAMS(0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->ClearSineWave());
+        GM_AL_EXCEPTION_WRAPPER(self->ClearInputData());
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(AddSineWave)
+    GM_MEMFUNC_DECL(AddInputDataSineWave)
     {
-        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_NUM_PARAMS(2);
         GM_CHECK_INT_PARAM(frequency, 0);
+        GM_CHECK_FLOAT_PARAM(amplitude, 1);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->AddSineWave(frequency));
+        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataSineWave(frequency, amplitude));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(AddInputDataMicrophone)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataMicrophone());
         return GM_OK;
     }
 
@@ -754,8 +768,9 @@ GM_REG_NAMESPACE(GMAudioStream)
 GM_REG_MEM_BEGIN(GMAudioStream)
 GM_REG_MEMFUNC( GMAudioStream, SetActive )
 GM_REG_MEMFUNC( GMAudioStream, Update )
-GM_REG_MEMFUNC( GMAudioStream, ClearSineWave )
-GM_REG_MEMFUNC( GMAudioStream, AddSineWave )
+GM_REG_MEMFUNC( GMAudioStream, ClearInputData )
+GM_REG_MEMFUNC( GMAudioStream, AddInputDataSineWave )
+GM_REG_MEMFUNC( GMAudioStream, AddInputDataMicrophone )
 GM_REG_MEMFUNC( GMAudioStream, CalcBeatDFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcBeatFFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcAverageEnergies )
