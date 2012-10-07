@@ -303,7 +303,7 @@ void DFTref(int count, float* inreal, float* inimag, float* outreal, float* outi
     }
 }
 
-#define FFT_ENTRIES 256
+#define FFT_ENTRIES 1024
 
 
 void GMAudioStream::CalcBeatDFT(int channel)
@@ -481,6 +481,11 @@ void GMAudioStream::DrawWaveformImpl(const Channel& channel, float scale, v3 col
 
     for (int i = 1; i < count; ++i)
     {
+        //color.x = float(rand() % 255) / 255.0f;
+        //color.y = float(rand() % 255) / 255.0f;
+        //color.z = float(rand() % 255) / 255.0f;
+    	//glColor4f( color.x, color.y, color.z, alpha );
+
         const float value0 = channel[i - 1];
         const float value1 = channel[i - 0];
         const v2 a = bl + v2( step * float(i - 1), range * value0 );
@@ -549,41 +554,76 @@ void GMAudioStream::ClearSineWave()
 
 void GMAudioStream::AddSineWave(int frequency)
 {
+    const int bytesize = 1; // must be synced with format
+    const int _frequency = 44100;
+
     static StrongHandle<MicrophoneRecorder> recorder;
     if (!recorder)
     {
-        recorder = new MicrophoneRecorder();
-        recorder->RecordStartNoFile();
+        recorder = new MicrophoneRecorder(_frequency, 1, FMOD_SOUND_FORMAT_PCM8);
+        recorder->RecordStart();
     }
 
-    std::vector<unsigned short> left;
-    std::vector<unsigned short> right;
+    recorder->Update();
 
-    recorder->UpdateNoFile(&left, &right);
-    //recorder->RecordEndNoFile();
+    static std::vector<unsigned char> data;
+
+    const int samples_size = recorder->GetDataSize(0);
+    const unsigned char* samples_data = (unsigned char*)recorder->GetData(0);
+    if (samples_size > 0)
+    {
+        // add new samples
+        const int start = data.size();
+        data.resize(data.size() + samples_size);
+        memcpy(&data[0] + start, samples_data, samples_size);
+
+        // shift data down to start
+        // TODO: replace with wrapping indices
+        const int one_second_data = _frequency * bytesize;
+        if ((int)data.size() > one_second_data)
+        {
+            const int shift = data.size() - one_second_data;
+            memcpy(&data[0], &data[0] + shift, one_second_data);
+        }
+
+        data.resize(std::min<int>(one_second_data, data.size()));
+    }
+
+    // init empty values
 
     _data.resize(4);
 
     for (int i = 0; i < 4; ++i)
     {
-        _data[i].resize(FFT_ENTRIES, 1.0f);
+        _data[i].resize(FFT_ENTRIES, 0.0f);
     }
 
-    // pack into shorter buffer
-    printf("left:  %d\n", left.size());
+    // collect the last FFT_ENTRIES of data
 
-    for (int i = 0; i < left.size(); ++i)
-    {
-        //if (left[i] == 65535)
-            //left[i] = 0;
-    }
+    // NOTE: every 16 samples the direction flips
+    // WHY?!
 
-    for (int i = 0; i < left.size() && i < _data[0].size(); ++i)
+    if (data.size() >= FFT_ENTRIES)
     {
-        _data[0][i] = float(left[i]) / float(USHRT_MAX);
+        for (int i = 0; i < FFT_ENTRIES; ++i)
+        {
+            const int index = data.size() - i - 1;
+
+            // pivot around the middle by forcing a wrap when high
+            //const unsigned char raw = data[index];
+            //const unsigned char pivoted = raw + 128;
+            //const float value = float(pivoted) / 255.0f;
+
+            const signed char raw = (signed char)data[index];
+            const float value = float(raw + 128) / 255.0f;
+
+            _data[0][i] = value;
+        }
     }
 
     return;
+
+    // END TEST CODE
 
     const int channels = 4;
 

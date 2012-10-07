@@ -52,21 +52,27 @@ namespace funk
 
 		void Update();
 
-        void* GetDataStart(int channel);
-        void* GetDataEnd(int channel);
+        void* GetData(int channel);
+        int GetDataSize(int channel);
 
 		GM_BIND_TYPEID(MicrophoneRecorder);
 
-		MicrophoneRecorder();
+		MicrophoneRecorder(int frequency, int channels, FMOD_SOUND_FORMAT format);
 		~MicrophoneRecorder();
 
 	private:
 		FMOD::Sound   *m_fmodsnd;
 		FMOD::System  *m_fmodsys;
 
+        // TODO: can we extract some from fmod instead of local copy?
+        unsigned int m_frequency;
+        unsigned int m_channels;
+        unsigned int m_byteSize;
 		unsigned int m_dataLength;
 		unsigned int m_soundLength;
 		unsigned int m_lastRecordPosLength;
+
+        std::vector< std::vector<unsigned char> > m_data; 
 
 		int m_recordDriver;
 

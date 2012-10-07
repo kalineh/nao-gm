@@ -7,7 +7,7 @@
 
 #include <common/Debug.h>
 
-#define FMOD_ERRCHECK(res) if (res != 0) { MESSAGE_BOX("FMOD Error", "Error 0x%X, %s", res, #res); assert(false); }
+#define FMOD_ERRCHECK(res) if (res != 0) { MESSAGE_BOX("FMOD Error", "Error 0x%X, %s", res, #res); CHECK(false); }
 
 namespace funk
 {
@@ -161,25 +161,41 @@ void MicrophoneRecorderFile::WriteWavHeader( unsigned int dataLength )
 	}
 }
 
-MicrophoneRecorder::MicrophoneRecorder()
+MicrophoneRecorder::MicrophoneRecorder(int frequency, int channels, FMOD_SOUND_FORMAT format)
     : m_fmodsnd(nullptr)
     , m_fmodsys(nullptr)
     , m_dataLength(0)
+    , m_byteSize(0)
+    , m_frequency(frequency)
+    , m_channels(channels)
 {
+    switch (format)
+    {
+        case FMOD_SOUND_FORMAT_PCM8: m_byteSize = 1; break;
+        case FMOD_SOUND_FORMAT_PCM16: m_byteSize = 2; break;
+        case FMOD_SOUND_FORMAT_PCM24: m_byteSize = 3; break;
+        case FMOD_SOUND_FORMAT_PCM32: m_byteSize = 4; break;
+        case FMOD_SOUND_FORMAT_PCMFLOAT: m_byteSize = 4; break;
+    }
+
+    CHECK(m_byteSize > 0);
+
 	FMOD::System * fmodSys = SoundMngr::Get()->GetSys();
 
 	FMOD_CREATESOUNDEXINFO exinfo;
 	memset(&exinfo, 0, sizeof(FMOD_CREATESOUNDEXINFO));
 	exinfo.cbsize           = sizeof(FMOD_CREATESOUNDEXINFO);
-	exinfo.numchannels      = 1;
-	exinfo.format           = FMOD_SOUND_FORMAT_PCM16;
-	exinfo.defaultfrequency = 44100;
-	exinfo.length           = exinfo.defaultfrequency * sizeof(short) * exinfo.numchannels * 2;
+	exinfo.numchannels      = channels;
+	exinfo.format           = format;
+	exinfo.defaultfrequency = frequency;
+	exinfo.length           = exinfo.defaultfrequency * m_byteSize * exinfo.numchannels * 2;
 
 	unsigned int flags = FMOD_SOFTWARE | FMOD_2D | FMOD_OPENUSER;
 	FMOD_ERRCHECK(fmodSys->createSound(0, flags, &exinfo, &m_fmodsnd));
 
 	m_fmodsys = fmodSys;
+
+    m_data.resize(channels);
 }
 
 MicrophoneRecorder::~MicrophoneRecorder()
@@ -207,41 +223,64 @@ void MicrophoneRecorder::RecordEnd()
 
 void MicrophoneRecorder::Update()
 {
+    // get the current position N in sound buffer
 	unsigned int recordpos = 0;
 	m_fmodsys->getRecordPosition(m_recordDriver, &recordpos);
 
-	int numChannels = 1;
-
+    // did the current pos change from last time?
 	if (recordpos != m_lastRecordPosLength)        
 	{
 		void *ptr1, *ptr2;
 		int blocklength;
 		unsigned int len1, len2;
 
+        // the block length is the number of samples since the last record pos to the latest data
 		blocklength = (int)recordpos - (int)m_lastRecordPosLength;
-		if (blocklength < 0) blocklength += m_soundLength;
 
-		// Lock the sound to get access to the raw data.
-		m_fmodsnd->lock(m_lastRecordPosLength * numChannels * 2, blocklength * numChannels * 2, &ptr1, &ptr2, &len1, &len2);   /* * exinfo.numchannels * 2 = stereo 16bit.  1 sample = 4 bytes. */
+        // pull whole blocks if the recordpos is reset?
+		if (blocklength < 0)
+        {
+            blocklength += m_soundLength;
+        }
 
-		// Write it to output.
+		// the buffer will be split into two parts when it wraps around the internal buffer size
+		m_fmodsnd->lock(m_lastRecordPosLength * m_channels * m_byteSize, blocklength * m_channels * m_byteSize, &ptr1, &ptr2, &len1, &len2);
+
+        // TODO: channel splitting
+        std::vector<unsigned char>& data = m_data[0];
+
+        data.resize(len1 + len2);
+
+        // first block should always be valid if there is data
 		if (ptr1 && len1)
         {
-            //left->resize(len1);
-            //memcpy(&(*left)[0], ptr1, len1);
+            memcpy(&data[0], ptr1, len1);
         }
 
+        // second block if the data buffer wrapped
 		if (ptr2 && len2)
         {
-            //right->resize(len2);
-            //memcpy(&(*right)[0], ptr2, len2);
+            memcpy(&data[0] + len1, ptr2, len2);
         }
 
-		//Unlock the sound to allow FMOD to use it again.
+		// unlock for fmod to use again
 		m_fmodsnd->unlock(ptr1, ptr2, len1, len2);
 	}
 
 	m_lastRecordPosLength = recordpos;
+}
+
+void* MicrophoneRecorder::GetData(int channel)
+{
+    if (m_data[channel].empty())
+        return nullptr;
+
+    return &m_data[channel][0];
+}
+
+int MicrophoneRecorder::GetDataSize(int channel)
+{
+    return m_data[channel].size();
 }
 
 GM_REG_NAMESPACE(MicrophoneRecorderFile)
@@ -273,9 +312,12 @@ GM_REG_NAMESPACE(MicrophoneRecorder)
 {
 	GM_MEMFUNC_CONSTRUCTOR(MicrophoneRecorder)
 	{
-		GM_CHECK_NUM_PARAMS(0);
+		GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_INT_PARAM(frequency, 0);
+        GM_CHECK_INT_PARAM(channels, 1);
+        GM_CHECK_INT_PARAM(format, 2);
 
-		StrongHandle<MicrophoneRecorder> p = new MicrophoneRecorder();
+		StrongHandle<MicrophoneRecorder> p = new MicrophoneRecorder(frequency, channels, (FMOD_SOUND_FORMAT)format);
 		GM_PUSH_USER_HANDLED( MicrophoneRecorder, p );
 		return GM_OK;
 	}

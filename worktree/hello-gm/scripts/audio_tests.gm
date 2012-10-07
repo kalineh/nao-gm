@@ -62,49 +62,11 @@ global MakeAudioTest = function()
 
         .audio.DrawWaveform(0, Gfx.BLUE, 1.0f);
 
-        .audio.CalcBeatDFT(0);
-        .audio.DrawBeatWaveform(0, Gfx.RED, 0.5f);
+        //.audio.CalcBeatDFT(0);
+        //.audio.DrawBeatWaveform(0, Gfx.RED, 0.5f);
 
-        .audio.CalcAverageEnergies();
-        .audio.DrawEnergyDifferenceWaveform(Gfx.WHITE, 1.0f);
-
-        .cam2d.End();
-
-		Gfx.EndDefaultShader();
-		Gfx.Viewport( v2(0), g_core.screenDimen );
-    };
-
-    Main.DrawDualVideo = function()
-    {
-		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
-		Gfx.BeginDefaultShader();
-
-        .cam2d.Begin();
-
-		Gfx.Color(Gfx.WHITE, 1.0f);
-
-        local vscale = 2.0f;
-		local vsize = v2(160.0f, 120.0f) * vscale;
-		local vpos = g_core.screenDimen * v2(0.2f, 0.2f) - vsize * 0.5f;
-
-        local v0 = .video0.GetTexture();
-        local v1 = .video1.GetTexture();
-
-        v0.Bind(0);
-		Gfx.DrawRectTexCoords( vpos, vsize );
-        v0.Unbind();
-
-        vpos = vpos + v2(vsize.x + 32.0f, 0.0f);
-
-        v1.Bind(0);
-		Gfx.DrawRectTexCoords( vpos, vsize );
-        v1.Unbind();
-
-        vpos = vpos + v2(vsize.x * -0.5f - 16.0f, vsize.y + 32.0f);
-
-        .videodisparity.Bind(0);
-		Gfx.DrawRectTexCoords( vpos, vsize );
-        .videodisparity.Unbind();
+        //.audio.CalcAverageEnergies();
+        //.audio.DrawEnergyDifferenceWaveform(Gfx.WHITE, 1.0f);
 
         .cam2d.End();
 
