@@ -444,27 +444,57 @@ int GMAudioStream::EstimateBPM(float threshold)
     //std::vector<float>& src = _average_fft;
     std::vector<float>& src = _difference_fft;
 
-    char buffer[1024] = { 0 };
-    char* write = buffer;
+    struct Note
+    {
+        float volume;
+        int index;
+
+        bool operator< (const Note& rhs)
+        {
+            return volume < rhs.volume;
+        }
+    };
+
+    std::vector<Note> notes;
+
     for (int i = 0; i < (int)src.size(); ++i)
     {
         const float f = src[i];
-        if (f > threshold)
-        {
-            const float wave_frequency_over_window = float(i);
-            const float window_to_seconds = ((44100.0f / 4.0f) / 2.0f) / _fft_window_size;
-            const float est_frequency = wave_frequency_over_window * window_to_seconds;
+        if (f < threshold)
+            continue;
 
-            const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
+        Note note = { f, i };
+        notes.push_back(note);
+    }
 
-            //write += sprintf(write, "%.2f, ", est_frequency);
-            write += sprintf(write, "%d, ", note_index);
-            //write += sprintf(write, "%.2f ", std::logf(est_frequency / 440.0f));
-        }
+    std::sort(notes.begin(), notes.end());
+
+    // 49 - 60 inclusive
+    const char* piano_notes[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", };
+
+    char buffer[1024] = { 0 };
+    char* write = buffer;
+
+    for (int i = 0; i < (int)notes.size(); ++i)
+    {
+        const int frequency_bin = notes[i].index;
+        const float wave_frequency_over_window = float(frequency_bin);
+        const float window_to_seconds = ((44100.0f / 4.0f) / 2.0f) / _fft_window_size;
+        const float est_frequency = wave_frequency_over_window * window_to_seconds;
+
+        const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
+
+        //write += sprintf(write, "%.2f, ", est_frequency);
+        //write += sprintf(write, "%d, ", note_index);
+
+        const int piano_octave = note_index / 12;
+        const int piano_key = (note_index - 1) % 12;
+
+        write += sprintf(write, "%s%d ", piano_notes[piano_key], piano_octave);
     }
 
     if (write != buffer)
-        printf("est: %s\n", buffer);
+        printf("best note: %s\n", buffer);
 
     return 0;
 }

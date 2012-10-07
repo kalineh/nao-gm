@@ -25,6 +25,9 @@ global MakeAudioTest = function()
         .sine_frequency = 5;
         .sine_amplitude = 0.5f;
 
+        .tuner_mode = true;
+        .tuner_threshold = 0.005f;
+
         if ( !g_norobot )
         {
             .audio.SetActive(true);
@@ -56,6 +59,8 @@ global MakeAudioTest = function()
         .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
         .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, 64);
         .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
+        .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
+        .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.0001f, 1.0f);
 
         Gui.End();
     };
@@ -116,7 +121,11 @@ global MakeAudioTest = function()
             //.audio.CalcFFT(0);
             .audio.CalcAverageAndDifference(0);
 
-            .audio.EstimateBPM(0.0001f);
+            if (.tuner_mode)
+            {
+                // TODO: fix name
+                .audio.EstimateBPM(.tuner_threshold);
+            }
 
             yield();
         }
