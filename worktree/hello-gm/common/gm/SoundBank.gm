@@ -17,6 +17,7 @@ global MakeSoundBank = function(resourceFile)
 		// missing sound
 		if (!?sound)
 		{
+            assert(false);
 			MessageBox( "Sound Not Found", name + " not defined!");
 			return Sound(.missingFile);
 		}

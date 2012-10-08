@@ -1,0 +1,87 @@
+global g_fileData =
+{
+    piano_A = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_A.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_A_sharp = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_A_sharp.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_B = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_B.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_C = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_C.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_C_sharp = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_C_sharp.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_D = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_D.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_D_sharp = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_D_sharp.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_E = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_E.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_F = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_F.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_F_sharp = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_F_sharp.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_G = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_G.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+    piano_G_sharp = 
+    {
+        filename = g_resourcePathPrefix + "common/snd/piano_G_sharp.wav",
+        loop = 0,
+        stream = 0,
+        volume = 1.00000,
+    },
+};

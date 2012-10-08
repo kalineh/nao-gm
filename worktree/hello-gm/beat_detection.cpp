@@ -421,7 +421,7 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
     _average_index %= FrameCount;
 }
 
-int GMAudioStream::EstimateBPM(float threshold)
+int GMAudioStream::EstimateBPM(float threshold, std::vector<int>& test_notes)
 {
     // the difference of energy in this frame above
     // a threshold means a beat on that fft band
@@ -439,7 +439,7 @@ int GMAudioStream::EstimateBPM(float threshold)
     // with 128 fft bins we get (5000/128) = 39.06hz steps
     // so peak in bin 16 is (5000/128)*16 = 625hz
 
-    // middle c = 440hz
+    // A4 = 440hz
 
     //std::vector<float>& src = _average_fft;
     std::vector<float>& src = _difference_fft;
@@ -489,6 +489,9 @@ int GMAudioStream::EstimateBPM(float threshold)
 
         const int piano_octave = note_index / 12;
         const int piano_key = (note_index - 1) % 12;
+
+        // DEBUG TEST
+        test_notes.push_back(piano_key);
 
         write += sprintf(write, "%s%d ", piano_notes[piano_key], piano_octave);
     }
@@ -878,10 +881,18 @@ GM_REG_NAMESPACE(GMAudioStream)
 
     GM_MEMFUNC_DECL(EstimateBPM)
     {
-        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_NUM_PARAMS(2);
         GM_CHECK_FLOAT_PARAM(threshold, 0);
+        GM_CHECK_TABLE_PARAM(test_notes, 1);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->EstimateBPM(threshold)));
+        std::vector<int> test_notes_vec;
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->EstimateBPM(threshold, test_notes_vec)));
+
+        for (int i = 0; i < (int)test_notes_vec.size(); ++i)
+        {
+            test_notes->Set(a_thread->GetMachine(), i, gmVariable(test_notes_vec[i]));
+        }
+
         return GM_OK;
     }
 }

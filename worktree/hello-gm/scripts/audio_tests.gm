@@ -28,6 +28,8 @@ global MakeAudioTest = function()
         .tuner_mode = true;
         .tuner_threshold = 0.005f;
 
+		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
+
         if ( !g_norobot )
         {
             .audio.SetActive(true);
@@ -60,7 +62,7 @@ global MakeAudioTest = function()
         .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, 64);
         .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
         .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
-        .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.0001f, 1.0f);
+        .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.00001f, 0.01f);
 
         Gui.End();
     };
@@ -123,8 +125,44 @@ global MakeAudioTest = function()
 
             if (.tuner_mode)
             {
+                // DEBUG TEST
+                local notes = table();
+
                 // TODO: fix name
-                .audio.EstimateBPM(.tuner_threshold);
+                .audio.EstimateBPM(.tuner_threshold, notes);
+
+                local note_map = {
+                    "piano_A",
+                    "piano_A_sharp",
+                    "piano_B",
+                    "piano_C",
+                    "piano_C_sharp",
+                    "piano_D",
+                    "piano_D_sharp",
+                    "piano_E",
+                    "piano_F",
+                    "piano_F_sharp",
+                    "piano_G",
+                    "piano_G_sharp",
+                };
+
+                foreach ( note in notes )
+                {
+                    local key = note % 12;
+                    local note_name = note_map[key];
+
+                    if (?.play_thread && threadIsAlive( .play_thread ) )
+                    {
+                        break;
+                    }
+
+                    .play_thread = this:thread( function(note_name) {
+                        .piano_soundbank.Play(note_name);
+                        sleep(1.0f / 60.0f * 8.0f);
+                    }, note_name );
+                }
+
+    			.piano_soundbank.PlayAllQueued();
             }
 
             yield();
