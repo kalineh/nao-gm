@@ -421,7 +421,7 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
     _average_index %= FrameCount;
 }
 
-int GMAudioStream::EstimateBPM(float threshold, std::vector<int>& test_notes)
+int GMAudioStream::EstimateBPM(float threshold)
 {
     // the difference of energy in this frame above
     // a threshold means a beat on that fft band
@@ -442,6 +442,43 @@ int GMAudioStream::EstimateBPM(float threshold, std::vector<int>& test_notes)
     // A4 = 440hz
 
     //std::vector<float>& src = _average_fft;
+    std::vector<float>& src = _difference_fft;
+
+    // 49 - 60 inclusive
+    const char* piano_notes[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", };
+
+    char buffer[1024] = { 0 };
+    char* write = buffer;
+
+    for (int i = 0; i < (int)src.size(); ++i)
+    {
+        const float power = src[i];
+        if (power < threshold)
+            continue;
+
+        const float wave_frequency_over_window = power;
+        const float window_to_seconds = ((44100.0f / 4.0f) / 2.0f) / _fft_window_size;
+        const float est_frequency = wave_frequency_over_window * window_to_seconds;
+
+        const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
+
+        write += sprintf(write, "%.2f, ", est_frequency);
+        //write += sprintf(write, "%d, ", note_index);
+
+        const int piano_octave = note_index / 12;
+        const int piano_key = (note_index - 1) % 12;
+
+        write += sprintf(write, "%s%d ", piano_notes[piano_key], piano_octave);
+    }
+
+    if (write != buffer)
+        printf("best note: %s\n", buffer);
+
+    return 0;
+}
+
+int GMAudioStream::TestGetPianoNotes(float threshold, std::vector<int>& test_notes)
+{
     std::vector<float>& src = _difference_fft;
 
     struct Note
@@ -472,9 +509,6 @@ int GMAudioStream::EstimateBPM(float threshold, std::vector<int>& test_notes)
     // 49 - 60 inclusive
     const char* piano_notes[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", };
 
-    char buffer[1024] = { 0 };
-    char* write = buffer;
-
     for (int i = 0; i < (int)notes.size(); ++i)
     {
         const int frequency_bin = notes[i].index;
@@ -484,20 +518,11 @@ int GMAudioStream::EstimateBPM(float threshold, std::vector<int>& test_notes)
 
         const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
 
-        //write += sprintf(write, "%.2f, ", est_frequency);
-        //write += sprintf(write, "%d, ", note_index);
-
         const int piano_octave = note_index / 12;
         const int piano_key = (note_index - 1) % 12;
 
-        // DEBUG TEST
         test_notes.push_back(piano_key);
-
-        write += sprintf(write, "%s%d ", piano_notes[piano_key], piano_octave);
     }
-
-    if (write != buffer)
-        printf("best note: %s\n", buffer);
 
     return 0;
 }
@@ -881,12 +906,21 @@ GM_REG_NAMESPACE(GMAudioStream)
 
     GM_MEMFUNC_DECL(EstimateBPM)
     {
+        GM_CHECK_NUM_PARAMS(1);
+        GM_CHECK_FLOAT_PARAM(threshold, 0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->EstimateBPM(threshold)));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(TestGetPianoNotes)
+    {
         GM_CHECK_NUM_PARAMS(2);
         GM_CHECK_FLOAT_PARAM(threshold, 0);
         GM_CHECK_TABLE_PARAM(test_notes, 1);
 		GM_GET_THIS_PTR(GMAudioStream, self);
         std::vector<int> test_notes_vec;
-        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->EstimateBPM(threshold, test_notes_vec)));
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->TestGetPianoNotes(threshold, test_notes_vec)));
 
         for (int i = 0; i < (int)test_notes_vec.size(); ++i)
         {
@@ -915,6 +949,7 @@ GM_REG_MEMFUNC( GMAudioStream, DrawFFTWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawAverageWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawDifferenceWaveform )
 GM_REG_MEMFUNC( GMAudioStream, EstimateBPM )
+GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);

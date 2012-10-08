@@ -2,84 +2,84 @@ global g_fileData =
 {
     piano_A = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_A.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_A.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_A_sharp = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_A_sharp.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_A_sharp.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_B = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_B.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_B.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_C = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_C.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_C.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_C_sharp = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_C_sharp.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_C_sharp.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_D = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_D.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_D.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_D_sharp = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_D_sharp.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_D_sharp.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_E = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_E.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_E.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_F = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_F.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_F.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_F_sharp = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_F_sharp.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_F_sharp.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_G = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_G.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_G.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,
     },
     piano_G_sharp = 
     {
-        filename = g_resourcePathPrefix + "common/snd/piano_G_sharp.wav",
+        filename = g_resourcePathPrefix + "common/snd/piano_G_sharp.ogg",
         loop = 0,
         stream = 0,
         volume = 1.00000,

@@ -63,9 +63,9 @@ public:
     void DrawAverageWaveform(v3 color, float alpha);
     void DrawDifferenceWaveform(v3 color, float alpha);
 
-    // TODO: estimated musical notes + beat confidence
-    //std::vector<float> EstimateNotes(float fft_threshold);
-    int EstimateBPM(float threshold, std::vector<int>& test_notes);
+    int EstimateBPM(float threshold);
+
+    int TestGetPianoNotes(float threshold, std::vector<int>& test_notes);
 
 private:
     void DrawWaveform(const std::vector<float>& channel, v2 scale, v3 color, float alpha);

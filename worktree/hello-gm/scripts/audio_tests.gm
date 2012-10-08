@@ -27,6 +27,7 @@ global MakeAudioTest = function()
 
         .tuner_mode = true;
         .tuner_threshold = 0.005f;
+        .piano_playback_test = false;
 
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 
@@ -63,6 +64,7 @@ global MakeAudioTest = function()
         .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
         .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
         .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.00001f, 0.01f);
+        .piano_playback_test = Gui.CheckBox("Piano Playback Test", .piano_playback_test);
 
         Gui.End();
     };
@@ -125,11 +127,13 @@ global MakeAudioTest = function()
 
             if (.tuner_mode)
             {
-                // DEBUG TEST
+            }
+
+            if (.piano_playback_test)
+            {
                 local notes = table();
 
-                // TODO: fix name
-                .audio.EstimateBPM(.tuner_threshold, notes);
+                .audio.TestGetPianoNotes(.tuner_threshold, notes);
 
                 local note_map = {
                     "piano_A",
