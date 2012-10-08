@@ -95,6 +95,8 @@ public:
     int TestGetPianoNotes(float threshold, std::vector<int>& test_notes);
 
 private:
+    void TimePrint(const char* format, ...);
+
     void DrawWaveform(const std::vector<float>& channel, v2 scale, v3 color, float alpha);
     void DrawWaveform(const std::vector<std::complex<float> >& channel, v2 scale, v3 color, float alpha);
 

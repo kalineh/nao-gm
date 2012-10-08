@@ -462,7 +462,7 @@ int GMAudioStream::EstimateBPM(float threshold)
 
         const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
 
-        write += sprintf(write, "%.2f, ", est_frequency);
+        //write += sprintf(write, "%.2f, ", est_frequency);
         //write += sprintf(write, "%d, ", note_index);
 
         const int piano_octave = note_index / 12;
@@ -472,9 +472,24 @@ int GMAudioStream::EstimateBPM(float threshold)
     }
 
     if (write != buffer)
-        printf("best note: %s\n", buffer);
+        TimePrint("best note: %s", buffer);
 
     return 0;
+}
+
+void GMAudioStream::TimePrint(const char* format, ...)
+{
+    char buffer[1024] = { 0 };
+	va_list args;
+	va_start(args, format);
+	vsnprintf_s(buffer, 1024, 1024, format, args);
+	va_end (args);
+
+    const int W = GetFFTWindowSize();
+    const float seconds_per_frame = float(W) / float(_frequency);
+    const float time = float(_frame) * seconds_per_frame;
+
+    printf("%.2f: %s\n", time, buffer);
 }
 
 int GMAudioStream::TestGetPianoNotes(float threshold, std::vector<int>& test_notes)
@@ -681,6 +696,10 @@ void GMAudioStream::AddInputDataFrameMicrophone()
 
     _recorder->Update();
 
+    // currently we are taking the top N samples
+    // but rather we need to take one frame of samples
+    // until there is at least one frame, we ignore
+
     const int samples_size = _recorder->GetDataSize(0);
     const unsigned char* samples_data = (unsigned char*)_recorder->GetData(0);
     if (samples_size > 0)
@@ -696,6 +715,7 @@ void GMAudioStream::AddInputDataFrameMicrophone()
         if ((int)_microphone_buffer.size() > one_second_data)
         {
             const int shift = _microphone_buffer.size() - one_second_data;
+            //TimePrint("mic: dropping %d samples", shift);
             memcpy(&_microphone_buffer[0], &_microphone_buffer[0] + shift, one_second_data);
         }
 
@@ -721,6 +741,22 @@ void GMAudioStream::AddInputDataFrameMicrophone()
             _channels[0].raw[i] = value;
         }
     }
+
+    // remove the frame of buffer data
+
+    const int removal = std::min<int>(W, _microphone_buffer.size());
+
+    //if (removal < W)
+        //TimePrint("mic: missing %d frames of data", W - removal);
+
+    const int shift = _microphone_buffer.size() - removal;
+    if (shift > 0)
+    {
+        memcpy(&_microphone_buffer[0], &_microphone_buffer[0] + shift, removal);
+        _microphone_buffer.resize(_microphone_buffer.size() - removal);
+    }
+
+    //TimePrint("mic: buffer: %d samples", _microphone_buffer.size());
 }
 
 void GMAudioStream::AddInputDataFrameSineWave(int frequency, float amplitude)

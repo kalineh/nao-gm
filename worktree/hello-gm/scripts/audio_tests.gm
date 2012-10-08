@@ -17,7 +17,6 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
-        .fft_window_size = 256;
         .fft_magnify_scale = 60.0f;
         .fft_magnify_power = 1.0f;
         .use_microphone = true;
@@ -55,7 +54,6 @@ global MakeAudioTest = function()
     {
         Gui.Begin("Audio", g_core.screenDimen.x.Int() - 310, g_core.screenDimen.y.Int() - 5);
 
-        .fft_window_size = Gui.SliderInt("FFT Window Size", .fft_window_size, 1, 2048);
         .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 1.0f, 60.0f * 10.0f);
         .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 1.0f, 16.0f);
         .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
