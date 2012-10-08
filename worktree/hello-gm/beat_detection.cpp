@@ -12,140 +12,6 @@
 // beat detection notes
 // http://www.flipcode.com/misc/BeatDetectionAlgorithms.pdf
 
-
-ALSoundProcessing::ALSoundProcessing(boost::shared_ptr<AL::ALBroker> broker, std::string name)
-    : AL::ALSoundExtractor(broker, name)
-    , _process_mutex(AL::ALMutex::createALMutex())
-{
-    setModuleDescription("Collect raw microphone data to a local double buffer.");
-}
-
-ALSoundProcessing::~ALSoundProcessing()
-{
-}
-
-void ALSoundProcessing::init()
-{
-    const int request_interleaving = 1;
-    audioDevice->callVoid(
-        "setClientPreferences",
-        getName(),
-        48000,
-        int(AL::ALLCHANNELS),
-        request_interleaving
-    );
-}
-
-// sample code
-void average_sound_data(const int& channels, const int& samples, const AL_SOUND_FORMAT* buffer, const AL::ALValue& timestamp)
-{
-    // average data per channel
-    std::vector<float> energy;
-
-    for (int i = 0; i < channels; ++i)
-        energy.push_back(0.0f);
-
-    // audio root-mean-square power
-
-    for (int i = 0; i < channels; ++i)
-    {
-        const signed short* channel = buffer + samples;
-
-        for (int j = 0; j < samples; ++j)
-        {
-            const signed short value = channel[j];
-            const float e = float(value); // normalize? value / SHORT_MAX?
-
-            energy[i] += e * e;
-        }
-
-        energy[i] /= float(samples);
-        energy[i] = sqrtf(energy[i]);
-    }
-}
-
-void ALSoundProcessing::process(const int& channels, const int& samples, const AL_SOUND_FORMAT* buffer, const AL::ALValue& timestamp)
-{
-    const int length = channels * samples;
-
-    AL::ALCriticalSection section(_process_mutex);
-
-    _buffer.clear();
-    _buffer.resize(length);
-
-    for (int i = 0; i < length; ++i)
-        _buffer[i] = float(buffer[i]);
-}
-
-void ALSoundProcessing::ExtractChannel(int channel, std::vector<float>& results)
-{
-    AL::ALCriticalSection section(_process_mutex);
-
-    const int channels = 4;
-    const int samples = _buffer.size() / channels;
-
-    const int start = samples * channel;
-
-    results.resize(samples);
-    for (int i = 0; i < samples; ++i)
-    {
-        results[i] = _buffer[start + i] / USHRT_MAX;
-    }
-}
-
-GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
-    : _active(false)
-    , _name(name)
-    , _subscriber_id(name)
-    , _ip(ip)
-    , _port(port)
-    , _average_index(0)
-    , _fft_window_size(256)
-    , _fft_magnify_scale(60.0f)
-    , _fft_magnify_power(1.0f)
-{
-}
-
-GMAudioStream::~GMAudioStream()
-{
-    if (_recorder)
-    {
-        _recorder->RecordEnd();
-    }
-}
-
-void GMAudioStream::SetActive(bool active)
-{
-    if (active && !_active)
-    {
-        Subscribe();
-        _active = active;
-        return;
-    }
-
-    if (!active && _active)
-    {
-        _sound_processing->unsubscribe(_subscriber_id);
-        _active = active;
-        _subscriber_id = _name;
-    }
-}
-
-void GMAudioStream::Update()
-{
-    const int MaxChannels = 4;
-
-    // intended to be a noop when already sufficiently sized
-
-    _channels.resize(MaxChannels);
-
-    for (int i = 0; i < (int)_channels.size(); ++i)
-    {
-        _channels[i].raw.resize(_fft_window_size);
-        _channels[i].fft.resize(_fft_window_size);
-    }
-}
-
 #define PI 3.14159265f
 
 #include <complex>
@@ -315,60 +181,192 @@ void DFTref(int count, float* inreal, float* inimag, float* outreal, float* outi
     }
 }
 
-void GMAudioStream::CalcDFT(int channel)
+
+ALSoundProcessing::ALSoundProcessing(boost::shared_ptr<AL::ALBroker> broker, std::string name)
+    : AL::ALSoundExtractor(broker, name)
+    , _process_mutex(AL::ALMutex::createALMutex())
 {
+    setModuleDescription("Collect raw microphone data to a local double buffer.");
+}
+
+ALSoundProcessing::~ALSoundProcessing()
+{
+}
+
+void ALSoundProcessing::init()
+{
+    const int request_interleaving = 1;
+    audioDevice->callVoid(
+        "setClientPreferences",
+        getName(),
+        48000,
+        int(AL::ALLCHANNELS),
+        request_interleaving
+    );
+}
+
+void ALSoundProcessing::process(const int& channels, const int& samples, const AL_SOUND_FORMAT* buffer, const AL::ALValue& timestamp)
+{
+    const int length = channels * samples;
+
+    AL::ALCriticalSection section(_process_mutex);
+
+    _buffer.clear();
+    _buffer.resize(length);
+
+    for (int i = 0; i < length; ++i)
+        _buffer[i] = float(buffer[i]);
+}
+
+void ALSoundProcessing::ExtractChannel(int channel, std::vector<float>& results)
+{
+    AL::ALCriticalSection section(_process_mutex);
+
+    const int channels = 4;
+    const int samples = _buffer.size() / channels;
+
+    const int start = samples * channel;
+
+    results.resize(samples);
+    for (int i = 0; i < samples; ++i)
+    {
+        results[i] = _buffer[start + i] / USHRT_MAX;
+    }
+}
+
+GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
+    : _active(false)
+    , _name(name)
+    , _subscriber_id(name)
+    , _ip(ip)
+    , _port(port)
+    , _average_index(0)
+    , _frequency(44100)
+    , _framerate(60)
+    , _frame(0)
+    , _fft_magnify_scale(60.0f)
+    , _fft_magnify_power(1.0f)
+{
+}
+
+GMAudioStream::~GMAudioStream()
+{
+    if (_recorder)
+    {
+        _recorder->RecordEnd();
+    }
+}
+
+void GMAudioStream::SetActive(bool active)
+{
+    if (active && !_active)
+    {
+        Subscribe();
+        _active = active;
+        return;
+    }
+
+    if (!active && _active)
+    {
+        _sound_processing->unsubscribe(_subscriber_id);
+        _active = active;
+        _subscriber_id = _name;
+    }
+}
+
+void GMAudioStream::SetFrequency(int frequency)
+{
+    _frequency = frequency;
+}
+
+void GMAudioStream::SetFrameRate(int framerate)
+{
+    _framerate = framerate;
+}
+
+int GMAudioStream::GetFFTWindowSize()
+{
+    // ensure frequency divides evenly into framerate
+    CHECK(((float(_frequency) / float(_framerate)) - float(_frequency / _framerate)) == 0.0f);
+
+    return _frequency / _framerate;
+}
+
+void GMAudioStream::Update()
+{
+    const int MaxChannels = 4;
+    const int W = GetFFTWindowSize();
+
+    // intended to be a noop when already sufficiently sized
+
+    _channels.resize(MaxChannels);
+
+    for (int i = 0; i < (int)_channels.size(); ++i)
+    {
+        _channels[i].raw.resize(W);
+        _channels[i].fft.resize(W);
+    }
+
+    _history_fft.resize(_framerate);
+}
+
+void GMAudioStream::CalcFrameDFT(int channel)
+{
+    const int W = GetFFTWindowSize();
+
     Channel& c = _channels[channel];
 
-    CHECK((int)c.raw.size() >= _fft_window_size);
-    CHECK((int)c.fft.size() >= _fft_window_size);
+    CHECK((int)c.raw.size() >= W);
+    CHECK((int)c.fft.size() >= W);
 
-    std::vector<float> ir(_fft_window_size);
-    std::vector<float> ii(_fft_window_size);
-    std::vector<float> or(_fft_window_size);
-    std::vector<float> oi(_fft_window_size);
+    std::vector<float> ir(W);
+    std::vector<float> ii(W);
+    std::vector<float> or(W);
+    std::vector<float> oi(W);
 
-    for (int i = 0; i < _fft_window_size; ++i)
+    for (int i = 0; i < W; ++i)
     {
         ir[i] = c.raw[i];
         ii[i] = 0.0f;
     }
 
-    DFT(_fft_window_size, &ir[0], &ii[0], &or[0], &oi[0]);
+    DFT(W, &ir[0], &ii[0], &or[0], &oi[0]);
 
-    for (int i = 0; i < _fft_window_size; ++i)
+    for (int i = 0; i < W; ++i)
     {
         c.fft[i] = std::complex<float>(or[i], oi[i]);
     }
 }
 
-void GMAudioStream::CalcFFT(int channel)
+void GMAudioStream::CalcFrameFFT(int channel)
 {
+    const int W = GetFFTWindowSize();
+
     Channel& c = _channels[channel];
 
-    CHECK((int)c.raw.size() >= _fft_window_size);
-    CHECK((int)c.fft.size() >= _fft_window_size);
+    CHECK((int)c.raw.size() >= W);
+    CHECK((int)c.fft.size() >= W);
 
-    for (int i = 0; i < _fft_window_size; ++i)
+    for (int i = 0; i < W; ++i)
     {
         c.fft[i] = std::complex<float>(c.raw[i], 0.0f);
     }
 
-    FFT fft(_fft_window_size, true);
+    FFT fft(W, true);
 
     std::vector<std::complex<float> > results = fft.transform(c.fft);
 
-    for (int i = 0; i < _fft_window_size; ++i)
+    for (int i = 0; i < W; ++i)
     {
         c.fft[i] = results[i];
     }
 }
 
-void GMAudioStream::CalcAverageAndDifference(int channel)
+void GMAudioStream::CalcFrameAverageAndDifference(int channel)
 {
-    // TODO: split history pushback to seperate function?
+    const int W = GetFFTWindowSize();
 
-    // TODO: improve timing, match mic data
-    const int FrameCount = 60;
+    // TODO: split history pushback to seperate function?
 
     Channel& c = _channels[channel];
 
@@ -376,7 +374,7 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
 
     std::vector<float>& history = _history_fft[_average_index];
 
-    history.resize(_fft_window_size);
+    history.resize(W);
 
     for (int i = 0; i < (int)c.fft.size(); ++i)
     {
@@ -387,11 +385,11 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
 
     // accumulate history
 
-    _average_fft.resize(_fft_window_size);
+    _average_fft.resize(W);
 
-    for (int i = 0; i < FrameCount; ++i)
+    for (int i = 0; i < _framerate; ++i)
     {
-        const int count = std::min<int>(_history_fft[i].size(), _fft_window_size);
+        const int count = std::min<int>(_history_fft[i].size(), W);
         for (int j = 0; j < count; ++j)
         {
             _average_fft[j] += _history_fft[i][j];
@@ -400,16 +398,16 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
 
     // calculate average over history
 
-    for (int i = 0; i < _fft_window_size; ++i)
+    for (int i = 0; i < W; ++i)
     {
-        _average_fft[i] /= float(FrameCount);
+        _average_fft[i] /= float(_framerate);
     }
 
     // calc instant energy difference
 
-    _difference_fft.resize(_fft_window_size);
+    _difference_fft.resize(W);
 
-    for (int i = 0; i < _fft_window_size; ++i)
+    for (int i = 0; i < W; ++i)
     {
         const float e = _history_fft[_average_index][i];
         const float a = _average_fft[i];
@@ -418,11 +416,13 @@ void GMAudioStream::CalcAverageAndDifference(int channel)
     }
 
     _average_index += 1;
-    _average_index %= FrameCount;
+    _average_index %= _framerate;
 }
 
 int GMAudioStream::EstimateBPM(float threshold)
 {
+    const int W = GetFFTWindowSize();
+
     // the difference of energy in this frame above
     // a threshold means a beat on that fft band
 
@@ -456,8 +456,8 @@ int GMAudioStream::EstimateBPM(float threshold)
         if (power < threshold)
             continue;
 
-        const float wave_frequency_over_window = power;
-        const float window_to_seconds = ((44100.0f / 4.0f) / 2.0f) / _fft_window_size;
+        const float wave_frequency_over_window = float(i);
+        const float window_to_seconds = (_frequency / 2.0f) / float(W);
         const float est_frequency = wave_frequency_over_window * window_to_seconds;
 
         const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
@@ -479,6 +479,8 @@ int GMAudioStream::EstimateBPM(float threshold)
 
 int GMAudioStream::TestGetPianoNotes(float threshold, std::vector<int>& test_notes)
 {
+    const int W = GetFFTWindowSize();
+        
     std::vector<float>& src = _difference_fft;
 
     struct Note
@@ -513,7 +515,7 @@ int GMAudioStream::TestGetPianoNotes(float threshold, std::vector<int>& test_not
     {
         const int frequency_bin = notes[i].index;
         const float wave_frequency_over_window = float(frequency_bin);
-        const float window_to_seconds = ((44100.0f / 4.0f) / 2.0f) / _fft_window_size;
+        const float window_to_seconds = ((44100.0f / 4.0f) / 2.0f) / W;
         const float est_frequency = wave_frequency_over_window * window_to_seconds;
 
         const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
@@ -527,23 +529,24 @@ int GMAudioStream::TestGetPianoNotes(float threshold, std::vector<int>& test_not
     return 0;
 }
 
-void GMAudioStream::DrawRawWaveform(int channel, v3 color, float alpha)
+void GMAudioStream::DrawFrameRawWaveform(int channel, v3 color, float alpha)
 {
     DrawWaveform(_channels[channel].raw, v2(1.0f, 1.0f), color, alpha);
 }
 
-void GMAudioStream::DrawFFTWaveform(int channel, v3 color, float alpha)
+void GMAudioStream::DrawFrameFFTWaveform(int channel, v3 color, float alpha)
 {
-    const float scale = 1.0f / float(_fft_window_size);
+    const int W = GetFFTWindowSize();
+    const float scale = 1.0f / float(W);
     DrawWaveform(_channels[channel].fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
 }
 
-void GMAudioStream::DrawAverageWaveform(v3 color, float alpha)
+void GMAudioStream::DrawFrameAverageWaveform(v3 color, float alpha)
 {
     DrawWaveform(_average_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
 }
 
-void GMAudioStream::DrawDifferenceWaveform(v3 color, float alpha)
+void GMAudioStream::DrawFrameDifferenceWaveform(v3 color, float alpha)
 {
     DrawWaveform(_difference_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
 }
@@ -625,18 +628,15 @@ void GMAudioStream::Subscribe()
     //);
 }
 
-void GMAudioStream::ClearInputData()
+void GMAudioStream::ClearInputDataFrame()
 {
     for (int i = 0; i < (int)_channels.size(); ++i)
     {
         _channels[i].raw.clear();
         _channels[i].fft.clear();
     }
-}
 
-void GMAudioStream::SetFFTWindowSize(int samples)
-{
-    _fft_window_size = samples;
+    _frame++;
 }
 
 void GMAudioStream::SetFFTMagnifyScale(float scale)
@@ -649,7 +649,7 @@ void GMAudioStream::SetFFTMagnifyPower(float power)
     _fft_magnify_power = power;
 }
 
-void GMAudioStream::AddInputDataRemoteNao()
+void GMAudioStream::AddInputDataFrameRemoteNao()
 {
     if (!_active)
         return;
@@ -664,13 +664,14 @@ void GMAudioStream::AddInputDataRemoteNao()
     }
 }
 
-void GMAudioStream::AddInputDataMicrophone()
+void GMAudioStream::AddInputDataFrameMicrophone()
 {
     typedef signed char MicrophoneDataType;
+
+    const int W = GetFFTWindowSize();
     const int MicrophoneDataTypeMaxValue = 255;
     const FMOD_SOUND_FORMAT format = FMOD_SOUND_FORMAT_PCM8;
     const int bytesize = sizeof(MicrophoneDataType);
-    const int _frequency = 44100 / 4;
 
     if (!_recorder)
     {
@@ -704,14 +705,14 @@ void GMAudioStream::AddInputDataMicrophone()
     // init empty values
 
     _channels[0].raw.clear();
-    _channels[0].raw.resize(_fft_window_size, 0.0f);
+    _channels[0].raw.resize(W, 0.0f);
 
-    // collect the last _fft_window_size of data
+    // collect the last W of data
     // if the fft window is too large to ever be filled by mic data it will never be processed
 
-    if ((int)_microphone_buffer.size() >= _fft_window_size)
+    if ((int)_microphone_buffer.size() >= W)
     {
-        for (int i = 0; i < _fft_window_size; ++i)
+        for (int i = 0; i < W; ++i)
         {
             const int index = _microphone_buffer.size() - i - 1;
             const signed char raw = (signed char)_microphone_buffer[index];
@@ -722,21 +723,20 @@ void GMAudioStream::AddInputDataMicrophone()
     }
 }
 
-void GMAudioStream::AddInputDataSineWave(int frequency, float amplitude)
+void GMAudioStream::AddInputDataFrameSineWave(int frequency, float amplitude)
 {
     const int channels = 4;
+    const int W = GetFFTWindowSize();
 
     _channels.resize(channels);
 
     for (int i = 0; i < channels; ++i)
     {
-        const int entries = _fft_window_size;
+        _channels[i].raw.resize(W);
 
-        _channels[i].raw.resize(entries);
-
-        for (int j = 0; j < entries; ++j)
+        for (int j = 0; j < W; ++j)
         {
-            const float d = float(j) / float(entries) * PI * 2.0f;
+            const float d = float(j) / float(W) * PI * 2.0f;
             const float t = float(d * frequency);
             const float s = std::sinf(t) * 0.5f * amplitude;
             _channels[i].raw[j] += s;
@@ -774,46 +774,37 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(ClearInputData)
+    GM_MEMFUNC_DECL(ClearInputDataFrame)
     {
         GM_CHECK_NUM_PARAMS(0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->ClearInputData());
+        GM_AL_EXCEPTION_WRAPPER(self->ClearInputDataFrame());
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(AddInputDataSineWave)
+    GM_MEMFUNC_DECL(AddInputDataFrameSineWave)
     {
         GM_CHECK_NUM_PARAMS(2);
         GM_CHECK_INT_PARAM(frequency, 0);
         GM_CHECK_FLOAT_PARAM(amplitude, 1);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataSineWave(frequency, amplitude));
+        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataFrameSineWave(frequency, amplitude));
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(AddInputDataMicrophone)
+    GM_MEMFUNC_DECL(AddInputDataFrameMicrophone)
     {
         GM_CHECK_NUM_PARAMS(0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataMicrophone());
+        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataFrameMicrophone());
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(AddInputDataRemoteNao)
+    GM_MEMFUNC_DECL(AddInputDataFrameRemoteNao)
     {
         GM_CHECK_NUM_PARAMS(0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataRemoteNao());
-        return GM_OK;
-    }
-
-    GM_MEMFUNC_DECL(SetFFTWindowSize)
-    {
-        GM_CHECK_NUM_PARAMS(1);
-        GM_CHECK_INT_PARAM(samples, 0);
-		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->SetFFTWindowSize(samples));
+        GM_AL_EXCEPTION_WRAPPER(self->AddInputDataFrameRemoteNao());
         return GM_OK;
     }
 
@@ -835,72 +826,72 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(DrawRawWaveform)
+    GM_MEMFUNC_DECL(DrawFrameRawWaveform)
     {
         GM_CHECK_NUM_PARAMS(3);
         GM_CHECK_INT_PARAM(channel, 0);
         GM_CHECK_VEC3_PARAM(color, 1);
         GM_CHECK_FLOAT_PARAM(alpha, 2);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->DrawRawWaveform(channel, color, alpha));
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameRawWaveform(channel, color, alpha));
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(DrawFFTWaveform)
+    GM_MEMFUNC_DECL(DrawFrameFFTWaveform)
     {
         GM_CHECK_NUM_PARAMS(3);
         GM_CHECK_INT_PARAM(channel, 0);
         GM_CHECK_VEC3_PARAM(color, 1);
         GM_CHECK_FLOAT_PARAM(alpha, 2);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->DrawFFTWaveform(channel, color, alpha));
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameFFTWaveform(channel, color, alpha));
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(DrawAverageWaveform)
+    GM_MEMFUNC_DECL(DrawFrameAverageWaveform)
     {
         GM_CHECK_NUM_PARAMS(2);
         GM_CHECK_VEC3_PARAM(color, 0);
         GM_CHECK_FLOAT_PARAM(alpha, 2);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->DrawAverageWaveform(color, alpha));
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameAverageWaveform(color, alpha));
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(DrawDifferenceWaveform)
+    GM_MEMFUNC_DECL(DrawFrameDifferenceWaveform)
     {
         GM_CHECK_NUM_PARAMS(2);
         GM_CHECK_VEC3_PARAM(color, 0);
         GM_CHECK_FLOAT_PARAM(alpha, 2);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->DrawDifferenceWaveform(color, alpha));
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameDifferenceWaveform(color, alpha));
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(CalcDFT)
+    GM_MEMFUNC_DECL(CalcFrameDFT)
     {
         GM_CHECK_NUM_PARAMS(1);
         GM_CHECK_INT_PARAM(channel, 0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->CalcDFT(channel));
+        GM_AL_EXCEPTION_WRAPPER(self->CalcFrameDFT(channel));
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(CalcFFT)
+    GM_MEMFUNC_DECL(CalcFrameFFT)
     {
         GM_CHECK_NUM_PARAMS(1);
         GM_CHECK_INT_PARAM(channel, 0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->CalcFFT(channel));
+        GM_AL_EXCEPTION_WRAPPER(self->CalcFrameFFT(channel));
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(CalcAverageAndDifference)
+    GM_MEMFUNC_DECL(CalcFrameAverageAndDifference)
     {
         GM_CHECK_NUM_PARAMS(1);
         GM_CHECK_INT_PARAM(channel, 0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(self->CalcAverageAndDifference(channel));
+        GM_AL_EXCEPTION_WRAPPER(self->CalcFrameAverageAndDifference(channel));
         return GM_OK;
     }
 
@@ -934,20 +925,19 @@ GM_REG_NAMESPACE(GMAudioStream)
 GM_REG_MEM_BEGIN(GMAudioStream)
 GM_REG_MEMFUNC( GMAudioStream, SetActive )
 GM_REG_MEMFUNC( GMAudioStream, Update )
-GM_REG_MEMFUNC( GMAudioStream, ClearInputData )
-GM_REG_MEMFUNC( GMAudioStream, AddInputDataSineWave )
-GM_REG_MEMFUNC( GMAudioStream, AddInputDataMicrophone )
-GM_REG_MEMFUNC( GMAudioStream, AddInputDataRemoteNao )
-GM_REG_MEMFUNC( GMAudioStream, SetFFTWindowSize )
+GM_REG_MEMFUNC( GMAudioStream, ClearInputDataFrame )
+GM_REG_MEMFUNC( GMAudioStream, AddInputDataFrameSineWave )
+GM_REG_MEMFUNC( GMAudioStream, AddInputDataFrameMicrophone )
+GM_REG_MEMFUNC( GMAudioStream, AddInputDataFrameRemoteNao )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyScale )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyPower )
-GM_REG_MEMFUNC( GMAudioStream, CalcDFT )
-GM_REG_MEMFUNC( GMAudioStream, CalcFFT )
-GM_REG_MEMFUNC( GMAudioStream, CalcAverageAndDifference )
-GM_REG_MEMFUNC( GMAudioStream, DrawRawWaveform )
-GM_REG_MEMFUNC( GMAudioStream, DrawFFTWaveform )
-GM_REG_MEMFUNC( GMAudioStream, DrawAverageWaveform )
-GM_REG_MEMFUNC( GMAudioStream, DrawDifferenceWaveform )
+GM_REG_MEMFUNC( GMAudioStream, CalcFrameDFT )
+GM_REG_MEMFUNC( GMAudioStream, CalcFrameFFT )
+GM_REG_MEMFUNC( GMAudioStream, CalcFrameAverageAndDifference )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameRawWaveform )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameFFTWaveform )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameAverageWaveform )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameDifferenceWaveform )
 GM_REG_MEMFUNC( GMAudioStream, EstimateBPM )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEM_END()

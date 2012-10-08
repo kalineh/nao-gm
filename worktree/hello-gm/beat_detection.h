@@ -41,27 +41,54 @@ public:
     ~GMAudioStream();
 
     void SetActive(bool active);
-    void Update();
 
 public:
-    void ClearInputData();
+    // now we need to change not to have a full buffer of input data
+    // but a rolling buffer of source data at sample-frequency
+    // 
+    // the frequency is 1s of data
+    // we can pull mic data out as fast as it comes
+    // and buffer up to 1s or more
     
-    void AddInputDataSineWave(int frequency, float amplitude);
-    void AddInputDataMicrophone();
-    void AddInputDataRemoteNao();
+    // our update() needs to process at some framerate, 60hz for now
+    // each update we need to pull out freq/60 samples of data
+    // and we can FFT it and extract the notes for that frame
+    
+    // each frame we then have a block of FFT frequency
+    // this is our old arbitrary window size but it is now time-based
 
-    void SetFFTWindowSize(int samples);
+    // our history will be 1s (that is, a 1x Frequency number of samples)
+
+    // our history is already accurate -- it is window-size samples worth of analysed data
+
+    // the difference will be our input data
+    // adding input data will need to add a frame worth of data
+    // and we need to remove it when processing is done
+
+    void SetFrequency(int frequency);
+    void SetFrameRate(int framerate);
+
     void SetFFTMagnifyScale(float scale);
     void SetFFTMagnifyPower(float power);
 
-    void CalcDFT(int channel);
-    void CalcFFT(int channel);
-    void CalcAverageAndDifference(int channel);
+    int GetFFTWindowSize();
 
-    void DrawRawWaveform(int channel, v3 color, float alpha);
-    void DrawFFTWaveform(int channel, v3 color, float alpha);
-    void DrawAverageWaveform(v3 color, float alpha);
-    void DrawDifferenceWaveform(v3 color, float alpha);
+    void Update();
+
+    void ClearInputDataFrame();
+    
+    void AddInputDataFrameSineWave(int frequency, float amplitude);
+    void AddInputDataFrameMicrophone();
+    void AddInputDataFrameRemoteNao();
+
+    void CalcFrameDFT(int channel);
+    void CalcFrameFFT(int channel);
+    void CalcFrameAverageAndDifference(int channel);
+
+    void DrawFrameRawWaveform(int channel, v3 color, float alpha);
+    void DrawFrameFFTWaveform(int channel, v3 color, float alpha);
+    void DrawFrameAverageWaveform(v3 color, float alpha);
+    void DrawFrameDifferenceWaveform(v3 color, float alpha);
 
     int EstimateBPM(float threshold);
 
@@ -80,7 +107,9 @@ private:
     std::string _ip;
     int _port;
 
-    int _fft_window_size;
+    int _frequency;
+    int _framerate;
+    int _frame;
     float _fft_magnify_scale;
     float _fft_magnify_power;
 
@@ -95,7 +124,7 @@ private:
     int _average_index;
     std::vector<float> _average_fft;
     std::vector<float> _difference_fft;
-    std::vector<float> _history_fft[60];
+    std::vector< std::vector<float> > _history_fft;
 
     StrongHandle<MicrophoneRecorder> _recorder;
     std::vector<signed char> _microphone_buffer;

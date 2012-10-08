@@ -78,10 +78,10 @@ global MakeAudioTest = function()
 
 		Gfx.Color(Gfx.WHITE, 1.0f);
 
-        .audio.DrawRawWaveform(0, Gfx.BLUE, 1.0f);
-        .audio.DrawFFTWaveform(0, Gfx.YELLOW, 0.5f);
-        .audio.DrawAverageWaveform(Gfx.WHITE, 0.3f);
-        .audio.DrawDifferenceWaveform(Gfx.RED, 1.0f);
+        .audio.DrawFrameRawWaveform(0, Gfx.BLUE, 1.0f);
+        .audio.DrawFrameFFTWaveform(0, Gfx.YELLOW, 0.5f);
+        .audio.DrawFrameAverageWaveform(Gfx.WHITE, 0.3f);
+        .audio.DrawFrameDifferenceWaveform(Gfx.RED, 1.0f);
 
         .cam2d.End();
 
@@ -97,36 +97,39 @@ global MakeAudioTest = function()
     		RegisterDraw( DrawLayers.Scene, .DrawWaveform, this );
     		RegisterGui( .Gui, this );			
 
-            .audio.SetFFTWindowSize(.fft_window_size);
+            .audio.ClearInputDataFrame();
+
+            // frequency
+            // framerate
             .audio.SetFFTMagnifyScale(.fft_magnify_scale);
             .audio.SetFFTMagnifyPower(.fft_magnify_power);
 
-            .audio.ClearInputData();
             .audio.Update();
 
             if (g_norobot)
             {
                 if (.use_microphone)
                 {
-                    .audio.AddInputDataMicrophone();
+                    .audio.AddInputDataFrameMicrophone();
                 }
 
                 if (.use_sine_wave)
                 {
-                    .audio.AddInputDataSineWave(.sine_frequency, .sine_amplitude);
+                    .audio.AddInputDataFrameSineWave(.sine_frequency, .sine_amplitude);
                 }
             }
             else
             {
-                .audio.AddInputDataRemoteNao();
+                .audio.AddInputDataFrameRemoteNao();
             }
 
-            .audio.CalcDFT(0);
-            //.audio.CalcFFT(0);
-            .audio.CalcAverageAndDifference(0);
+            .audio.CalcFrameDFT(0);
+            //.audio.CalcFrameFFT(0);
+            .audio.CalcFrameAverageAndDifference(0);
 
             if (.tuner_mode)
             {
+                .audio.EstimateBPM(.tuner_threshold);
             }
 
             if (.piano_playback_test)
