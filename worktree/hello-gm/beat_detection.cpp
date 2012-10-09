@@ -250,6 +250,7 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _fft_magnify_scale(60.0f)
     , _fft_magnify_power(1.0f)
 {
+    _clock_timer.Start();
 }
 
 GMAudioStream::~GMAudioStream()
@@ -290,7 +291,7 @@ void GMAudioStream::SetFrameRate(int framerate)
 int GMAudioStream::GetFFTWindowSize()
 {
     // ensure frequency divides evenly into framerate
-    CHECK(((float(_frequency) / float(_framerate)) - float(_frequency / _framerate)) == 0.0f);
+    //CHECK(((float(_frequency) / float(_framerate)) - float(_frequency / _framerate)) == 0.0f);
 
     return _frequency / _framerate;
 }
@@ -311,8 +312,12 @@ void GMAudioStream::Update()
     }
 
     _history_fft.resize(_framerate);
+    _history_difference_fft.resize(_framerate);
 
-    printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
+    _average_index += 1;
+    _average_index %= _framerate;
+
+    //printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
 }
 
 void GMAudioStream::CalcFrameDFT(int channel)
@@ -420,11 +425,46 @@ void GMAudioStream::CalcFrameAverageAndDifference(int channel)
         _difference_fft[i] = std::max<float>(e - a, 0.0f);
     }
 
-    _average_index += 1;
-    _average_index %= _framerate;
+    // keep history of difference
+
+    _history_difference_fft[_average_index].resize(W);
+
+    for (int i = 0; i < W; ++i)
+    {
+        _history_difference_fft[_average_index][i] = _difference_fft[i];
+    }
 }
 
-int GMAudioStream::EstimateBPM(float threshold)
+int GMAudioStream::CalcEstimatedBeatsPerSecond(int channel, int bin, float threshold)
+{
+    // for each item in the list we calc the beats
+    // beats are any frame which threshold is over N
+
+    const int W = GetFFTWindowSize();
+
+    int beats = 0;
+
+    for (int i = 0; i < _framerate; ++i)
+    {
+        const int average_index = (i + _average_index) % _framerate;
+        std::vector<float>& fft = _history_difference_fft[average_index];
+
+        // no history data yet
+        if (bin > (int)fft.size())
+            continue;
+
+        const float power = fft[bin];
+        if (power < threshold)
+            continue;
+
+        beats += 1;
+    }
+
+    //printf("beats: %d: %d\n", bin, beats);
+    return beats;
+}
+
+void GMAudioStream::NoteTuner(float threshold)
 {
     const int W = GetFFTWindowSize();
 
@@ -478,8 +518,6 @@ int GMAudioStream::EstimateBPM(float threshold)
 
     if (write != buffer)
         TimePrint("best note: %s", buffer);
-
-    return 0;
 }
 
 void GMAudioStream::TimePrint(const char* format, ...)
@@ -700,6 +738,10 @@ void GMAudioStream::AddInputDataFrameMicrophone()
     // we can probably assume the mic buffer is well-timed and 
     // use it's status to run extra updates to sync
 
+    // microphone is drifting behind game time and clock time slowly
+    // we will just deal with microphone data as though it is available
+    // at our expected clock time, and ignore drift!
+
     // init empty values
 
     _channels[0].raw.clear();
@@ -721,7 +763,7 @@ void GMAudioStream::AddInputDataFrameMicrophone()
 
     // remove the frame of buffer data
 
-    int removal = std::min<int>(W, _microphone_buffer.size());
+    const int removal = std::min<int>(W, _microphone_buffer.size());
 
     //if (removal < W)
         //TimePrint("mic: missing %d frames of data", W - removal);
@@ -826,8 +868,10 @@ float GMAudioStream::GetSecondsByMicrophone()
 
 float GMAudioStream::GetSecondsBySystemClock()
 {
-    const int relative = ::clock() - _clock_start;
-    return float(relative / CLOCKS_PER_SEC);
+    // NOTE: only accurate to while seconds
+    //const int relative = ::clock() - _clock_start;
+    //return float(relative / CLOCKS_PER_SEC);
+    return _clock_timer.GetTimeSecs();
 }
 
 void GMAudioStream::ResetTimers()
@@ -835,6 +879,7 @@ void GMAudioStream::ResetTimers()
     _frame = 0;
     _microphone_samples_read = 0;
     _clock_start = ::clock();
+    _clock_timer.Start();
 }
 
 GM_REG_NAMESPACE(GMAudioStream)
@@ -935,6 +980,14 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
+    GM_MEMFUNC_DECL(GetFFTWindowSize)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->GetFFTWindowSize()));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(DrawFrameRawWaveform)
     {
         GM_CHECK_NUM_PARAMS(3);
@@ -1004,12 +1057,23 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(EstimateBPM)
+    GM_MEMFUNC_DECL(CalcEstimatedBeatsPerSecond)
+    {
+        GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_INT_PARAM(channel, 0);
+        GM_CHECK_INT_PARAM(bin, 1);
+        GM_CHECK_FLOAT_PARAM(threshold, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->CalcEstimatedBeatsPerSecond(channel, bin, threshold)));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(NoteTuner)
     {
         GM_CHECK_NUM_PARAMS(1);
         GM_CHECK_FLOAT_PARAM(threshold, 0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->EstimateBPM(threshold)));
+        GM_AL_EXCEPTION_WRAPPER(self->NoteTuner(threshold));
         return GM_OK;
     }
 
@@ -1050,14 +1114,16 @@ GM_REG_MEMFUNC( GMAudioStream, UpdateMicrophoneBuffer )
 GM_REG_MEMFUNC( GMAudioStream, IsMicrophoneFrameBuffered )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyScale )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyPower )
+GM_REG_MEMFUNC( GMAudioStream, GetFFTWindowSize )
 GM_REG_MEMFUNC( GMAudioStream, CalcFrameDFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcFrameFFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcFrameAverageAndDifference )
+GM_REG_MEMFUNC( GMAudioStream, CalcEstimatedBeatsPerSecond )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameRawWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameFFTWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameAverageWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameDifferenceWaveform )
-GM_REG_MEMFUNC( GMAudioStream, EstimateBPM )
+GM_REG_MEMFUNC( GMAudioStream, NoteTuner )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEMFUNC( GMAudioStream, ResetTimers )
 GM_REG_MEM_END()

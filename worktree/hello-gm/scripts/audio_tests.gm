@@ -24,9 +24,13 @@ global MakeAudioTest = function()
         .sine_frequency = 5;
         .sine_amplitude = 0.5f;
 
-        .tuner_mode = true;
+        .tuner_mode = false;
         .tuner_threshold = 0.005f;
         .piano_playback_test = false;
+        .beat_estimate_bin = 1;
+        .beat_estimate_threshold = 0.01f;
+        .beats_per_second_history = table();
+        .beats_per_second_index = 0;
 
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 
@@ -68,6 +72,8 @@ global MakeAudioTest = function()
         .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
         .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.00001f, 0.01f);
         .piano_playback_test = Gui.CheckBox("Piano Playback Test", .piano_playback_test);
+        .beat_estimate_bin = Gui.SliderInt("Beat Estimate Bin", .beat_estimate_bin, 1, .audio.GetFFTWindowSize() / 2 - 1);
+        .beat_estimate_threshold = Gui.SliderFloat("Beat Estimate Threshold", .beat_estimate_threshold, 0.001f, 0.1f);
 
         Gui.End();
     };
@@ -137,9 +143,28 @@ global MakeAudioTest = function()
                 //.audio.CalcFrameFFT(0);
                 .audio.CalcFrameAverageAndDifference(0);
 
+                local bps_history_length = 60 * 8;
+                local bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
+
+                .beats_per_second_history[.beats_per_second_index] = bps;
+                .beats_per_second_index += 1;
+                .beats_per_second_index %= bps_history_length;
+
+                local bpm = 0.0f;
+                for (i = 0; i < bps_history_length; i += 1)
+                {
+                    local bpsh = .beats_per_second_history[i];
+                    if ( ?bpsh )
+                    {
+                        bpm += bpsh.Float();
+                    }
+                }
+
+                print("bpm:", bpm / (bps_history_length.Float() / 60.0f));
+
                 if (.tuner_mode)
                 {
-                    .audio.EstimateBPM(.tuner_threshold);
+                    .audio.NoteTuner(.tuner_threshold);
                 }
 
                 if (.piano_playback_test)

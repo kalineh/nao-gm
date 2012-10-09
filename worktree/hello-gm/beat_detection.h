@@ -6,6 +6,7 @@
 
 #include <complex>
 #include <sound/MicrophoneRecorder.h>
+#include <common/Timer.h>
 
 using namespace funk;
 
@@ -88,12 +89,14 @@ public:
     void CalcFrameFFT(int channel);
     void CalcFrameAverageAndDifference(int channel);
 
+    int CalcEstimatedBeatsPerSecond(int channel, int bin, float threshold);
+
     void DrawFrameRawWaveform(int channel, v3 color, float alpha);
     void DrawFrameFFTWaveform(int channel, v3 color, float alpha);
     void DrawFrameAverageWaveform(v3 color, float alpha);
     void DrawFrameDifferenceWaveform(v3 color, float alpha);
 
-    int EstimateBPM(float threshold);
+    void NoteTuner(float threshold);
 
     int TestGetPianoNotes(float threshold, std::vector<int>& test_notes);
 
@@ -123,6 +126,7 @@ private:
     int _frame;
     int _microphone_samples_read;
     int _clock_start;
+    funk::Timer _clock_timer;
     float _fft_magnify_scale;
     float _fft_magnify_power;
 
@@ -138,6 +142,7 @@ private:
     std::vector<float> _average_fft;
     std::vector<float> _difference_fft;
     std::vector< std::vector<float> > _history_fft;
+    std::vector< std::vector<float> > _history_difference_fft;
 
     StrongHandle<MicrophoneRecorder> _recorder;
     std::vector<signed char> _microphone_buffer;
