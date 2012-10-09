@@ -54,6 +54,11 @@ global MakeAudioTest = function()
     {
         Gui.Begin("Audio", g_core.screenDimen.x.Int() - 310, g_core.screenDimen.y.Int() - 5);
 
+        if (Gui.Button("Reset Timers"))
+        {
+            .audio.ResetTimers();
+        }
+
         .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 1.0f, 60.0f * 10.0f);
         .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 1.0f, 16.0f);
         .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
@@ -95,79 +100,87 @@ global MakeAudioTest = function()
     		RegisterDraw( DrawLayers.Scene, .DrawWaveform, this );
     		RegisterGui( .Gui, this );			
 
-            .audio.ClearInputDataFrame();
+            local pending_frames = true;
 
-            // frequency
-            // framerate
-            .audio.SetFFTMagnifyScale(.fft_magnify_scale);
-            .audio.SetFFTMagnifyPower(.fft_magnify_power);
-
-            .audio.Update();
-
-            if (g_norobot)
+            while ( pending_frames )
             {
-                if (.use_microphone)
+                pending_frames = false;
+
+                .audio.ClearInputDataFrame();
+
+                // frequency
+                // framerate
+                .audio.SetFFTMagnifyScale(.fft_magnify_scale);
+                .audio.SetFFTMagnifyPower(.fft_magnify_power);
+
+                .audio.Update();
+
+                if (g_norobot)
                 {
-                    .audio.AddInputDataFrameMicrophone();
-                }
-
-                if (.use_sine_wave)
-                {
-                    .audio.AddInputDataFrameSineWave(.sine_frequency, .sine_amplitude);
-                }
-            }
-            else
-            {
-                .audio.AddInputDataFrameRemoteNao();
-            }
-
-            .audio.CalcFrameDFT(0);
-            //.audio.CalcFrameFFT(0);
-            .audio.CalcFrameAverageAndDifference(0);
-
-            if (.tuner_mode)
-            {
-                .audio.EstimateBPM(.tuner_threshold);
-            }
-
-            if (.piano_playback_test)
-            {
-                local notes = table();
-
-                .audio.TestGetPianoNotes(.tuner_threshold, notes);
-
-                local note_map = {
-                    "piano_A",
-                    "piano_A_sharp",
-                    "piano_B",
-                    "piano_C",
-                    "piano_C_sharp",
-                    "piano_D",
-                    "piano_D_sharp",
-                    "piano_E",
-                    "piano_F",
-                    "piano_F_sharp",
-                    "piano_G",
-                    "piano_G_sharp",
-                };
-
-                foreach ( note in notes )
-                {
-                    local key = note % 12;
-                    local note_name = note_map[key];
-
-                    if (?.play_thread && threadIsAlive( .play_thread ) )
+                    if (.use_microphone)
                     {
-                        break;
+                        .audio.UpdateMicrophoneBuffer();
+                        .audio.AddInputDataFrameMicrophone();
                     }
 
-                    .play_thread = this:thread( function(note_name) {
-                        .piano_soundbank.Play(note_name);
-                        sleep(1.0f / 60.0f * 8.0f);
-                    }, note_name );
+                    if (.use_sine_wave)
+                    {
+                        .audio.AddInputDataFrameSineWave(.sine_frequency, .sine_amplitude);
+                    }
+                }
+                else
+                {
+                    .audio.AddInputDataFrameRemoteNao();
                 }
 
-    			.piano_soundbank.PlayAllQueued();
+                .audio.CalcFrameDFT(0);
+                //.audio.CalcFrameFFT(0);
+                .audio.CalcFrameAverageAndDifference(0);
+
+                if (.tuner_mode)
+                {
+                    .audio.EstimateBPM(.tuner_threshold);
+                }
+
+                if (.piano_playback_test)
+                {
+                    local notes = table();
+
+                    .audio.TestGetPianoNotes(.tuner_threshold, notes);
+
+                    local note_map = {
+                        "piano_A",
+                        "piano_A_sharp",
+                        "piano_B",
+                        "piano_C",
+                        "piano_C_sharp",
+                        "piano_D",
+                        "piano_D_sharp",
+                        "piano_E",
+                        "piano_F",
+                        "piano_F_sharp",
+                        "piano_G",
+                        "piano_G_sharp",
+                    };
+
+                    foreach ( note in notes )
+                    {
+                        local key = note % 12;
+                        local note_name = note_map[key];
+
+                        if (?.play_thread && threadIsAlive( .play_thread ) )
+                        {
+                            break;
+                        }
+
+                        .play_thread = this:thread( function(note_name) {
+                            .piano_soundbank.Play(note_name);
+                            sleep(1.0f / 60.0f * 8.0f);
+                        }, note_name );
+                    }
+
+        			.piano_soundbank.PlayAllQueued();
+                }
             }
 
             yield();

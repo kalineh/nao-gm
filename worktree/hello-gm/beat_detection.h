@@ -81,6 +81,9 @@ public:
     void AddInputDataFrameMicrophone();
     void AddInputDataFrameRemoteNao();
 
+    void UpdateMicrophoneBuffer();
+    bool IsMicrophoneFrameBuffered();
+
     void CalcFrameDFT(int channel);
     void CalcFrameFFT(int channel);
     void CalcFrameAverageAndDifference(int channel);
@@ -93,6 +96,12 @@ public:
     int EstimateBPM(float threshold);
 
     int TestGetPianoNotes(float threshold, std::vector<int>& test_notes);
+
+    float GetSecondsByFrame();
+    float GetSecondsByMicrophone();
+    float GetSecondsBySystemClock();
+
+    void ResetTimers();
 
 private:
     void TimePrint(const char* format, ...);
@@ -112,6 +121,8 @@ private:
     int _frequency;
     int _framerate;
     int _frame;
+    int _microphone_samples_read;
+    int _clock_start;
     float _fft_magnify_scale;
     float _fft_magnify_power;
 

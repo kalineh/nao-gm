@@ -16,6 +16,7 @@
 
 #include <complex>
 #include <vector>
+#include <time.h>
 
 class FFT
 {
@@ -241,9 +242,11 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _ip(ip)
     , _port(port)
     , _average_index(0)
-    , _frequency(44100)
+    , _frequency(44100 / 4)
     , _framerate(60)
     , _frame(0)
+    , _microphone_samples_read(0)
+    , _clock_start(0)
     , _fft_magnify_scale(60.0f)
     , _fft_magnify_power(1.0f)
 {
@@ -308,6 +311,8 @@ void GMAudioStream::Update()
     }
 
     _history_fft.resize(_framerate);
+
+    printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
 }
 
 void GMAudioStream::CalcFrameDFT(int channel)
@@ -681,46 +686,19 @@ void GMAudioStream::AddInputDataFrameRemoteNao()
 
 void GMAudioStream::AddInputDataFrameMicrophone()
 {
-    typedef signed char MicrophoneDataType;
-
     const int W = GetFFTWindowSize();
     const int MicrophoneDataTypeMaxValue = 255;
-    const FMOD_SOUND_FORMAT format = FMOD_SOUND_FORMAT_PCM8;
-    const int bytesize = sizeof(MicrophoneDataType);
 
-    if (!_recorder)
-    {
-        _recorder = new MicrophoneRecorder(_frequency, 1, format);
-        _recorder->RecordStart();
-    }
-
-    _recorder->Update();
+    CHECK(_recorder);
 
     // currently we are taking the top N samples
     // but rather we need to take one frame of samples
     // until there is at least one frame, we ignore
 
-    const int samples_size = _recorder->GetDataSize(0);
-    const unsigned char* samples_data = (unsigned char*)_recorder->GetData(0);
-    if (samples_size > 0)
-    {
-        // add new samples
-        const int start = _microphone_buffer.size();
-        _microphone_buffer.resize(_microphone_buffer.size() + samples_size);
-        memcpy(&_microphone_buffer[0] + start, samples_data, samples_size);
-
-        // shift data down to start
-        // TODO: replace with wrapping indices
-        const int one_second_data = _frequency * bytesize;
-        if ((int)_microphone_buffer.size() > one_second_data)
-        {
-            const int shift = _microphone_buffer.size() - one_second_data;
-            //TimePrint("mic: dropping %d samples", shift);
-            memcpy(&_microphone_buffer[0], &_microphone_buffer[0] + shift, one_second_data);
-        }
-
-        _microphone_buffer.resize(std::min<int>(one_second_data, _microphone_buffer.size()));
-    }
+    // we are almost in sync, drifting about 1s every 3 min
+    // the mic buffer is filling up faster than we can process it
+    // we can probably assume the mic buffer is well-timed and 
+    // use it's status to run extra updates to sync
 
     // init empty values
 
@@ -728,7 +706,6 @@ void GMAudioStream::AddInputDataFrameMicrophone()
     _channels[0].raw.resize(W, 0.0f);
 
     // collect the last W of data
-    // if the fft window is too large to ever be filled by mic data it will never be processed
 
     if ((int)_microphone_buffer.size() >= W)
     {
@@ -744,7 +721,7 @@ void GMAudioStream::AddInputDataFrameMicrophone()
 
     // remove the frame of buffer data
 
-    const int removal = std::min<int>(W, _microphone_buffer.size());
+    int removal = std::min<int>(W, _microphone_buffer.size());
 
     //if (removal < W)
         //TimePrint("mic: missing %d frames of data", W - removal);
@@ -755,6 +732,8 @@ void GMAudioStream::AddInputDataFrameMicrophone()
         memcpy(&_microphone_buffer[0], &_microphone_buffer[0] + shift, removal);
         _microphone_buffer.resize(_microphone_buffer.size() - removal);
     }
+
+    _microphone_samples_read += shift;
 
     //TimePrint("mic: buffer: %d samples", _microphone_buffer.size());
 }
@@ -778,6 +757,84 @@ void GMAudioStream::AddInputDataFrameSineWave(int frequency, float amplitude)
             _channels[i].raw[j] += s;
         }
     }
+}
+
+void GMAudioStream::UpdateMicrophoneBuffer()
+{
+    typedef signed char MicrophoneDataType;
+
+    const int W = GetFFTWindowSize();
+    const FMOD_SOUND_FORMAT format = FMOD_SOUND_FORMAT_PCM8;
+    const int bytesize = sizeof(MicrophoneDataType);
+
+    if (!_recorder)
+    {
+        _recorder = new MicrophoneRecorder(_frequency, 1, format);
+        _recorder->RecordStart();
+    }
+
+    _recorder->Update();
+
+    // currently we are taking the top N samples
+    // but rather we need to take one frame of samples
+    // until there is at least one frame, we ignore
+
+    // we are almost in sync, drifting about 1s every 3 min
+    // the mic buffer is filling up faster than we can process it
+    // we can probably assume the mic buffer is well-timed and 
+    // use it's status to run extra updates to sync
+
+    const int samples_size = _recorder->GetDataSize(0);
+    const unsigned char* samples_data = (unsigned char*)_recorder->GetData(0);
+    if (samples_size > 0)
+    {
+        // add new samples
+        const int start = _microphone_buffer.size();
+        _microphone_buffer.resize(_microphone_buffer.size() + samples_size);
+        memcpy(&_microphone_buffer[0] + start, samples_data, samples_size);
+
+        // shift data down to start
+        // TODO: replace with wrapping indices
+        const int one_second_data = _frequency * bytesize;
+        if ((int)_microphone_buffer.size() > one_second_data)
+        {
+            const int shift = _microphone_buffer.size() - one_second_data;
+            //TimePrint("mic: dropping %d samples", shift);
+            memcpy(&_microphone_buffer[0], &_microphone_buffer[0] + shift, one_second_data);
+        }
+
+        _microphone_buffer.resize(std::min<int>(one_second_data, _microphone_buffer.size()));
+    }
+}
+
+bool GMAudioStream::IsMicrophoneFrameBuffered()
+{
+    const int W = GetFFTWindowSize();
+    const bool pending = (int)_microphone_buffer.size() > W;
+    return pending;
+}
+
+float GMAudioStream::GetSecondsByFrame()
+{
+    return float(_frame) / float(_framerate);
+}
+
+float GMAudioStream::GetSecondsByMicrophone()
+{
+    return float(_microphone_samples_read / _frequency) / 60.0f;
+}
+
+float GMAudioStream::GetSecondsBySystemClock()
+{
+    const int relative = ::clock() - _clock_start;
+    return float(relative / CLOCKS_PER_SEC);
+}
+
+void GMAudioStream::ResetTimers()
+{
+    _frame = 0;
+    _microphone_samples_read = 0;
+    _clock_start = ::clock();
 }
 
 GM_REG_NAMESPACE(GMAudioStream)
@@ -841,6 +898,22 @@ GM_REG_NAMESPACE(GMAudioStream)
         GM_CHECK_NUM_PARAMS(0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
         GM_AL_EXCEPTION_WRAPPER(self->AddInputDataFrameRemoteNao());
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(UpdateMicrophoneBuffer)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->UpdateMicrophoneBuffer());
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(IsMicrophoneFrameBuffered)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->IsMicrophoneFrameBuffered() ? 1 : 0));
         return GM_OK;
     }
 
@@ -956,6 +1029,14 @@ GM_REG_NAMESPACE(GMAudioStream)
 
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(ResetTimers)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->ResetTimers());
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMAudioStream)
@@ -965,6 +1046,8 @@ GM_REG_MEMFUNC( GMAudioStream, ClearInputDataFrame )
 GM_REG_MEMFUNC( GMAudioStream, AddInputDataFrameSineWave )
 GM_REG_MEMFUNC( GMAudioStream, AddInputDataFrameMicrophone )
 GM_REG_MEMFUNC( GMAudioStream, AddInputDataFrameRemoteNao )
+GM_REG_MEMFUNC( GMAudioStream, UpdateMicrophoneBuffer )
+GM_REG_MEMFUNC( GMAudioStream, IsMicrophoneFrameBuffered )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyScale )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyPower )
 GM_REG_MEMFUNC( GMAudioStream, CalcFrameDFT )
@@ -976,6 +1059,7 @@ GM_REG_MEMFUNC( GMAudioStream, DrawFrameAverageWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameDifferenceWaveform )
 GM_REG_MEMFUNC( GMAudioStream, EstimateBPM )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
+GM_REG_MEMFUNC( GMAudioStream, ResetTimers )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);
