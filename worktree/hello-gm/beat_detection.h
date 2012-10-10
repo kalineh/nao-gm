@@ -90,11 +90,18 @@ public:
     void CalcFrameAverageAndDifference(int channel);
 
     int CalcEstimatedBeatsPerSecond(int channel, int bin, float threshold);
+    int CalcEstimatedBeatsPerSecondDiscrete(int channel, int bin, float threshold);
+    int CalcEstimatedBeatsPerSecondAverage(int channel, int bin, float threshold);
 
     void DrawFrameRawWaveform(int channel, v3 color, float alpha);
     void DrawFrameFFTWaveform(int channel, v3 color, float alpha);
     void DrawFrameAverageWaveform(v3 color, float alpha);
     void DrawFrameDifferenceWaveform(v3 color, float alpha);
+
+    void DrawFrameRawBars(int channel, v3 color, float alpha);
+    void DrawFrameFFTBars(int channel, v3 color, float alpha);
+    void DrawFrameAverageBars(v3 color, float alpha);
+    void DrawFrameDifferenceBars(v3 color, float alpha);
 
     void NoteTuner(float threshold);
 
@@ -111,6 +118,9 @@ private:
 
     void DrawWaveform(const std::vector<float>& channel, v2 scale, v3 color, float alpha);
     void DrawWaveform(const std::vector<std::complex<float> >& channel, v2 scale, v3 color, float alpha);
+
+    void DrawBars(const std::vector<float>& channel, v2 scale, v3 color, float alpha);
+    void DrawBars(const std::vector<std::complex<float> >& channel, v2 scale, v3 color, float alpha);
 
     void Subscribe();
 

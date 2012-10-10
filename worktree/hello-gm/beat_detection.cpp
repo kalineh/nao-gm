@@ -242,7 +242,7 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _ip(ip)
     , _port(port)
     , _average_index(0)
-    , _frequency(44100 / 4)
+    , _frequency(44100 / 2)
     , _framerate(60)
     , _frame(0)
     , _microphone_samples_read(0)
@@ -437,6 +437,44 @@ void GMAudioStream::CalcFrameAverageAndDifference(int channel)
 
 int GMAudioStream::CalcEstimatedBeatsPerSecond(int channel, int bin, float threshold)
 {
+    return CalcEstimatedBeatsPerSecondAverage(channel, bin, threshold);
+}
+
+int GMAudioStream::CalcEstimatedBeatsPerSecondDiscrete(int channel, int bin, float threshold)
+{
+    // for a given bin, find beats
+    // find spacing between first and last
+    // calc bpm!
+
+    // for each item in the list we calc the beats
+    // beats are any frame which threshold is over N
+
+    const int W = GetFFTWindowSize();
+
+    int beats = 0;
+
+    for (int i = 0; i < _framerate; ++i)
+    {
+        const int average_index = (i + _average_index) % _framerate;
+        std::vector<float>& fft = _history_difference_fft[average_index];
+
+        // no history data yet
+        if (bin > (int)fft.size())
+            continue;
+
+        const float power = fft[bin];
+        if (power < threshold)
+            continue;
+
+        beats += 1;
+    }
+
+    //printf("beats: %d: %d\n", bin, beats);
+    return beats;
+}
+
+int GMAudioStream::CalcEstimatedBeatsPerSecondAverage(int channel, int bin, float threshold)
+{
     // for each item in the list we calc the beats
     // beats are any frame which threshold is over N
 
@@ -609,6 +647,28 @@ void GMAudioStream::DrawFrameDifferenceWaveform(v3 color, float alpha)
     DrawWaveform(_difference_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
 }
 
+void GMAudioStream::DrawFrameRawBars(int channel, v3 color, float alpha)
+{
+    DrawBars(_channels[channel].raw, v2(1.0f, 1.0f), color, alpha);
+}
+
+void GMAudioStream::DrawFrameFFTBars(int channel, v3 color, float alpha)
+{
+    const int W = GetFFTWindowSize();
+    const float scale = 1.0f / float(W);
+    DrawBars(_channels[channel].fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+}
+
+void GMAudioStream::DrawFrameAverageBars(v3 color, float alpha)
+{
+    DrawBars(_average_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+}
+
+void GMAudioStream::DrawFrameDifferenceBars(v3 color, float alpha)
+{
+    DrawBars(_difference_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+}
+
 void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 color, float alpha)
 {
     const int count = data.size();
@@ -646,6 +706,47 @@ void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, 
     }
 
     DrawWaveform(converted, scale, color, alpha);
+}
+
+void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color, float alpha)
+{
+    const int count = data.size();
+
+    const v2 bl = v2(0.0f, 0.0f);
+    const v2 tr = v2(1024.0f, 768.0f);
+
+    const float step = (tr.x - bl.x) / float(data.size()) * scale.x;
+    const float range = (tr.y - bl.y) / scale.y;
+
+	glColor4f( color.x, color.y, color.z, alpha );
+
+    for (int i = 1; i < count; ++i)
+    {
+        const float value0 = data[i - 1];
+        const float value1 = data[i - 0];
+        const v2 a = bl + v2( step * float(i - 1), range * value0 );
+        const v2 b = bl + v2( step * float(i - 0), range * value1 );
+
+        DrawLine(v2(a.x, a.y), v2(a.x, b.y));
+        DrawLine(v2(a.x, b.y), v2(b.x, b.y));
+        DrawLine(v2(b.x, b.y), v2(b.x, b.y));
+    }
+}
+
+void GMAudioStream::DrawBars(const std::vector<std::complex<float> >& data, v2 scale, v3 color, float alpha)
+{
+    static std::vector<float> converted;
+
+    converted.resize(data.size());
+
+    for (int i = 0; i < (int)data.size(); ++i)
+    {
+        const std::complex<float> c = data[i];
+        const float f = c.real() * c.real() + c.imag() * c.imag();
+        converted[i] = std::powf(f * _fft_magnify_scale, _fft_magnify_power);
+    }
+
+    DrawBars(converted, scale, color, alpha);
 }
 
 void GMAudioStream::Subscribe()
@@ -1030,6 +1131,48 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
+    GM_MEMFUNC_DECL(DrawFrameRawBars)
+    {
+        GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_INT_PARAM(channel, 0);
+        GM_CHECK_VEC3_PARAM(color, 1);
+        GM_CHECK_FLOAT_PARAM(alpha, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameRawBars(channel, color, alpha));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(DrawFrameFFTBars)
+    {
+        GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_INT_PARAM(channel, 0);
+        GM_CHECK_VEC3_PARAM(color, 1);
+        GM_CHECK_FLOAT_PARAM(alpha, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameFFTBars(channel, color, alpha));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(DrawFrameAverageBars)
+    {
+        GM_CHECK_NUM_PARAMS(2);
+        GM_CHECK_VEC3_PARAM(color, 0);
+        GM_CHECK_FLOAT_PARAM(alpha, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameAverageBars(color, alpha));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(DrawFrameDifferenceBars)
+    {
+        GM_CHECK_NUM_PARAMS(2);
+        GM_CHECK_VEC3_PARAM(color, 0);
+        GM_CHECK_FLOAT_PARAM(alpha, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->DrawFrameDifferenceBars(color, alpha));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(CalcFrameDFT)
     {
         GM_CHECK_NUM_PARAMS(1);
@@ -1123,6 +1266,10 @@ GM_REG_MEMFUNC( GMAudioStream, DrawFrameRawWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameFFTWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameAverageWaveform )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameDifferenceWaveform )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameRawBars )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameFFTBars )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameAverageBars )
+GM_REG_MEMFUNC( GMAudioStream, DrawFrameDifferenceBars )
 GM_REG_MEMFUNC( GMAudioStream, NoteTuner )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEMFUNC( GMAudioStream, ResetTimers )

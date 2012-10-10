@@ -32,6 +32,13 @@ global MakeAudioTest = function()
         .beats_per_second_history = table();
         .beats_per_second_index = 0;
 
+        .drawbars = {
+            false, // raw
+            true,  // fft
+            true,  // average
+            true,  // difference
+        };
+
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 
         if ( !g_norobot )
@@ -63,6 +70,11 @@ global MakeAudioTest = function()
             .audio.ResetTimers();
         }
 
+        .drawbars[0] = Gui.CheckBox("Draw Bars (Raw)", .drawbars[0]);
+        .drawbars[1] = Gui.CheckBox("Draw Bars (FFT)", .drawbars[1]);
+        .drawbars[2] = Gui.CheckBox("Draw Bars (Average)", .drawbars[2]);
+        .drawbars[3] = Gui.CheckBox("Draw Bars (Difference)", .drawbars[3]);
+
         .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 1.0f, 60.0f * 10.0f);
         .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 1.0f, 16.0f);
         .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
@@ -78,7 +90,7 @@ global MakeAudioTest = function()
         Gui.End();
     };
 
-    Main.DrawWaveform = function()
+    Main.DrawAudio = function()
     {
 		Gfx.Viewport( v2(0.0f), g_core.screenDimen );
 		Gfx.BeginDefaultShader();
@@ -87,10 +99,41 @@ global MakeAudioTest = function()
 
 		Gfx.Color(Gfx.WHITE, 1.0f);
 
-        .audio.DrawFrameRawWaveform(0, Gfx.BLUE, 1.0f);
-        .audio.DrawFrameFFTWaveform(0, Gfx.YELLOW, 0.5f);
-        .audio.DrawFrameAverageWaveform(Gfx.WHITE, 0.3f);
-        .audio.DrawFrameDifferenceWaveform(Gfx.RED, 1.0f);
+        if ( .drawbars[0] )
+        {
+            .audio.DrawFrameRawBars(0, Gfx.BLUE, 1.0f);
+        }
+        else
+        {
+            .audio.DrawFrameRawWaveform(0, Gfx.BLUE, 1.0f);
+        }
+
+        if (.drawbars[1])
+        {
+            .audio.DrawFrameFFTBars(0, Gfx.YELLOW, 0.5f);
+        }
+        else
+        {
+            .audio.DrawFrameFFTWaveform(0, Gfx.YELLOW, 0.5f);
+        }
+
+        if (.drawbars[2])
+        {
+            .audio.DrawFrameAverageBars(Gfx.WHITE, 0.3f);
+        }
+        else
+        {
+            .audio.DrawFrameAverageWaveform(Gfx.WHITE, 0.3f);
+        }
+
+        if (.drawbars[3])
+        {
+            .audio.DrawFrameDifferenceBars(Gfx.RED, 1.0f);
+        }
+        else
+        {
+            .audio.DrawFrameDifferenceWaveform(Gfx.RED, 1.0f);
+        }
 
         .cam2d.End();
 
@@ -103,7 +146,7 @@ global MakeAudioTest = function()
         while (true)
         {
     		RegisterDraw( DrawLayers.Clear, .ClearScreen, this );
-    		RegisterDraw( DrawLayers.Scene, .DrawWaveform, this );
+    		RegisterDraw( DrawLayers.Scene, .DrawAudio, this );
     		RegisterGui( .Gui, this );			
 
             local pending_frames = true;
@@ -145,6 +188,7 @@ global MakeAudioTest = function()
 
                 local bps_history_length = 60 * 8;
                 local bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
+                print("bps:", bps);
 
                 .beats_per_second_history[.beats_per_second_index] = bps;
                 .beats_per_second_index += 1;
@@ -160,7 +204,7 @@ global MakeAudioTest = function()
                     }
                 }
 
-                print("bpm:", bpm / (bps_history_length.Float() / 60.0f));
+                //print("bpm:", bpm / (bps_history_length.Float() / 60.0f));
 
                 if (.tuner_mode)
                 {
