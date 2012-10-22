@@ -158,32 +158,33 @@ void DFT3(int count, float* inreal, float* inimag, float* outreal, float* outima
     //}
 }
 
-void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag)
+void DFT2(int count, float* input, std::complex<float>* out)
 {
-    // DFT only evaluates frequencies up to N / 2
+    // discrete fourier transform, but we are not normalizing yet
+    // F[bin] = 1/N * (f[n] * e ^ i * 2pi * bin * n/N), for each n
+    // this code is:
+    // F[bin] = (f[n] * e ^ i * 2pi * bin * n/N), for each n
 
-    // for each candidate frequency
-    //    for each data point
-    //        sum sin/cos complex
+    memset(out, 0, sizeof(out[0]) * count);
 
-    const int n = count;
+    const int nyquist = count / 2;
 
-    memset(outreal, 0, sizeof(float) * n);
-    memset(outimag, 0, sizeof(float) * n);
-
-    const float pidiv = 2.0f * PI / float(n);
-
-    const int m = n / 2;
-
-    for (int w = 0; w < m; ++w)
+    for (int bin = 0; bin < nyquist; ++bin)
     {
-        const float a = float(w) * pidiv;
+        const float a = 2.0f * PI * float(bin) / float(count);
+        
+        float real = 0.0f;
+        float imag = 0.0f;
 
-        for (int t = 0; t < n; ++t)
+        for (int t = 0; t < count; ++t)
         {
-            outreal[w] += inreal[t] * std::cosf(a * t);
-            outimag[w] += inreal[t] * std::sinf(a * t);
+            const float f = input[t];
+
+            real += f * std::cosf(a * t);
+            imag += f * std::sinf(a * t);
         }
+
+        out[bin] = std::complex<float>(real, imag);
     }
 }
 
@@ -272,7 +273,7 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _ip(ip)
     , _port(port)
     , _average_index(0)
-    , _frequency(44100 / 2)
+    , _frequency(44100 / 1)
     , _framerate(60)
     , _frame(0)
     , _microphone_samples_read(0)
@@ -359,23 +360,7 @@ void GMAudioStream::CalcFrameDFT(int channel)
     CHECK((int)c.raw.size() >= W);
     CHECK((int)c.fft.size() >= W);
 
-    std::vector<float> ir(W);
-    std::vector<float> ii(W);
-    std::vector<float> or(W);
-    std::vector<float> oi(W);
-
-    for (int i = 0; i < W; ++i)
-    {
-        ir[i] = c.raw[i];
-        ii[i] = 0.0f;
-    }
-
-    DFT(W, &ir[0], &ii[0], &or[0], &oi[0]);
-
-    for (int i = 0; i < W; ++i)
-    {
-        c.fft[i] = std::complex<float>(or[i], oi[i]);
-    }
+    DFT2(W, &c.raw[0], &c.fft[0]);
 }
 
 void GMAudioStream::CalcFrameFFT(int channel)
@@ -683,9 +668,7 @@ void GMAudioStream::DrawFrameRawWaveform(int channel, v3 color, float alpha)
 
 void GMAudioStream::DrawFrameFFTWaveform(int channel, v3 color, float alpha)
 {
-    const int W = GetFFTWindowSize();
-    const float scale = 1.0f / float(W);
-    DrawWaveform(_channels[channel].fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+    DrawWaveform(_channels[channel].fft, v2(2.0f, 1.0f), color, alpha);
 }
 
 void GMAudioStream::DrawFrameAverageWaveform(v3 color, float alpha)
@@ -745,8 +728,6 @@ void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 co
 
 void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, v2 scale, v3 color, float alpha)
 {
-    const int W = GetFFTWindowSize();
-
     static std::vector<float> converted;
 
     converted.resize(data.size());
@@ -754,8 +735,14 @@ void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, 
     for (int i = 0; i < (int)data.size(); ++i)
     {
         const std::complex<float> c = data[i];
-        const float f = std::sqrtf(c.real() * c.real() + c.imag() * c.imag()) / float(W);
-        converted[i] = std::logf(std::max<float>(0.0001f, std::powf(f * _fft_magnify_scale, _fft_magnify_power)));
+
+        const float f0 = std::sqrtf(c.real() * c.real() + c.imag() * c.imag());
+        const float f1 = f0 * _fft_magnify_scale;
+        const float f2 = std::powf(f1, _fft_magnify_power);
+        const float f3 = std::max<float>(0.0000001f, f2);
+        const float f4 = std::logf(f3);
+
+        converted[i] = f4;
     }
 
     DrawWaveform(converted, scale, color, alpha);
@@ -797,8 +784,14 @@ void GMAudioStream::DrawBars(const std::vector<std::complex<float> >& data, v2 s
     for (int i = 0; i < (int)data.size(); ++i)
     {
         const std::complex<float> c = data[i];
-        const float f = std::sqrtf(c.real() * c.real() + c.imag() * c.imag()) / float(W);
-        converted[i] = std::logf(std::max<float>(0.0001f, std::powf(f * _fft_magnify_scale, _fft_magnify_power)));
+
+        const float f0 = std::sqrtf(c.real() * c.real() + c.imag() * c.imag());
+        const float f1 = f0 * _fft_magnify_scale;
+        const float f2 = std::powf(f1, _fft_magnify_power);
+        const float f3 = std::max<float>(0.0000001f, f2);
+        const float f4 = std::logf(f3);
+
+        converted[i] = f4;
     }
 
     DrawBars(converted, scale, color, alpha);

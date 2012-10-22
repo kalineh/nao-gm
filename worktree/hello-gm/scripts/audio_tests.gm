@@ -17,8 +17,8 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
-        .fft_magnify_scale = 10.0f;
-        .fft_magnify_power = 1.0f;
+        .fft_magnify_scale = 1.0f;
+        .fft_magnify_power = 2.0f;
         .use_microphone = true;
         .use_sine_wave = false;
         .sine_frequency = 5;
