@@ -120,7 +120,7 @@ void FFT::bitReverseCopy(const std::vector<Complex>& src, std::vector<Complex>& 
 // http://home.fuse.net/clymer/graphs/fourier.html
 //
 //
-void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag)
+void DFT3(int count, float* inreal, float* inimag, float* outreal, float* outimag)
 {
     // DFT only evaluates frequencies up to N / 2
 
@@ -142,18 +142,48 @@ void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag
         {
             const float f = inreal[j];
 
-            real += f * std::sinf(i * j * 2 * PI / n);
-            imag += f * std::cosf(i * j * 2 * PI / n);
+            real += f * std::cosf(i * j * 2 * PI / n);
+            imag += f * std::sinf(i * j * 2 * PI / n);
         }
 
         outreal[i] = real;
         outimag[i] = imag;
     }
     
-    for (int i = 0; i < n / 2; ++i)
+    // NOTE: why were we doing this again?
+    //for (int i = 0; i < n / 2; ++i)
+    //{
+        //outreal[i] /= float(n) / 2.0f;
+        //outimag[i] /= float(n) / 2.0f;
+    //}
+}
+
+void DFT(int count, float* inreal, float* inimag, float* outreal, float* outimag)
+{
+    // DFT only evaluates frequencies up to N / 2
+
+    // for each candidate frequency
+    //    for each data point
+    //        sum sin/cos complex
+
+    const int n = count;
+
+    memset(outreal, 0, sizeof(float) * n);
+    memset(outimag, 0, sizeof(float) * n);
+
+    const float pidiv = 2.0f * PI / float(n);
+
+    const int m = n / 2;
+
+    for (int w = 0; w < m; ++w)
     {
-        outreal[i] /= n / 2;
-        outimag[i] /= n / 2;
+        const float a = float(w) * pidiv;
+
+        for (int t = 0; t < n; ++t)
+        {
+            outreal[w] += inreal[t] * std::cosf(a * t);
+            outimag[w] += inreal[t] * std::sinf(a * t);
+        }
     }
 }
 
@@ -442,16 +472,9 @@ int GMAudioStream::CalcEstimatedBeatsPerSecond(int channel, int bin, float thres
 
 int GMAudioStream::CalcEstimatedBeatsPerSecondDiscrete(int channel, int bin, float threshold)
 {
-    // for a given bin, find beats
-    // find spacing between first and last
-    // calc bpm!
+    // wrong because adjacent difference values are detected as beats
 
-    // for each item in the list we calc the beats
-    // beats are any frame which threshold is over N
-
-    const int W = GetFFTWindowSize();
-
-    int beats = 0;
+    std::vector<int> beat_indices;
 
     for (int i = 0; i < _framerate; ++i)
     {
@@ -466,10 +489,28 @@ int GMAudioStream::CalcEstimatedBeatsPerSecondDiscrete(int channel, int bin, flo
         if (power < threshold)
             continue;
 
-        beats += 1;
+        beat_indices.push_back(i);
     }
 
-    //printf("beats: %d: %d\n", bin, beats);
+    // need at least 3 beats
+    if (beat_indices.size() < 3)
+        return 0;
+
+    int difference = beat_indices[0] - beat_indices[1];
+
+    int beats = 2;
+
+    for (int i = 2; i < (int)beat_indices.size(); ++i)
+    {
+        const int prev_beat_index = beat_indices[i];
+        const int next_beat_index = beat_indices[i];
+        const int next_difference = next_beat_index - prev_beat_index;
+
+        const int variance = std::abs(next_difference - difference);
+        if (variance < 3)
+            beats++;
+    }
+
     return beats;
 }
 
@@ -482,7 +523,7 @@ int GMAudioStream::CalcEstimatedBeatsPerSecondAverage(int channel, int bin, floa
 
     int beats = 0;
 
-    for (int i = 0; i < _framerate; ++i)
+    for (int i = 1; i < _framerate; ++i)
     {
         const int average_index = (i + _average_index) % _framerate;
         std::vector<float>& fft = _history_difference_fft[average_index];
@@ -491,8 +532,18 @@ int GMAudioStream::CalcEstimatedBeatsPerSecondAverage(int channel, int bin, floa
         if (bin > (int)fft.size())
             continue;
 
+        const int previous_index = (i + _average_index - 1) % _framerate;
+        std::vector<float>& prevfft = _history_difference_fft[previous_index];
+
+        if (bin > (int)prevfft.size())
+            continue;
+
         const float power = fft[bin];
         if (power < threshold)
+            continue;
+
+        // already held down
+        if (prevfft[bin] > threshold)
             continue;
 
         beats += 1;
@@ -694,6 +745,8 @@ void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 co
 
 void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, v2 scale, v3 color, float alpha)
 {
+    const int W = GetFFTWindowSize();
+
     static std::vector<float> converted;
 
     converted.resize(data.size());
@@ -701,8 +754,8 @@ void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, 
     for (int i = 0; i < (int)data.size(); ++i)
     {
         const std::complex<float> c = data[i];
-        const float f = c.real() * c.real() + c.imag() * c.imag();
-        converted[i] = std::powf(f * _fft_magnify_scale, _fft_magnify_power);
+        const float f = std::sqrtf(c.real() * c.real() + c.imag() * c.imag()) / float(W);
+        converted[i] = std::logf(std::max<float>(0.0001f, std::powf(f * _fft_magnify_scale, _fft_magnify_power)));
     }
 
     DrawWaveform(converted, scale, color, alpha);
@@ -735,6 +788,8 @@ void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color,
 
 void GMAudioStream::DrawBars(const std::vector<std::complex<float> >& data, v2 scale, v3 color, float alpha)
 {
+    const int W = GetFFTWindowSize();
+
     static std::vector<float> converted;
 
     converted.resize(data.size());
@@ -742,8 +797,8 @@ void GMAudioStream::DrawBars(const std::vector<std::complex<float> >& data, v2 s
     for (int i = 0; i < (int)data.size(); ++i)
     {
         const std::complex<float> c = data[i];
-        const float f = c.real() * c.real() + c.imag() * c.imag();
-        converted[i] = std::powf(f * _fft_magnify_scale, _fft_magnify_power);
+        const float f = std::sqrtf(c.real() * c.real() + c.imag() * c.imag()) / float(W);
+        converted[i] = std::logf(std::max<float>(0.0001f, std::powf(f * _fft_magnify_scale, _fft_magnify_power)));
     }
 
     DrawBars(converted, scale, color, alpha);

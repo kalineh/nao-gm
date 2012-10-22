@@ -17,7 +17,7 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
-        .fft_magnify_scale = 60.0f;
+        .fft_magnify_scale = 10.0f;
         .fft_magnify_power = 1.0f;
         .use_microphone = true;
         .use_sine_wave = false;
@@ -27,6 +27,7 @@ global MakeAudioTest = function()
         .tuner_mode = false;
         .tuner_threshold = 0.005f;
         .piano_playback_test = false;
+        .show_beat_estimate = false;
         .beat_estimate_bin = 1;
         .beat_estimate_threshold = 0.01f;
         .beats_per_second_history = table();
@@ -75,15 +76,16 @@ global MakeAudioTest = function()
         .drawbars[2] = Gui.CheckBox("Draw Bars (Average)", .drawbars[2]);
         .drawbars[3] = Gui.CheckBox("Draw Bars (Difference)", .drawbars[3]);
 
-        .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 1.0f, 60.0f * 10.0f);
-        .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 1.0f, 16.0f);
+        .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 0.001f, 10.0f);
+        .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 0.1f, 3.0f);
         .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
         .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
-        .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, 64);
+        .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, .audio.GetFFTWindowSize() / 2 - 1);
         .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
         .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
         .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.00001f, 0.01f);
         .piano_playback_test = Gui.CheckBox("Piano Playback Test", .piano_playback_test);
+        .show_beat_estimate = Gui.CheckBox("Beat Estimate", .show_beat_estimate);
         .beat_estimate_bin = Gui.SliderInt("Beat Estimate Bin", .beat_estimate_bin, 1, .audio.GetFFTWindowSize() / 2 - 1);
         .beat_estimate_threshold = Gui.SliderFloat("Beat Estimate Threshold", .beat_estimate_threshold, 0.001f, 0.1f);
 
@@ -188,7 +190,6 @@ global MakeAudioTest = function()
 
                 local bps_history_length = 60 * 8;
                 local bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
-                print("bps:", bps);
 
                 .beats_per_second_history[.beats_per_second_index] = bps;
                 .beats_per_second_index += 1;
@@ -204,7 +205,10 @@ global MakeAudioTest = function()
                     }
                 }
 
-                //print("bpm:", bpm / (bps_history_length.Float() / 60.0f));
+                if (.show_beat_estimate)
+                {
+                    print("bps:", bps, "bpm:", bpm / (bps_history_length.Float() / 60.0f));
+                }
 
                 if (.tuner_mode)
                 {
