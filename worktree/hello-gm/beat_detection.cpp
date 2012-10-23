@@ -120,7 +120,7 @@ void FFT::bitReverseCopy(const std::vector<Complex>& src, std::vector<Complex>& 
 // http://home.fuse.net/clymer/graphs/fourier.html
 //
 //
-void DFT3(int count, float* inreal, float* inimag, float* outreal, float* outimag)
+void DFT4_old(int count, float* inreal, float* inimag, float* outreal, float* outimag)
 {
     // DFT only evaluates frequencies up to N / 2
 
@@ -149,21 +149,31 @@ void DFT3(int count, float* inreal, float* inimag, float* outreal, float* outima
         outreal[i] = real;
         outimag[i] = imag;
     }
-    
-    // NOTE: why were we doing this again?
-    //for (int i = 0; i < n / 2; ++i)
-    //{
-        //outreal[i] /= float(n) / 2.0f;
-        //outimag[i] /= float(n) / 2.0f;
-    //}
 }
 
-void DFT2(int count, float* input, std::complex<float>* out)
+void Hanning(int count, float* input, float* output)
 {
+    // TODO: magical optimized version
+    for (int i = 0; i < count; ++i)
+    {
+        output[i] = input[i] * 0.5f * (1.0f - std::cosf(2.0f * PI * float(i) / float(count)));
+    }
+}
+
+void DFT3(int count, float* input, float* out, float magnify_scale, float magnify_power)
+{
+    // using a hann window cleans up our result a lot, much less random faff
+    Hanning(count, input, input);
+
     // discrete fourier transform, but we are not normalizing yet
     // F[bin] = 1/N * (f[n] * e ^ i * 2pi * bin * n/N), for each n
     // this code is:
     // F[bin] = (f[n] * e ^ i * 2pi * bin * n/N), for each n
+
+    static std::vector<std::complex<float> > cfft;
+
+    cfft.clear();
+    cfft.resize(count);
 
     memset(out, 0, sizeof(out[0]) * count);
 
@@ -184,35 +194,147 @@ void DFT2(int count, float* input, std::complex<float>* out)
             imag += f * std::sinf(a * t);
         }
 
-        out[bin] = std::complex<float>(real, imag);
+        cfft[bin] = std::complex<float>(real, imag);
+    }
+
+    for (int bin = 0; bin < nyquist; ++bin)
+    {
+        const std::complex<float> c = cfft[bin];
+
+        const float f0 = std::sqrtf(c.real() * c.real() + c.imag() * c.imag());
+        const float f1 = f0 * magnify_scale;
+        const float f2 = std::powf(f1, magnify_power);
+        const float f3 = std::logf(f2);
+        const float f4 = std::max<float>(0.000000001f, f3);
+
+        out[bin] = f4;
     }
 }
 
-// reference implementation
-void DFTref(int count, float* inreal, float* inimag, float* outreal, float* outimag)
+/*
+void DFT3_test(int count, float* input, float* out)
 {
-    int n = count;
-    for (int k = 0; k < n; k++)
+    const float _fft_magnify_scale = 1.0f;
+    const float _fft_magnify_power = 1.0f;
+
+    // using a hann window cleans up our result a lot, much less random faff
+    Hanning(count, input, input);
+
+    // discrete fourier transform, but we are not normalizing yet
+    // F[bin] = 1/N * (f[n] * e ^ i * 2pi * bin * n/N), for each n
+    // this code is:
+    // F[bin] = (f[n] * e ^ i * 2pi * bin * n/N), for each n
+
+    static std::vector<float> in;
+    static std::vector<std::complex<float> > cfft;
+    static std::vector<float> rfft;
+
+    in.clear();
+    in.resize(count);
+
+    cfft.clear();
+    cfft.resize(count);
+
+    rfft.clear();
+    rfft.resize(count);
+
+    memset(out, 0, sizeof(out[0]) * count);
+
+    const int nyquist = count / 2;
+
+    for (int i = 0; i < count; ++i)
     {
-        float sumreal = 0;
-        float sumimag = 0;
+        in[i] = input[i];
+    }
 
-        // equalize contribution
-        const float divisor = float(k) / float(n);
+    for (int i = 0; i < count; ++i)
+    {
+        const float a = 2.0f * PI * float(i) / float(count);
+        
+        float real = 0.0f;
+        float imag = 0.0f;
 
-        for (int t = 0; t < n; t++)
+        for (int t = 0; t < count; ++t)
         {
-            sumreal +=  inreal[t]*cosf(2*PI * t * k / n) + inimag[t]*sinf(2*PI * t * k / n);
-            sumimag += -inreal[t]*sinf(2*PI * t * k / n) + inimag[t]*cosf(2*PI * t * k / n);
-            //sumreal +=  inreal[t]*cosf(2*PI * t * k / n) + inimag[t]*sinf(2*PI * t * k / n);
-            //sumimag += -inreal[t]*sinf(2*PI * t * k / n) + inimag[t]*cosf(2*PI * t * k / n);
+            const float f = in[t];
+
+            real += f * std::cosf(a * t);
+            imag += f * std::sinf(a * t);
         }
 
-        outreal[k] = sumreal;
-        outimag[k] = sumimag;
+        cfft[i] = std::complex<float>(real, imag);
     }
-}
 
+    // compute power
+
+    for (int i = 0; i < count; ++i)
+    {
+        const std::complex<float> c = cfft[i];
+        in[i] = c.real() * c.real() + c.imag() * c.imag();
+    }
+
+    // take cube root
+
+    for (int i = 0; i < count; ++i)
+    {
+        in[i] = std::powf(in[i], 1.0f / 3.0f);
+    }
+
+    // fft again
+
+    for (int i = 0; i < count; ++i)
+    {
+        const float a = 2.0f * PI * float(i) / float(count);
+        
+        float real = 0.0f;
+        float imag = 0.0f;
+
+        for (int t = 0; t < count; ++t)
+        {
+            const float f = in[t];
+
+            real += f * std::cosf(a * t);
+            imag += f * std::sinf(a * t);
+        }
+
+        cfft[i] = std::complex<float>(real, imag);
+    }
+
+    // take real part
+
+    for (int i = 0; i < nyquist; ++i)
+    {
+        rfft[i] = cfft[i].real();
+    }
+
+    // clip at zero
+
+    for (int i = 0; i < nyquist; ++i)
+    {
+        rfft[i] = std::max<float>(rfft[i], 0.0f);
+        out[i] = rfft[i];
+    }
+
+    // subtract time-doubled signal
+
+    for (int bin = 0; bin < nyquist; ++bin)
+    {
+        if (bin % 2 == 0)
+            rfft[bin] -= out[bin / 2];
+        else
+            rfft[bin] -= ((out[bin / 2] + out[bin / 2 + 1]) / 2);
+    }
+
+    // clip at zero again
+
+    for (int bin = 0; bin < nyquist; ++bin)
+    {
+        rfft[bin] = std::max<float>(rfft[bin], 0.0f);
+        out[bin] = rfft[bin];
+    }
+
+}
+*/
 
 ALSoundProcessing::ALSoundProcessing(boost::shared_ptr<AL::ALBroker> broker, std::string name)
     : AL::ALSoundExtractor(broker, name)
@@ -349,6 +471,8 @@ void GMAudioStream::Update()
     _average_index %= _framerate;
 
     //printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
+
+    _synthesizer.resize(_frequency);
 }
 
 void GMAudioStream::CalcFrameDFT(int channel)
@@ -360,7 +484,7 @@ void GMAudioStream::CalcFrameDFT(int channel)
     CHECK((int)c.raw.size() >= W);
     CHECK((int)c.fft.size() >= W);
 
-    DFT2(W, &c.raw[0], &c.fft[0]);
+    DFT3(W, &c.raw[0], &c.fft[0], _fft_magnify_scale, _fft_magnify_power);
 }
 
 void GMAudioStream::CalcFrameFFT(int channel)
@@ -372,19 +496,10 @@ void GMAudioStream::CalcFrameFFT(int channel)
     CHECK((int)c.raw.size() >= W);
     CHECK((int)c.fft.size() >= W);
 
-    for (int i = 0; i < W; ++i)
-    {
-        c.fft[i] = std::complex<float>(c.raw[i], 0.0f);
-    }
-
-    FFT fft(W, true);
-
-    std::vector<std::complex<float> > results = fft.transform(c.fft);
-
-    for (int i = 0; i < W; ++i)
-    {
-        c.fft[i] = results[i];
-    }
+    //FFT fft(W, true);
+    //std::vector<std::complex<float> > results = fft.transform(c.fft);
+    //for (int i = 0; i < W; ++i)
+        //c.fft[i] = results[i];
 }
 
 void GMAudioStream::CalcFrameAverageAndDifference(int channel)
@@ -403,9 +518,7 @@ void GMAudioStream::CalcFrameAverageAndDifference(int channel)
 
     for (int i = 0; i < (int)c.fft.size(); ++i)
     {
-        const std::complex<float> fft = c.fft[i];
-        const float f = fft.real() * fft.real() + fft.imag() * fft.imag();
-        history[i] = std::powf(f * _fft_magnify_scale, _fft_magnify_power);
+        history[i] = c.fft[i];
     }
 
     // accumulate history
@@ -538,56 +651,135 @@ int GMAudioStream::CalcEstimatedBeatsPerSecondAverage(int channel, int bin, floa
     return beats;
 }
 
+float FrequencyToPitch(float hz)
+{
+   return 69.0f + 12.0f * (std::logf(hz / 440.0f) / std::logf(2.0f));
+}
+
+float PitchToFrequency(float pitch)
+{
+  return 440.0f * std::powf(2.0f, (pitch - 69.0f) / 12.0f);
+}
+
+char gPitchName[10];
+
+const char* GetNoteName(int pitch)
+{
+    const char* notes[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    return notes[pitch % 12];
+}
+
+int GetNoteOctave(int pitch)
+{
+    return (pitch + 3) / 12 - 2;
+}
+
+float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
+{
+   // Find coefficients of cubic
+   float a, b, c, d;
+
+   a = y0 / -6.0 + y1 / 2.0 - y2 / 2.0 + y3 / 6.0;
+   b = y0 - 5.0 * y1 / 2.0 + 2.0 * y2 - y3 / 2.0;
+   c = -11.0 * y0 / 6.0 + 3.0 * y1 - 3.0 * y2 / 2.0 + y3 / 3.0;
+   d = y0;
+
+   // Take derivative
+   float da, db, dc;
+
+   da = 3 * a;
+   db = 2 * b;
+   dc = c;
+
+   // Find zeroes of derivative using quadratic equation
+   float discriminant = db * db - 4 * da * dc;
+   if (discriminant < 0.0)
+      return -1.0;              // error
+
+   float x1 = (-db + sqrt(discriminant)) / (2 * da);
+   float x2 = (-db - sqrt(discriminant)) / (2 * da);
+
+   // The one which corresponds to a local _maximum_ in the
+   // cubic is the one we want - the one with a negative
+   // second derivative
+   float dda = 2 * da;
+   float ddb = db;
+
+#define CUBIC(x,a,b,c,d)  (a*x*x*x + b*x*x + c*x + d)
+
+   if (dda * x1 + ddb < 0) {
+     *maxyVal = CUBIC(x1,a,b,c,d);
+     return x1;
+   }
+   else {
+     *maxyVal = CUBIC(x2,a,b,c,d);
+     return x2;
+   }
+
+#undef CUBIC
+}
+
 void GMAudioStream::NoteTuner(float threshold)
 {
     const int W = GetFFTWindowSize();
 
-    // the difference of energy in this frame above
-    // a threshold means a beat on that fft band
+    // hz of bin B is (Frequency / Bins) * B
+    // ie. bin 7 is (44100 / (44100 / 60)) * 7 = 44100 / 735 * 7 = 420hz
+    // ie. bin 8 is (44100 / (44100 / 60)) * 8 = 44100 / 735 * 8 = 480hz
+    // a piano A4 is 440hz, so will have data in both these bins
 
-    // how can we map an fft band to a note?
-    // we are not handling mic data properly
-    // we will get overlap with data over time
-    // 
+    // sub-bin accuracy is needed for determining clean note tones accurately
+    // currently uses cubic maximum to estimate
+    // can probably test weighted averaging based on bin magnitude
 
-    // for this, the index is equivalent to a sine wave of that frequency
-    // this is a frequency over the FFT window
-    // and this in real-time terms is (Window / Frequency) seconds
-
-    // for sample rate of 10000hz, we get frequencies from 0..5000hz
-    // with 128 fft bins we get (5000/128) = 39.06hz steps
-    // so peak in bin 16 is (5000/128)*16 = 625hz
-
-    // A4 = 440hz
-
+    // either can use instantaneous or averages
+    std::vector<float>& src = _channels[0].fft;
     //std::vector<float>& src = _average_fft;
-    std::vector<float>& src = _difference_fft;
 
     // 49 - 60 inclusive
-    const char* piano_notes[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", };
+    const char* piano_notes[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
     char buffer[1024] = { 0 };
     char* write = buffer;
 
-    for (int i = 0; i < (int)src.size(); ++i)
+    bool was_rising = src[1] > src[0];
+
+    for (int bin = 2; bin < W; ++bin)
     {
-        const float power = src[i];
-        if (power < threshold)
-            continue;
+        bool now_rising = src[bin] > src[bin - 1];
 
-        const float wave_frequency_over_window = float(i);
-        const float window_to_seconds = (_frequency / 2.0f) / float(W);
-        const float est_frequency = wave_frequency_over_window * window_to_seconds;
+        if (now_rising && !was_rising)
+        {
+            float y = 0.0f;
 
-        const int note_index = int(12.0f * std::logf(est_frequency / 440.0f)) + 49;
+            const int left = bin - 2;
+            const float cubic = CubicMaximize(src[left], src[left+1], src[left+2], src[left+3], &y);
+            const float maximum = float(left) + cubic;
 
-        //write += sprintf(write, "%.2f, ", est_frequency);
-        //write += sprintf(write, "%d, ", note_index);
+            if (y != y)
+                continue;
 
-        const int piano_octave = note_index / 12;
-        const int piano_key = (note_index - 1) % 12;
+            if (y < threshold)
+                continue;
 
-        write += sprintf(write, "%s%d ", piano_notes[piano_key], piano_octave);
+            if (maximum < 0.0f)
+                continue;
+
+            const float hz = maximum * _frequency / float(W);
+
+            const int pitch = int(FrequencyToPitch(hz) + 0.5f);
+
+            // TODO: we can get negative pitch somehow here, figure out why
+            //       likely some artifact of the cubic maximize
+            if (pitch < 0)
+                continue;
+
+            const char* note = piano_notes[pitch % 12];
+            write += sprintf(write, "%s%d ", GetNoteName(pitch), GetNoteOctave(pitch));
+            //write += sprintf(write, "%.2fhz (%.2f)", pitch, y);
+        }
+
+        was_rising = now_rising;
     }
 
     if (write != buffer)
@@ -596,10 +788,10 @@ void GMAudioStream::NoteTuner(float threshold)
 
 void GMAudioStream::TimePrint(const char* format, ...)
 {
-    char buffer[1024] = { 0 };
+    char buffer[4096] = { 0 };
 	va_list args;
 	va_start(args, format);
-	vsnprintf_s(buffer, 1024, 1024, format, args);
+	vsnprintf_s(buffer, 4096, 4096, format, args);
 	va_end (args);
 
     const int W = GetFFTWindowSize();
@@ -726,28 +918,6 @@ void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 co
     }
 }
 
-void GMAudioStream::DrawWaveform(const std::vector<std::complex<float> >& data, v2 scale, v3 color, float alpha)
-{
-    static std::vector<float> converted;
-
-    converted.resize(data.size());
-
-    for (int i = 0; i < (int)data.size(); ++i)
-    {
-        const std::complex<float> c = data[i];
-
-        const float f0 = std::sqrtf(c.real() * c.real() + c.imag() * c.imag());
-        const float f1 = f0 * _fft_magnify_scale;
-        const float f2 = std::powf(f1, _fft_magnify_power);
-        const float f3 = std::max<float>(0.0000001f, f2);
-        const float f4 = std::logf(f3);
-
-        converted[i] = f4;
-    }
-
-    DrawWaveform(converted, scale, color, alpha);
-}
-
 void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color, float alpha)
 {
     const int count = data.size();
@@ -771,30 +941,6 @@ void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color,
         DrawLine(v2(a.x, b.y), v2(b.x, b.y));
         DrawLine(v2(b.x, b.y), v2(b.x, b.y));
     }
-}
-
-void GMAudioStream::DrawBars(const std::vector<std::complex<float> >& data, v2 scale, v3 color, float alpha)
-{
-    const int W = GetFFTWindowSize();
-
-    static std::vector<float> converted;
-
-    converted.resize(data.size());
-
-    for (int i = 0; i < (int)data.size(); ++i)
-    {
-        const std::complex<float> c = data[i];
-
-        const float f0 = std::sqrtf(c.real() * c.real() + c.imag() * c.imag());
-        const float f1 = f0 * _fft_magnify_scale;
-        const float f2 = std::powf(f1, _fft_magnify_power);
-        const float f3 = std::max<float>(0.0000001f, f2);
-        const float f4 = std::logf(f3);
-
-        converted[i] = f4;
-    }
-
-    DrawBars(converted, scale, color, alpha);
 }
 
 void GMAudioStream::Subscribe()

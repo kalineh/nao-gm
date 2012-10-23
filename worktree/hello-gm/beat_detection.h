@@ -117,10 +117,7 @@ private:
     void TimePrint(const char* format, ...);
 
     void DrawWaveform(const std::vector<float>& channel, v2 scale, v3 color, float alpha);
-    void DrawWaveform(const std::vector<std::complex<float> >& channel, v2 scale, v3 color, float alpha);
-
     void DrawBars(const std::vector<float>& channel, v2 scale, v3 color, float alpha);
-    void DrawBars(const std::vector<std::complex<float> >& channel, v2 scale, v3 color, float alpha);
 
     void Subscribe();
 
@@ -143,7 +140,7 @@ private:
     struct Channel
     {
         std::vector<float> raw;
-        std::vector<std::complex<float> > fft;
+        std::vector<float> fft;
     };
 
     std::vector<Channel> _channels;
@@ -156,6 +153,8 @@ private:
 
     StrongHandle<MicrophoneRecorder> _recorder;
     std::vector<signed char> _microphone_buffer;
+
+    std::vector<float> _synthesizer;
 };
 
 GM_BIND_DECL(GMAudioStream);
