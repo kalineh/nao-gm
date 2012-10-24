@@ -212,7 +212,8 @@ global MakeAudioTest = function()
 
                 if (.tuner_mode)
                 {
-                    .audio.NoteTuner(.tuner_threshold);
+                    //.audio.NoteTuner(.tuner_threshold);
+                    .audio.CalcFramePitches(.tuner_threshold);
                 }
 
                 if (.piano_playback_test)

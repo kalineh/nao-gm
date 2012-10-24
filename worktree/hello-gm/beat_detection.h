@@ -104,6 +104,7 @@ public:
     void DrawFrameDifferenceBars(v3 color, float alpha);
 
     void NoteTuner(float threshold);
+    void CalcFramePitches(float threshold);
 
     int TestGetPianoNotes(float threshold, std::vector<int>& test_notes);
 
@@ -155,6 +156,9 @@ private:
     std::vector<signed char> _microphone_buffer;
 
     std::vector<float> _synthesizer;
+
+    std::vector<float> _pitch;
+    std::vector< std::vector<float> > _pitch_history;
 };
 
 GM_BIND_DECL(GMAudioStream);
