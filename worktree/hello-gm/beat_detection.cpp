@@ -719,6 +719,132 @@ float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
 #undef CUBIC
 }
 
+class NoteBrain
+{
+public:
+    NoteBrain();
+
+    void Update(float forget);
+    void AddNote(int note, float confidence);
+
+    void EstimateScale();
+    void GenerateMelody();
+
+    void DrawNoteConfidences(v3 color, float alpha);
+
+private:
+    float EstimateScaleConfidence(int start_note, const int* offsets);
+
+    // 0-83
+    // A0 to G#6
+    std::vector<float> _notes;
+};
+
+NoteBrain::NoteBrain()
+{
+    _notes.resize(84);
+}
+
+void NoteBrain::Update(float forget)
+{
+    for (int i = 0; i < _notes.size(); ++i)
+    {
+        _notes[i] = std::max<float>(_notes[i] - forget, 0.0f);
+    }
+}
+
+void NoteBrain::AddNote(int note, float confidence)
+{
+    if (note < 0)
+        return;
+
+    if (note >= _notes.size())
+        return;
+
+    _notes[note] += confidence;
+}
+
+void NoteBrain::EstimateScale()
+{
+    const int ScaleTypes = 2;
+    const int ScaleNotes = 7;
+    const int OctaveNotes = 12;
+
+    static const int scale_offsets[ScaleTypes][ScaleNotes] = {
+        { 0, 2, 4, 5, 7, 9, 11 }, // major
+        { 0, 2, 3, 5, 7, 8, 10 }, // minor
+        // others
+    };
+
+    // A, A#, B, C, C#, D, D#, E, F, F#, G, G#
+    float scale_confidence[ScaleTypes][OctaveNotes] = { 0.0f };
+
+    // evaluate all notes for all known scales
+
+    for (int s = 0; s < ScaleTypes; ++s)
+    {
+        for (int n = 0; n < OctaveNotes; ++n)
+        {
+            const int* scale = scale_offsets[s];
+            const float confidence = EstimateScaleConfidence(n, scale);
+            scale_confidence[s][n] = confidence;
+        }
+    }
+
+    // find best match
+
+    float best_confidence = 0.0f;
+    int best_scale = -1;
+    int best_note = -1;
+
+    for (int s = 0; s < ScaleTypes; ++s)
+    {
+        for (int n = 0; n < OctaveNotes; ++n)
+        {
+            const float confidence = scale_confidence[s][n];
+
+            if (confidence > best_confidence)
+            {
+                best_confidence = confidence;
+                best_scale = s;
+                best_note = n;
+            }
+        }
+    }
+
+    if (best_note >= 0)
+    {
+        const char* scale_names[] = { "major", "minor" };
+        const char* note_names[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", };
+
+        printf("scale: %s %s\n", note_names[best_note], scale_names[best_scale]);
+    }
+}
+
+float NoteBrain::EstimateScaleConfidence(int start_note, const int* offsets)
+{
+    // NOTE: we scan 1 less octave than we store, because the start_note will walk up to one octave extra
+    const int Octaves = 6;
+    const int OctaveNotes = 12;
+    const int ScaleNotes = 7;
+
+    // A, A#, B, C, C#, D, D#, E, F, F#, G, G#
+    float result = 0.0f;
+
+    for (int i = 0; i < Octaves; ++i)
+    {
+        for (int n = 0; n < ScaleNotes; ++n)
+        {
+            const int index = start_note + i * OctaveNotes + offsets[n];
+            const float value = _notes[index];
+
+            result += value;
+        }
+    }
+
+    return result;
+}
+
 void GMAudioStream::CalcFramePitches(float threshold)
 {
     // we can simply scan for each frequency we want to test
@@ -726,13 +852,15 @@ void GMAudioStream::CalcFramePitches(float threshold)
 
     const int W = GetFFTWindowSize();
 
+    static NoteBrain nb;
+
     // 5 octaves
     //_pitch.clear();
-    _pitch.resize(88);
+    _pitch.resize(87);
 
     for (int i = 0; i < _pitch.size(); ++i)
     {
-        _pitch[i] = std::max<float>(_pitch[i] - 0.12f, 0.0f);
+        _pitch[i] = std::max<float>(_pitch[i] - 0.15f, 0.0f);
     }
 
     // either can use instantaneous or averages
@@ -762,7 +890,7 @@ void GMAudioStream::CalcFramePitches(float threshold)
 
             const float hz = maximum * _frequency / float(W);
 
-            const int pitch = int(FrequencyToPitch(hz) + 0.1f) - 20; // TODO: why is it 20 off?
+            const int pitch = int(FrequencyToPitch(hz) + 0.1f) - 20 - 1; // TODO: why is it 20 off? (-1 for 0-based index of notes)
 
             // TODO: we can get negative pitch somehow here, figure out why
             //       likely some artifact of the cubic maximize
@@ -777,101 +905,15 @@ void GMAudioStream::CalcFramePitches(float threshold)
             //write += sprintf(write, "%.2fhz (%.2f)", pitch, y);
             //TimePrint("%d ", pitch);
 
-            _pitch[pitch] += 1.0f;
+            _pitch[pitch] += 1;
+
+            nb.AddNote(pitch, y);
         }
 
         was_rising = now_rising;
     }
 
-    // pick best scale
-
-    // semitone stepped
-    // A, A#, B, C, C#, D, D#, E, F, F#, G, G#
-
-    // major: RTTSTTTS
-    // minor: RTSTTSTT
-
-    const int major_scale[] = { 0, 2, 4, 5, 7, 9, 11 };
-    const int minor_scale[] = { 0, 2, 3, 5, 7, 8, 10 };
-
-    float majors[12] = { 0 };
-    float minors[12] = { 0 };
-
-    const int* scale_ofs = major_scale;
-
-    const char* notes[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#" };
-    // check scale of every note A to G
-    for (int note = 0; note < 12; ++note)
-    {
-        //printf("scale: %s: ", notes[note]);
-
-        // check all octaves
-        for (int octave = 0; octave < 7; ++octave)
-        {
-            // check each note in the octave that is a part of the scale
-            for (int scale = 0; scale < 7; ++scale)
-            {
-                const int index = octave * 12 + note + scale_ofs[scale];
-                if (index >= _pitch.size())
-                    continue;
-
-                const float pitch = _pitch[index];
-                if (pitch < 5.0f)
-                    continue;
-
-                majors[note] += 1.0f;
-                //printf("%d ", scale);
-            }
-        }
-
-        //printf("\n");
-    }
-    //printf("\n");
-
-    // best scale
-    float best_score = 0.0f;
-    int best_index = -1;
-
-    for (int i = 0; i < 12; ++i)
-    {
-        const float score = majors[i];
-        if (score > best_score)
-        {
-            best_score = score;
-            best_index = i;
-        }
-    }
-
-    printf("scales: ");
-    for (int i = 0; i < 12; ++i)
-    {
-        const float score = majors[i];
-        if (score > best_score * 0.9f)
-        {
-            printf("%s ", GetNoteName((i - 4 + 12) % 12));
-        }
-    }
-    printf("\n");
-
-    if (best_index >= 0)
-    {
-        //TimePrint("best scale: %s", GetNoteName(best_index % 12));
-        /*
-        TimePrint("scales: A:%d, A#:%d, B:%d, C:%d, C#:%d, D:%d, D#:%d, E:%d, F:%d, F#:%d, G:%d, G#:%d",
-            int(majors[0]),
-            int(majors[1]),
-            int(majors[2]),
-            int(majors[3]),
-            int(majors[4]),
-            int(majors[5]),
-            int(majors[6]),
-            int(majors[7]),
-            int(majors[8]),
-            int(majors[9]),
-            int(majors[10]),
-            int(majors[11]));
-            */
-    }
+    nb.EstimateScale();
 }
 
 void GMAudioStream::NoteTuner(float threshold)
