@@ -719,61 +719,69 @@ float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
 
 #undef CUBIC
 }
-/*
-CSFX::CSFX(CFileData *fileData)
-{
-FMOD_RESULT result;
-FMOD_CREATESOUNDEXINFO settings;
-settings.cbsize = sizeof(FMOD_CREATESOUNDEXINFO);
-settings.length = fileData->getSize();
-_Sound = 0;
-std::string temp = "";
 
-for (int i = 0; i < fileData->getSize(); i++)
-    temp += fileData->getData()[i];
-
-result = tempSys->createSound(temp.c_str(), FMOD_SOFTWARE | FMOD_OPENMEMORY, &settings,        &_Sound);
-}
-*/
-
-static int fmod_pcm_cursor;
+static unsigned int fmod_pcm_read_cursor;
 static int fmod_pcm_length;
 static float* fmod_pcm_buffer;
+static unsigned int fmod_pcm_write_cursor;
 
-FMOD_RESULT F_CALLBACK pcmreadcallback(FMOD_SOUND *sound, void *data, unsigned int datalen)
+extern int HackGetCurrentThreadId();
+
+FMOD_RESULT F_CALLBACK pcmreadcallback_singlenote(FMOD_SOUND *sound, void *data, unsigned int datalen)
 {
-    /*
-    unsigned int  count;
-    static float  t1 = 0, t2 = 0;        // time
-    static float  v1 = 0, v2 = 0;        // velocity
-    //signed short *stereo16bitbuffer = (signed short *)data;
-    float* floatbuffer = (float*)data;
+    static float seconds = 0.0f;
 
-    for (count=0; count<datalen>>2; count++)        // >>2 = 16bit stereo (4 bytes per sample)
-    {
-        //*stereo16bitbuffer++ = (signed short)(sin(t1) * 32767.0f);    // left channel
-        //*stereo16bitbuffer++ = (signed short)(sin(t2) * 32767.0f);    // right channel
-        *floatbuffer++ = sin(t1);
-
-        t1 += 0.01f   + v1;
-        t2 += 0.0142f + v2;
-        v1 += (float)(sin(t1) * 0.002f);
-        v2 += (float)(sin(t2) * 0.002f);
-    }
-
-    return FMOD_OK;
-    */
-
-    float* buffer = (float*)data;
     const int samples = datalen / sizeof(float);
+
+    const float note_hz = 440.0f;
+    const float volume = 1.0f;
+
+    // elapsed buffer by samples
+    const float elapsed = samples / 44100.0f;
+    const float step = elapsed / float(samples);
+
+    float* p = (float*)data;
 
     for (int i = 0; i < samples; ++i)
     {
-        const int index = (fmod_pcm_cursor + i) % fmod_pcm_length;
+        const float t = seconds + step * i;
+        const float s = sin(t * PI * 2.0f * note_hz) * 0.5f + 0.5f;
+        p[i] = s * volume;
+    }
+
+    seconds += elapsed;
+
+    return FMOD_OK;
+}
+
+FMOD_RESULT F_CALLBACK pcmreadcallback(FMOD_SOUND *sound, void *data, unsigned int datalen)
+{
+    float* buffer = (float*)data;
+    const int samples = datalen / sizeof(float);
+
+    // fallback to last update data when no samples are ready
+    if (fmod_pcm_read_cursor + samples >= fmod_pcm_write_cursor)
+    {
+        printf("fallback %d samples\n", samples);
+        //fmod_pcm_read_cursor = std::max<unsigned int>(fmod_pcm_read_cursor - samples, 0);
+        for (int i = 0; i < samples; ++i)
+        {
+            const int index = (fmod_pcm_read_cursor) % fmod_pcm_length;
+            buffer[i] = fmod_pcm_buffer[index];
+        }
+
+        return FMOD_OK;
+    }
+
+    for (int i = 0; i < samples; ++i)
+    {
+        const int index = (fmod_pcm_read_cursor + i) % fmod_pcm_length;
         buffer[i] = fmod_pcm_buffer[index];
     }
 
-    fmod_pcm_cursor += samples;
+    fmod_pcm_read_cursor += samples;
+
+    printf("fmod read %d samples: %d\n", samples, fmod_pcm_read_cursor);
 
     return FMOD_OK;
 }
@@ -788,10 +796,21 @@ FMOD_RESULT F_CALLBACK pcmsetposcallback(FMOD_SOUND *sound, int subsound, unsign
 class FMODStream
 {
 public:
-    explicit FMODStream(int frequency)
+    explicit FMODStream()
         : _sound(NULL)
         , _channel(NULL)
+        , _frequency(0)
+        , _buffer(0)
+        , _buffer_length(0)
     {
+    }
+
+    void Init(int frequency, float* buffer, int buffer_length)
+    {
+        _frequency = frequency;
+        _buffer = buffer;
+        _buffer_length = buffer_length;
+
         // always gives FMOD_ERR_FORMAT :(
         //CreateStream(frequency);
 
@@ -800,7 +819,7 @@ public:
 
     void CreatePcmStream(int frequency)
     {
-        const float seconds = 1.0f;
+        const float seconds = float(_buffer_length) / _frequency;
 
         FMOD_RESULT result = FMOD_OK;
         FMOD_MODE mode = FMOD_2D | FMOD_LOOP_NORMAL | FMOD_SOFTWARE | FMOD_OPENUSER | FMOD_CREATESTREAM;
@@ -809,7 +828,7 @@ public:
         memset(&settings, 0, sizeof(settings));
 
         settings.cbsize = sizeof(FMOD_CREATESOUNDEXINFO);
-        settings.length = int(float(frequency) * seconds) * sizeof(float);
+        settings.length = _buffer_length * sizeof(float);
         settings.numchannels = 1;
         settings.defaultfrequency = frequency;
         settings.format = FMOD_SOUND_FORMAT_PCMFLOAT;
@@ -817,11 +836,10 @@ public:
         settings.pcmreadcallback = pcmreadcallback;
         settings.pcmsetposcallback = pcmsetposcallback;
 
-        _buffer.resize(int(frequency * seconds));
-
-        fmod_pcm_cursor = 0;
-        fmod_pcm_length = _buffer.size();
-        fmod_pcm_buffer = &_buffer[0];
+        fmod_pcm_read_cursor = 0U;
+        fmod_pcm_write_cursor = 0U;
+        fmod_pcm_length = _buffer_length;
+        fmod_pcm_buffer = _buffer;
 
     	FMOD::System* fmodSys = SoundMngr::Get()->GetSys();
         result = fmodSys->createSound(NULL, mode, &settings, &_sound);
@@ -846,19 +864,18 @@ public:
 
     	FMOD::System* fmodSys = SoundMngr::Get()->GetSys();
 
-        _buffer.resize(settings.length);
-        const char* buffer = (const char*)&_buffer[0];
+        const char* buffer = (const char*)_buffer;
         result = fmodSys->createSound(buffer, FMOD_2D | FMOD_LOOP_NORMAL | FMOD_SOFTWARE | FMOD_OPENMEMORY_POINT | FMOD_CREATESTREAM, &settings, &_sound);
         CHECK(result == FMOD_OK);
     }
 
-    float* GetBufferWrite()
+    void Play(float time)
     {
-        return &_buffer[0];
-    }
+        const int samples = int(float(_frequency) * time);
+        fmod_pcm_write_cursor += samples;
 
-    void Play()
-    {
+        printf("stream write %d samples: %d\n", samples, fmod_pcm_write_cursor);
+
         if (_channel != NULL)
             return;
 
@@ -870,7 +887,9 @@ public:
 private:
 	FMOD::Sound* _sound;
 	FMOD::Channel* _channel;
-    std::vector<float> _buffer;
+    int _frequency;
+    float* _buffer;
+    int _buffer_length;
 };
 
 class Synthesizer
@@ -893,56 +912,42 @@ private:
     FMODStream _stream;
 
     int _frequency;
-    float _cursor;
+    unsigned int _cursor;
     std::vector<float> _buffer;
 };
 
 Synthesizer::Synthesizer(int frequency, float buffer_time)
-    : _stream(frequency)
+    : _stream()
     , _frequency(frequency)
-    , _cursor(0.0f)
+    , _cursor(0U)
 {
     _buffer.resize(int(buffer_time * float(_frequency)));
+
+    _stream.Init(frequency, &_buffer[0], _buffer.size());
 }
 
 void Synthesizer::Update(float time)
 {
-    _cursor += _frequency * time;
+    _cursor += int(_frequency * time);
 }
 
 void Synthesizer::Play(float time)
 {
-    float* buffer = _stream.GetBufferWrite();
-
-    ReadBuffer(buffer, 1.0f);
-
-    _stream.Play();
-}
-
-void Synthesizer::ReadBuffer(float* output, float time)
-{
-    int samples = int(_frequency * time);
-
-    for (int i = 0; i < samples; ++i)
-    {
-        output[i] = _buffer[(int(_cursor) + i) % _buffer.size()];
-    }
+    _stream.Play(time);
 }
 
 void Synthesizer::SinWave(float frequency, float amplitude, float time)
 {
-    // TODO: is wrong calc for wave
-
     // samples to iterate is independent of wave
     const int samples = int(_frequency * time);
-    const float step = 1.0f / float(samples);
+    const float step = time / float(samples) * _frequency;
 
     for (int i = 0; i < samples; ++i)
     {
-        const float t = step * float(i) * frequency;
-        const float s = (std::sinf(t) * 0.5f + 0.5f) * amplitude;
+        const float t = float(_cursor) + step * float(i) * frequency;
+        const float s = std::sinf(t) * amplitude;
 
-        _buffer[(int(_cursor) + i) % _buffer.size()] = s;
+        _buffer[(_cursor + i) % _buffer.size()] = s;
     }
 }
 
@@ -1103,9 +1108,19 @@ void GMAudioStream::CalcFramePitches(float threshold)
     static NoteBrain nb;
     static Synthesizer synth(_frequency, 1.0f);
 
-    synth.SinWave(4000.0f, 1.0f, 1.0f);
-    synth.Play(1.0f);
+    static bool once = false;
+    if (!once) 
+    {
+        synth.SinWave(440.0f, 1.0f, 1.0f);
+        synth.Update(0.5f);
+        once = true;
+    }
 
+    const float elapsed = 1.0f / float(_framerate);
+
+    //synth.SinWave(440.0f, 1.01f, 1.0f);
+    synth.Play(elapsed);
+    synth.Update(elapsed);
 
     // 5 octaves
     //_pitch.clear();
@@ -1151,7 +1166,7 @@ void GMAudioStream::CalcFramePitches(float threshold)
                 continue;
 
             // ignoring out-of-range notes
-            if (pitch >= 88)
+            if (pitch >= 87)
                 continue;
 
             //write += sprintf(write, "%s%d ", GetNoteName(pitch), GetNoteOctave(pitch));
