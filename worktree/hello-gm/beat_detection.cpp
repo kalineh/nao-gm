@@ -3,6 +3,7 @@
 //
 
 #include "beat_detection.h"
+#include "synthesizer.h"
 
 #include <gfx/DrawPrimitives.h>
 #include <sound/SoundMngr.h>
@@ -13,11 +14,7 @@
 // beat detection notes
 // http://www.flipcode.com/misc/BeatDetectionAlgorithms.pdf
 
-#define PI 3.14159265f
-
-#include <complex>
-#include <vector>
-#include <time.h>
+#define PI 3.14159265358979f
 
 class FFT
 {
@@ -720,246 +717,6 @@ float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
 #undef CUBIC
 }
 
-static unsigned int fmod_pcm_read_cursor;
-static int fmod_pcm_length;
-static float* fmod_pcm_buffer;
-static unsigned int fmod_pcm_write_cursor;
-
-extern int HackGetCurrentThreadId();
-
-FMOD_RESULT F_CALLBACK pcmreadcallback_singlenote(FMOD_SOUND *sound, void *data, unsigned int datalen)
-{
-    static float seconds = 0.0f;
-
-    const int samples = datalen / sizeof(float);
-
-    const float note_hz = 440.0f;
-    const float volume = 1.0f;
-
-    // elapsed buffer by samples
-    const float elapsed = samples / 44100.0f;
-    const float step = elapsed / float(samples);
-
-    float* p = (float*)data;
-
-    for (int i = 0; i < samples; ++i)
-    {
-        const float t = seconds + step * i;
-        const float s = sin(t * PI * 2.0f * note_hz) * 0.5f + 0.5f;
-        p[i] = s * volume;
-    }
-
-    seconds += elapsed;
-
-    return FMOD_OK;
-}
-
-FMOD_RESULT F_CALLBACK pcmreadcallback(FMOD_SOUND *sound, void *data, unsigned int datalen)
-{
-    float* buffer = (float*)data;
-    const int samples = datalen / sizeof(float);
-
-    // fallback to last update data when no samples are ready
-    if (fmod_pcm_read_cursor + samples >= fmod_pcm_write_cursor)
-    {
-        printf("fallback %d samples\n", samples);
-        //fmod_pcm_read_cursor = std::max<unsigned int>(fmod_pcm_read_cursor - samples, 0);
-        for (int i = 0; i < samples; ++i)
-        {
-            const int index = (fmod_pcm_read_cursor) % fmod_pcm_length;
-            buffer[i] = fmod_pcm_buffer[index];
-        }
-
-        return FMOD_OK;
-    }
-
-    for (int i = 0; i < samples; ++i)
-    {
-        const int index = (fmod_pcm_read_cursor + i) % fmod_pcm_length;
-        buffer[i] = fmod_pcm_buffer[index];
-    }
-
-    fmod_pcm_read_cursor += samples;
-
-    printf("fmod read %d samples: %d\n", samples, fmod_pcm_read_cursor);
-
-    return FMOD_OK;
-}
-
-FMOD_RESULT F_CALLBACK pcmsetposcallback(FMOD_SOUND *sound, int subsound, unsigned int position, FMOD_TIMEUNIT postype)
-{
-    // ignore
-    return FMOD_OK;
-}
-
-
-class FMODStream
-{
-public:
-    explicit FMODStream()
-        : _sound(NULL)
-        , _channel(NULL)
-        , _frequency(0)
-        , _buffer(0)
-        , _buffer_length(0)
-    {
-    }
-
-    void Init(int frequency, float* buffer, int buffer_length)
-    {
-        _frequency = frequency;
-        _buffer = buffer;
-        _buffer_length = buffer_length;
-
-        // always gives FMOD_ERR_FORMAT :(
-        //CreateStream(frequency);
-
-        CreatePcmStream(frequency);
-    }
-
-    void CreatePcmStream(int frequency)
-    {
-        const float seconds = float(_buffer_length) / _frequency;
-
-        FMOD_RESULT result = FMOD_OK;
-        FMOD_MODE mode = FMOD_2D | FMOD_LOOP_NORMAL | FMOD_SOFTWARE | FMOD_OPENUSER | FMOD_CREATESTREAM;
-        FMOD_CREATESOUNDEXINFO settings; 
-
-        memset(&settings, 0, sizeof(settings));
-
-        settings.cbsize = sizeof(FMOD_CREATESOUNDEXINFO);
-        settings.length = _buffer_length * sizeof(float);
-        settings.numchannels = 1;
-        settings.defaultfrequency = frequency;
-        settings.format = FMOD_SOUND_FORMAT_PCMFLOAT;
-
-        settings.pcmreadcallback = pcmreadcallback;
-        settings.pcmsetposcallback = pcmsetposcallback;
-
-        fmod_pcm_read_cursor = 0U;
-        fmod_pcm_write_cursor = 0U;
-        fmod_pcm_length = _buffer_length;
-        fmod_pcm_buffer = _buffer;
-
-    	FMOD::System* fmodSys = SoundMngr::Get()->GetSys();
-        result = fmodSys->createSound(NULL, mode, &settings, &_sound);
-        CHECK(result == FMOD_OK);
-    }
-
-    void CreateStream(int frequency)
-    {
-        FMOD_RESULT result;
-        FMOD_CREATESOUNDEXINFO settings;
-
-        memset(&result, 0, sizeof(result));
-        memset(&settings, 0, sizeof(settings));
-
-        settings.cbsize = sizeof(FMOD_CREATESOUNDEXINFO);
-        settings.length = int( float(frequency) * 1.0f ) * sizeof(float) * 2;
-        settings.decodebuffersize = frequency;
-        settings.numchannels = 2;
-        settings.defaultfrequency = frequency;
-        settings.format = FMOD_SOUND_FORMAT_PCMFLOAT;
-        //settings.format = int( float(frequency) * 1.0f );
-
-    	FMOD::System* fmodSys = SoundMngr::Get()->GetSys();
-
-        const char* buffer = (const char*)_buffer;
-        result = fmodSys->createSound(buffer, FMOD_2D | FMOD_LOOP_NORMAL | FMOD_SOFTWARE | FMOD_OPENMEMORY_POINT | FMOD_CREATESTREAM, &settings, &_sound);
-        CHECK(result == FMOD_OK);
-    }
-
-    void Play(int samples)
-    {
-        fmod_pcm_write_cursor += samples;
-
-        printf("stream write %d samples: %d\n", samples, fmod_pcm_write_cursor);
-
-        if (_channel != NULL)
-            return;
-
-    	FMOD::System* fmodSys = SoundMngr::Get()->GetSys();
-        FMOD_RESULT result = fmodSys->playSound(FMOD_CHANNEL_FREE, _sound, false, &_channel);
-        CHECK(result == FMOD_OK);
-    }
-
-private:
-	FMOD::Sound* _sound;
-	FMOD::Channel* _channel;
-    int _frequency;
-    float* _buffer;
-    int _buffer_length;
-};
-
-class Synthesizer
-{
-public:
-    explicit Synthesizer(int frequency, int buffer_samples);
-
-    void Update(int samples);
-    void Play(int samples);
-
-    void ReadBuffer(float* output, int samples);
-
-    void SinWave(float frequency, float amplitude, int samples);
-    void SquareWave(float frequency, float amplitude, int samples);
-    void NoteWave(int note, int octave, float amplitude, int samples);
-
-    float NoteHz(int note, int octave);
-
-private:
-    FMODStream _stream;
-
-    int _frequency;
-    unsigned int _cursor;
-    std::vector<float> _buffer;
-};
-
-Synthesizer::Synthesizer(int frequency, int buffer_samples)
-    : _stream()
-    , _frequency(frequency)
-    , _cursor(0U)
-{
-    _buffer.resize(buffer_samples);
-
-    _stream.Init(frequency, &_buffer[0], _buffer.size());
-}
-
-void Synthesizer::Update(int samples)
-{
-    _cursor += samples;
-}
-
-void Synthesizer::Play(int samples)
-{
-    _stream.Play(samples);
-}
-
-void Synthesizer::SinWave(float frequency, float amplitude, int samples)
-{
-    const float time = float(samples) / float(_frequency);
-    const float step = time / float(samples);
-    const float cursor_seconds = _cursor * float(_frequency);
-
-    for (int i = 0; i < samples; ++i)
-    {
-        const float t = cursor_seconds + step * float(i) * frequency;
-        const float s = std::sinf(t * PI * 2.0f) * amplitude;
-
-        _buffer[(_cursor + i) % _buffer.size()] = s;
-    }
-}
-
-float Synthesizer::NoteHz(int note, int octave)
-{
-    // TODO: fix the offset issues?
-
-    const int pitch = octave * 12 + note;
-    const float frequency = PitchToFrequency(float(pitch));
-
-    return frequency;
-}
-
 class NoteBrain
 {
 public:
@@ -1104,6 +861,8 @@ void GMAudioStream::CalcFramePitches(float threshold)
 
     const int W = GetFFTWindowSize();
 
+    // -- synth test -- 
+
     static NoteBrain nb;
     static Synthesizer synth(_frequency, _frequency * 5);
 
@@ -1123,6 +882,8 @@ void GMAudioStream::CalcFramePitches(float threshold)
     synth.SinWave(440.0f, 1.01f, samples);
     synth.Play(samples);
     synth.Update(samples);
+
+    // -- end synth test -- 
 
     // 5 octaves
     //_pitch.clear();

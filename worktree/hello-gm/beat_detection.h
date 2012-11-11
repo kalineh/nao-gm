@@ -10,6 +10,13 @@
 
 using namespace funk;
 
+
+float FrequencyToPitch(float hz);
+float PitchToFrequency(float pitch);
+const char* GetNoteName(int pitch);
+int GetNoteOctave(int pitch);
+
+
 void RegisterGmAudioLib(gmMachine* a_vm);
 
 class ALSoundProcessing
