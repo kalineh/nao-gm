@@ -28,6 +28,41 @@ private:
     int _buffer_length;
 };
 
+struct Note
+{
+    int _type; // 0=null, 1=noise, 2=sine // square, tri, saw, pulse
+    int _sample_start;
+    int _sample_end;
+    float _pitch;
+    float _amplitude;
+    // attack
+    // delay
+    // duty
+    // etc
+
+    static float NotePitch(int note, int octave);
+
+    static Note Noise(int sample_start, int sample_end, float amplitude);
+    static Note SineWave(int sample_start, int sample_end, float pitch, float amplitude);
+
+    void Update(int frequency, int a, int b, float* out);
+
+    float GenerateNoise(int frequency, int s);
+    float GenerateSine(int frequency, int s);
+};
+
+class Tracker
+{
+public:
+    void Reset();
+    void Queue(const Note& note);
+    void Update(int sample_a, int sample_b, int frequency, float* buffer);
+
+private:
+    std::list<Note> _pending;
+    std::vector<Note> _live;
+};
+
 class Synthesizer
 {
 public:
@@ -36,19 +71,18 @@ public:
     void Update(int samples);
     void Play(int samples);
 
+    void Noise(int samples, float amplitude);
+    void SineWave(int samples, float pitch, float amplitude);
+
     void ReadBuffer(float* output, int samples);
-
-    void SinWave(float frequency, float amplitude, int samples);
-    void SquareWave(float frequency, float amplitude, int samples);
-    void NoteWave(int note, int octave, float amplitude, int samples);
-
-    float NoteHz(int note, int octave);
 
 private:
     FMODStream _stream;
+    Tracker _tracker;
 
     int _frequency;
     unsigned int _cursor;
     std::vector<float> _buffer;
+    std::vector<float> _scratch;
 };
 

@@ -879,7 +879,8 @@ void GMAudioStream::CalcFramePitches(float threshold)
         once = true;
     }
 
-    synth.SinWave(440.0f, 1.01f, samples);
+    //synth.Noise(samples, 0.05f);
+    synth.SineWave(samples, 440.0f, 1.01f);
     synth.Play(samples);
     synth.Update(samples);
 

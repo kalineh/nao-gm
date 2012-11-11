@@ -205,132 +205,126 @@ we could theoretically run at any framerate if there is enough time to generate 
     - remove any completed notes
 */
 
-struct Note
+float Note::NotePitch(int note, int octave)
 {
-    int _type;
-    int _sample_start;
-    int _sample_end;
-    int _pitch;
-    float _amplitude;
-    // attack
-    // delay
-    // etc
+    // TODO: fix the offset issues
 
-    static Note SineWave(int sample_start, int sample_end, int pitch, float amplitude)
-    {
-        Note note;
+    const int n = octave * 12 + note;
+    const float frequency = PitchToFrequency(float(n));
 
-        note._type = 0;
-        note._sample_start = sample_start;
-        note._sample_end = sample_end;
-        note._pitch = pitch;
-        note._amplitude = amplitude;
+    return frequency;
+}
 
-        return note;
-    }
-
-    static Note Noise(int sample_start, int sample_end, float amplitude)
-    {
-        Note note;
-        
-        note._type = 1;
-        note._sample_start = sample_start;
-        note._sample_end = sample_end;
-        note._pitch = 0;
-        note._amplitude = amplitude;
-
-        return note;
-    }
-
-    void Update(int frequency, int a, int b, float* out)
-    {
-        // TODO: wrapping
-        const int samples = b - a;
-
-        for (int i = 0; i < samples; ++i)
-        {
-            const int s = (a - _sample_start) + i;
-
-            switch (_type)
-            {
-            case 0: out[i] = GenerateSine(frequency, s); break;
-            case 1: out[i] = GenerateNoise(frequency, s); break;
-            default:
-                ASSERT(false);
-                break;
-            }
-        }
-    }
-
-    float GenerateSine(int frequency, int s)
-    {
-        // r is sample range b - a
-        // s is sample, from 0 to r
-        // rt is time of this note range in seconds (r / f)
-        // st is time of this sample, from 0.0f at a, to 1.0f at b
-
-        const int range = _sample_end - _sample_start;
-        const float range_time = float(range) / float(frequency);
-        const float sample_time = float(s) / float(range);
-
-        const float t = sample_time * _pitch * PI * 2.0f;
-        const float f = std::sinf(t) * _amplitude;
-
-        return f;
-    }
-
-    float GenerateNoise(int frequency, int s)
-    {
-        const int i = s ^ s * s;
-
-        return float(i % 65535) / 65535.0f;
-    }
-};
-
-class Tracker
+Note Note::Noise(int sample_start, int sample_end, float amplitude)
 {
-public:
-    Tracker(int frequency, int buffer_samples);
+    Note note;
+    
+    note._type = 1;
+    note._sample_start = sample_start;
+    note._sample_end = sample_end;
+    note._pitch = 0.0f;
+    note._amplitude = amplitude;
 
-    void Queue(const Note& note)
+    return note;
+}
+
+Note Note::SineWave(int sample_start, int sample_end, float pitch, float amplitude)
+{
+    Note note;
+
+    note._type = 2;
+    note._sample_start = sample_start;
+    note._sample_end = sample_end;
+    note._pitch = pitch;
+    note._amplitude = amplitude;
+
+    return note;
+}
+
+void Note::Update(int frequency, int a, int b, float* out)
+{
+    // TODO: wrapping
+    const int samples = b - a;
+
+    for (int i = 0; i < samples; ++i)
     {
-        _pending.insert(_pending.begin(), note);
+        const int s = (a - _sample_start) + i;
+
+        switch (_type)
+        {
+        case 0: break;
+        case 1: out[i] = GenerateNoise(frequency, s); break;
+        case 2: out[i] = GenerateSine(frequency, s); break;
+        default:
+            ASSERT(false);
+            break;
+        }
+    }
+}
+
+float Note::GenerateNoise(int frequency, int s)
+{
+    const int i = s ^ s * s;
+
+    return float(i % 65535) / 65535.0f;
+}
+
+float Note::GenerateSine(int frequency, int s)
+{
+    // r is sample range b - a
+    // s is sample, from 0 to r
+    // rt is time of this note range in seconds (r / f)
+    // st is time of this sample, from 0.0f at a, to 1.0f at b
+
+    const int range = _sample_end - _sample_start;
+    const float range_time = float(range) / float(frequency);
+    const float sample_time = float(s) / float(range);
+
+    const float t = sample_time * _pitch * PI * 2.0f;
+    const float f = std::sinf(t) * _amplitude;
+
+    return f;
+}
+
+void Tracker::Reset()
+{
+    _pending.clear();
+    _live.clear();
+}
+
+void Tracker::Queue(const Note& note)
+{
+    _pending.insert(_pending.begin(), note);
+}
+
+void Tracker::Update(int sample_a, int sample_b, int frequency, float* buffer)
+{
+    // ensure buffer is valid for writing sample_b - sample_a elements
+
+    auto a = _pending.begin();
+    auto b = _pending.end();
+
+    for (; a != b; )
+    {
+        const Note& note = *a;
+
+        if (note._sample_start < sample_b)
+        {
+            _live.push_back(note);
+            a = _pending.erase(a);
+            b = _pending.end();
+        }
+        else
+        {
+            ++a;
+        }
     }
 
-    void Update(int samples, float* buffer)
+    for (int i = 0; i < (int)_live.size(); ++i)
     {
-        auto a = _pending.begin();
-        auto b = _pending.end();
-
-        const int sample_a = _sample;
-        const int sample_b = _sample + samples;
-
-        for (; a != b; ++a)
-        {
-            const Note& note = *a;
-
-            if (note._sample_start < sample_b)
-            {
-                _live.push_back(note);
-                a = _pending.erase(a);
-                b = _pending.end();
-            }
-        }
-
-        for (int i = 0; i < (int)_live.size(); ++i)
-        {
-            _live[i].Update(_frequency, sample_a, sample_b, buffer);
-        }
-
-        _sample += samples;
+        _live[i].Update(frequency, sample_a, sample_b, buffer);
     }
-
-    int _sample;
-    int _frequency;
-
-    std::list<Note> _pending;
-    std::vector<Note> _live;
-};
+}
 
 
 Synthesizer::Synthesizer(int frequency, int buffer_samples)
@@ -345,6 +339,18 @@ Synthesizer::Synthesizer(int frequency, int buffer_samples)
 
 void Synthesizer::Update(int samples)
 {
+    _scratch.resize(samples);
+
+    _tracker.Update(_cursor, _cursor + samples, _frequency, &_scratch[0]);
+    
+    for (int i = 0; i < (int)_scratch.size(); ++i)
+    {
+        const int index = (_cursor + i) % _buffer.size();
+        const float value = _scratch[i];
+
+        _buffer[index] = value;
+    }
+
     _cursor += samples;
 }
 
@@ -353,8 +359,16 @@ void Synthesizer::Play(int samples)
     _stream.Play(samples);
 }
 
-void Synthesizer::SinWave(float frequency, float amplitude, int samples)
+void Synthesizer::Noise(int samples, float amplitude)
 {
+    _tracker.Queue(Note::Noise(_cursor, _cursor + samples, amplitude));
+}
+
+void Synthesizer::SineWave(int samples, float pitch, float amplitude)
+{
+    _tracker.Queue(Note::SineWave(_cursor, _cursor + samples, pitch, amplitude));
+
+    /*
     const float time = float(samples) / float(_frequency);
     const float step = time / float(samples);
     const float cursor_seconds = _cursor * float(_frequency);
@@ -366,15 +380,5 @@ void Synthesizer::SinWave(float frequency, float amplitude, int samples)
 
         _buffer[(_cursor + i) % _buffer.size()] = s;
     }
+    */
 }
-
-float Synthesizer::NoteHz(int note, int octave)
-{
-    // TODO: fix the offset issues?
-
-    const int pitch = octave * 12 + note;
-    const float frequency = PitchToFrequency(float(pitch));
-
-    return frequency;
-}
-
