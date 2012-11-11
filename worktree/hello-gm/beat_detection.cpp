@@ -869,18 +869,19 @@ void GMAudioStream::CalcFramePitches(float threshold)
     // the rate at which fmod pulls samples is higher than our update rate
     // since we are running slightly slower because of dropped frames
     // how do we rectify this mismatch?
-    const int samples = _frequency / _framerate;
+    //const int samples = _frequency / _framerate;
+    const int samples = synth.CalculateStreamRequiredSamples();
 
     static bool once = false;
     if (!once) 
     {
-        //synth.SinWave(440.0f, 1.0f, _frequency);
-        //synth.Update(_frequency / 2);
+        synth.SineWave(_frequency, 440.0f, 1.01f);
+        //synth.Play(samples);
         once = true;
     }
 
     //synth.Noise(samples, 0.05f);
-    synth.SineWave(samples, 440.0f, 1.01f);
+    //synth.SineWave(_frequency, 440.0f, 1.01f);
     synth.Play(samples);
     synth.Update(samples);
 

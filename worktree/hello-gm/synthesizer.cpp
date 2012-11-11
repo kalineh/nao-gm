@@ -16,9 +16,9 @@
 
 #define PI 3.14159265358979f
 
-static unsigned int fmod_pcm_read_cursor;
 static int fmod_pcm_length;
 static float* fmod_pcm_buffer;
+static unsigned int fmod_pcm_read_cursor;
 static unsigned int fmod_pcm_write_cursor;
 
 FMOD_RESULT F_CALLBACK pcmreadcallback_singlenote(FMOD_SOUND *sound, void *data, unsigned int datalen)
@@ -57,14 +57,7 @@ FMOD_RESULT F_CALLBACK pcmreadcallback(FMOD_SOUND *sound, void *data, unsigned i
     if (fmod_pcm_read_cursor + samples >= fmod_pcm_write_cursor)
     {
         printf("fallback %d samples\n", samples);
-        //fmod_pcm_read_cursor = std::max<unsigned int>(fmod_pcm_read_cursor - samples, 0);
-        for (int i = 0; i < samples; ++i)
-        {
-            const int index = (fmod_pcm_read_cursor) % fmod_pcm_length;
-            buffer[i] = fmod_pcm_buffer[index];
-        }
-
-        return FMOD_OK;
+        return FMOD_ERR_NOTREADY;
     }
 
     for (int i = 0; i < samples; ++i)
@@ -151,7 +144,6 @@ void FMODStream::CreateStream(int frequency)
     settings.numchannels = 2;
     settings.defaultfrequency = frequency;
     settings.format = FMOD_SOUND_FORMAT_PCMFLOAT;
-    //settings.format = int( float(frequency) * 1.0f );
 
 	FMOD::System* fmodSys = SoundMngr::Get()->GetSys();
 
@@ -164,7 +156,10 @@ void FMODStream::Play(int samples)
 {
     fmod_pcm_write_cursor += samples;
 
-    printf("stream write %d samples: %d\n", samples, fmod_pcm_write_cursor);
+    if (samples > 0)
+    {
+        printf("stream write %d samples: %d\n", samples, fmod_pcm_write_cursor);
+    }
 
     if (_channel != NULL)
         return;
@@ -203,6 +198,14 @@ we could theoretically run at any framerate if there is enough time to generate 
     - each note has a context: pitch, waveform, current t, max t
   - update each note by N samples
     - remove any completed notes
+
+how do we determine how far behind we are?
+
+fmod pulls N frames of data
+we need to maintain HB minimum (advance)
+when fmod updates, we subtract from advance
+samples to update is HB - advance
+
 */
 
 float Note::NotePitch(int note, int octave)
@@ -244,7 +247,9 @@ Note Note::SineWave(int sample_start, int sample_end, float pitch, float amplitu
 void Note::Update(int frequency, int a, int b, float* out)
 {
     // TODO: wrapping
-    const int samples = b - a;
+    const int playback_samples = b - a;
+    const int actual_samples = _sample_end - _sample_start;
+    const int samples = std::min<int>(playback_samples, actual_samples);
 
     for (int i = 0; i < samples; ++i)
     {
@@ -301,22 +306,24 @@ void Tracker::Update(int sample_a, int sample_b, int frequency, float* buffer)
 {
     // ensure buffer is valid for writing sample_b - sample_a elements
 
-    auto a = _pending.begin();
-    auto b = _pending.end();
-
-    for (; a != b; )
     {
-        const Note& note = *a;
+        auto a = _pending.begin();
+        auto b = _pending.end();
 
-        if (note._sample_start < sample_b)
+        for (; a != b; )
         {
-            _live.push_back(note);
-            a = _pending.erase(a);
-            b = _pending.end();
-        }
-        else
-        {
-            ++a;
+            const Note& note = *a;
+
+            if (note._sample_start < sample_b)
+            {
+                _live.push_back(note);
+                a = _pending.erase(a);
+                b = _pending.end();
+            }
+            else
+            {
+                ++a;
+            }
         }
     }
 
@@ -324,8 +331,27 @@ void Tracker::Update(int sample_a, int sample_b, int frequency, float* buffer)
     {
         _live[i].Update(frequency, sample_a, sample_b, buffer);
     }
-}
 
+    {
+        auto a = _live.begin();
+        auto b = _live.end();
+
+        for (; a != b; )
+        {
+            const Note& note = *a;
+
+            if (sample_b >= note._sample_end)
+            {
+                a = _live.erase(a);
+                b = _live.end();
+            }
+            else
+            {
+                ++a;
+            }
+        }
+    }
+}
 
 Synthesizer::Synthesizer(int frequency, int buffer_samples)
     : _stream()
@@ -337,8 +363,23 @@ Synthesizer::Synthesizer(int frequency, int buffer_samples)
     _stream.Init(frequency, &_buffer[0], _buffer.size());
 }
 
+int Synthesizer::CalculateStreamRequiredSamples()
+{
+    const int desired_lead = _buffer.size() / 2;
+    const int current_lead = _cursor - fmod_pcm_read_cursor;
+    const int samples_needed = desired_lead - current_lead;
+
+    ASSERT(samples_needed >= 0);
+    ASSERT(current_lead >= 0);
+
+    return samples_needed;
+}
+
 void Synthesizer::Update(int samples)
 {
+    if (samples <= 0)
+        return;
+
     _scratch.resize(samples);
 
     _tracker.Update(_cursor, _cursor + samples, _frequency, &_scratch[0]);

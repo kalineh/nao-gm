@@ -68,6 +68,8 @@ class Synthesizer
 public:
     explicit Synthesizer(int frequency, int buffer_samples);
 
+    int CalculateStreamRequiredSamples();
+
     void Update(int samples);
     void Play(int samples);
 
