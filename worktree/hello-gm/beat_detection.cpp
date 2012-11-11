@@ -869,9 +869,8 @@ public:
         CHECK(result == FMOD_OK);
     }
 
-    void Play(float time)
+    void Play(int samples)
     {
-        const int samples = int(float(_frequency) * time);
         fmod_pcm_write_cursor += samples;
 
         printf("stream write %d samples: %d\n", samples, fmod_pcm_write_cursor);
@@ -895,16 +894,16 @@ private:
 class Synthesizer
 {
 public:
-    explicit Synthesizer(int frequency, float buffer_time);
+    explicit Synthesizer(int frequency, int buffer_samples);
 
-    void Update(float time);
-    void Play(float time);
+    void Update(int samples);
+    void Play(int samples);
 
-    void ReadBuffer(float* output, float time);
+    void ReadBuffer(float* output, int samples);
 
-    void SinWave(float frequency, float amplitude, float time);
-    void SquareWave(float frequency, float amplitude, float time);
-    void NoteWave(int note, int octave, float amplitude, float time);
+    void SinWave(float frequency, float amplitude, int samples);
+    void SquareWave(float frequency, float amplitude, int samples);
+    void NoteWave(int note, int octave, float amplitude, int samples);
 
     float NoteHz(int note, int octave);
 
@@ -916,36 +915,36 @@ private:
     std::vector<float> _buffer;
 };
 
-Synthesizer::Synthesizer(int frequency, float buffer_time)
+Synthesizer::Synthesizer(int frequency, int buffer_samples)
     : _stream()
     , _frequency(frequency)
     , _cursor(0U)
 {
-    _buffer.resize(int(buffer_time * float(_frequency)));
+    _buffer.resize(buffer_samples);
 
     _stream.Init(frequency, &_buffer[0], _buffer.size());
 }
 
-void Synthesizer::Update(float time)
+void Synthesizer::Update(int samples)
 {
-    _cursor += int(_frequency * time);
+    _cursor += samples;
 }
 
-void Synthesizer::Play(float time)
+void Synthesizer::Play(int samples)
 {
-    _stream.Play(time);
+    _stream.Play(samples);
 }
 
-void Synthesizer::SinWave(float frequency, float amplitude, float time)
+void Synthesizer::SinWave(float frequency, float amplitude, int samples)
 {
-    // samples to iterate is independent of wave
-    const int samples = int(_frequency * time);
-    const float step = time / float(samples) * _frequency;
+    const float time = float(samples) / float(_frequency);
+    const float step = time / float(samples);
+    const float cursor_seconds = _cursor * float(_frequency);
 
     for (int i = 0; i < samples; ++i)
     {
-        const float t = float(_cursor) + step * float(i) * frequency;
-        const float s = std::sinf(t) * amplitude;
+        const float t = cursor_seconds + step * float(i) * frequency;
+        const float s = std::sinf(t * PI * 2.0f) * amplitude;
 
         _buffer[(_cursor + i) % _buffer.size()] = s;
     }
@@ -1106,21 +1105,24 @@ void GMAudioStream::CalcFramePitches(float threshold)
     const int W = GetFFTWindowSize();
 
     static NoteBrain nb;
-    static Synthesizer synth(_frequency, 1.0f);
+    static Synthesizer synth(_frequency, _frequency * 5);
+
+    // the rate at which fmod pulls samples is higher than our update rate
+    // since we are running slightly slower because of dropped frames
+    // how do we rectify this mismatch?
+    const int samples = _frequency / _framerate;
 
     static bool once = false;
     if (!once) 
     {
-        synth.SinWave(440.0f, 1.0f, 1.0f);
-        synth.Update(0.5f);
+        //synth.SinWave(440.0f, 1.0f, _frequency);
+        //synth.Update(_frequency / 2);
         once = true;
     }
 
-    const float elapsed = 1.0f / float(_framerate);
-
-    //synth.SinWave(440.0f, 1.01f, 1.0f);
-    synth.Play(elapsed);
-    synth.Update(elapsed);
+    synth.SinWave(440.0f, 1.01f, samples);
+    synth.Play(samples);
+    synth.Update(samples);
 
     // 5 octaves
     //_pitch.clear();
