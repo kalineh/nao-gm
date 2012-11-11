@@ -382,12 +382,15 @@ void Synthesizer::Update(int samples)
 
     _scratch.resize(samples);
 
-    _tracker.Update(_cursor, _cursor + samples, _frequency, &_scratch[0]);
+    float* scratch = &_scratch[0];
+    memset(scratch, 0, samples * sizeof(float));
+
+    _tracker.Update(_cursor, _cursor + samples, _frequency, scratch);
     
     for (int i = 0; i < (int)_scratch.size(); ++i)
     {
         const int index = (_cursor + i) % _buffer.size();
-        const float value = _scratch[i];
+        const float value = scratch[i];
 
         _buffer[index] = value;
     }
@@ -408,18 +411,69 @@ void Synthesizer::Noise(int samples, float amplitude)
 void Synthesizer::SineWave(int samples, float pitch, float amplitude)
 {
     _tracker.Queue(Note::SineWave(_cursor, _cursor + samples, pitch, amplitude));
+}
 
-    /*
-    const float time = float(samples) / float(_frequency);
-    const float step = time / float(samples);
-    const float cursor_seconds = _cursor * float(_frequency);
+void Synthesizer::DrawBuffer(v2 scale, v3 color, float alpha)
+{
+    const int count = _buffer.size();
 
-    for (int i = 0; i < samples; ++i)
+    const v2 bl = v2(0.0f, 0.0f);
+    const v2 tr = scale;
+
+    const float step = (tr.x - bl.x) / float(count);
+    const float range = (tr.y - bl.y);
+
+	glColor4f( color.x, color.y, color.z, alpha );
+
+    for (int i = 1; i < count; ++i)
     {
-        const float t = cursor_seconds + step * float(i) * frequency;
-        const float s = std::sinf(t * PI * 2.0f) * amplitude;
+        const float value0 = _buffer[i - 1];
+        const float value1 = _buffer[i - 0];
+        const v2 a = bl + v2( step * float(i - 1), range * value0 );
+        const v2 b = bl + v2( step * float(i - 0), range * value1 );
 
-        _buffer[(_cursor + i) % _buffer.size()] = s;
+        DrawLine(v2(a.x, a.y), v2(a.x, b.y));
+        DrawLine(v2(a.x, b.y), v2(b.x, b.y));
+        DrawLine(v2(b.x, b.y), v2(b.x, b.y));
     }
-    */
+}
+
+void Synthesizer::DrawCursor(v2 scale, v3 color, float alpha)
+{
+    const int count = _buffer.size();
+
+    const v2 bl = v2(0.0f, 0.0f);
+    const v2 tr = scale;
+
+    const float step = (tr.x - bl.x) / float(count);
+    const float range = (tr.y - bl.y);
+
+	glColor4f( color.x, color.y, color.z, alpha );
+
+    int cursor_read = fmod_pcm_read_cursor % count;
+    int cursor_write = fmod_pcm_write_cursor % count;
+
+    {
+        const float value0 = 0.0f;
+        const float value1 = 1.0f;
+
+        const v2 a = bl + v2( step * float(cursor_read - 1), range * value0 );
+        const v2 b = bl + v2( step * float(cursor_read - 0), range * value1 );
+
+        DrawLine(v2(a.x, a.y), v2(a.x, b.y));
+        DrawLine(v2(a.x, b.y), v2(b.x, b.y));
+        DrawLine(v2(b.x, b.y), v2(b.x, b.y));
+    }
+
+    {
+        const float value0 = 0.0f;
+        const float value1 = 1.0f;
+
+        const v2 a = bl + v2( step * float(cursor_write - 1), range * value0 );
+        const v2 b = bl + v2( step * float(cursor_write - 0), range * value1 );
+
+        DrawLine(v2(a.x, a.y), v2(a.x, b.y));
+        DrawLine(v2(a.x, b.y), v2(b.x, b.y));
+        DrawLine(v2(b.x, b.y), v2(b.x, b.y));
+    }
 }

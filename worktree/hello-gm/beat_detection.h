@@ -10,6 +10,7 @@
 
 using namespace funk;
 
+class Synthesizer;
 
 float FrequencyToPitch(float hz);
 float PitchToFrequency(float pitch);
@@ -110,6 +111,8 @@ public:
     void DrawFrameAverageBars(v3 color, float alpha);
     void DrawFrameDifferenceBars(v3 color, float alpha);
 
+    void DrawSynthesizer(v2 scale, v3 color, float alpha);
+
     void NoteTuner(float threshold);
     void CalcFramePitches(float threshold);
 
@@ -162,10 +165,10 @@ private:
     StrongHandle<MicrophoneRecorder> _recorder;
     std::vector<signed char> _microphone_buffer;
 
-    std::vector<float> _synthesizer;
-
     std::vector<float> _pitch;
     std::vector< std::vector<float> > _pitch_history;
+
+    Synthesizer* _synthesizer;
 };
 
 GM_BIND_DECL(GMAudioStream);

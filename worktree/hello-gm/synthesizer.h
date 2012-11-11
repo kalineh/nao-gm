@@ -78,6 +78,9 @@ public:
 
     void ReadBuffer(float* output, int samples);
 
+    void DrawBuffer(v2 scale, v3 color, float alpha);
+    void DrawCursor(v2 scale, v3 color, float alpha);
+
 private:
     FMODStream _stream;
     Tracker _tracker;

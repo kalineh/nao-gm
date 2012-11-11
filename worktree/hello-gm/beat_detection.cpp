@@ -400,6 +400,7 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _clock_start(0)
     , _fft_magnify_scale(60.0f)
     , _fft_magnify_power(1.0f)
+    , _synthesizer(nullptr)
 {
     _clock_timer.Start();
 }
@@ -469,8 +470,6 @@ void GMAudioStream::Update()
     _average_index %= _framerate;
 
     //printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
-
-    _synthesizer.resize(_frequency);
 }
 
 void GMAudioStream::CalcFrameDFT(int channel)
@@ -864,26 +863,28 @@ void GMAudioStream::CalcFramePitches(float threshold)
     // -- synth test -- 
 
     static NoteBrain nb;
-    static Synthesizer synth(_frequency, _frequency * 5);
+
+    if (!_synthesizer)
+        _synthesizer = new Synthesizer(_frequency, _frequency * 5);
 
     // the rate at which fmod pulls samples is higher than our update rate
     // since we are running slightly slower because of dropped frames
     // how do we rectify this mismatch?
     //const int samples = _frequency / _framerate;
-    const int samples = synth.CalculateStreamRequiredSamples();
+    const int samples = _synthesizer->CalculateStreamRequiredSamples();
 
     static bool once = false;
     if (!once) 
     {
-        synth.SineWave(_frequency, 440.0f, 1.01f);
-        //synth.Play(samples);
+        _synthesizer->SineWave(_frequency, 440.0f, 1.01f);
+        //synth->Play(samples);
         once = true;
     }
 
-    //synth.Noise(samples, 0.05f);
-    //synth.SineWave(_frequency, 440.0f, 1.01f);
-    synth.Play(samples);
-    synth.Update(samples);
+    //_synthesizer->Noise(samples, 0.05f);
+    //_synthesizer->SineWave(_frequency, 440.0f, 1.01f);
+    _synthesizer->Play(samples);
+    _synthesizer->Update(samples);
 
     // -- end synth test -- 
 
@@ -1132,7 +1133,7 @@ void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 co
     const v2 bl = v2(0.0f, 0.0f);
     const v2 tr = v2(1024.0f, 768.0f);
 
-    const float step = (tr.x - bl.x) / float(data.size()) * scale.x;
+    const float step = (tr.x - bl.x) / float(count) * scale.x;
     const float range = (tr.y - bl.y) / scale.y;
 
 	glColor4f( color.x, color.y, color.z, alpha );
@@ -1155,7 +1156,7 @@ void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color,
     const v2 bl = v2(0.0f, 0.0f);
     const v2 tr = v2(1024.0f, 768.0f);
 
-    const float step = (tr.x - bl.x) / float(data.size()) * scale.x;
+    const float step = (tr.x - bl.x) / float(count) * scale.x;
     const float range = (tr.y - bl.y) / scale.y;
 
 	glColor4f( color.x, color.y, color.z, alpha );
@@ -1171,6 +1172,12 @@ void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color,
         DrawLine(v2(a.x, b.y), v2(b.x, b.y));
         DrawLine(v2(b.x, b.y), v2(b.x, b.y));
     }
+}
+
+void GMAudioStream::DrawSynthesizer(v2 scale, v3 color, float alpha)
+{
+    _synthesizer->DrawBuffer(scale, color, alpha);
+    _synthesizer->DrawCursor(scale, color * 0.5f, alpha);
 }
 
 void GMAudioStream::Subscribe()
@@ -1597,6 +1604,17 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
+    GM_MEMFUNC_DECL(DrawSynthesizer)
+    {
+        GM_CHECK_NUM_PARAMS(3);
+        GM_CHECK_VEC2_PARAM(scale, 0);
+        GM_CHECK_VEC3_PARAM(color, 1);
+        GM_CHECK_FLOAT_PARAM(alpha, 2);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(self->DrawSynthesizer(scale, color, alpha));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(CalcFrameDFT)
     {
         GM_CHECK_NUM_PARAMS(1);
@@ -1703,6 +1721,7 @@ GM_REG_MEMFUNC( GMAudioStream, DrawFrameRawBars )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameFFTBars )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameAverageBars )
 GM_REG_MEMFUNC( GMAudioStream, DrawFrameDifferenceBars )
+GM_REG_MEMFUNC( GMAudioStream, DrawSynthesizer )
 GM_REG_MEMFUNC( GMAudioStream, NoteTuner )
 GM_REG_MEMFUNC( GMAudioStream, CalcFramePitches )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )

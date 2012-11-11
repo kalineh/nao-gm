@@ -40,6 +40,8 @@ global MakeAudioTest = function()
             true,  // difference
         };
 
+        .drawsynthesizer = false;
+
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 
         if ( !g_norobot )
@@ -71,10 +73,18 @@ global MakeAudioTest = function()
             .audio.ResetTimers();
         }
 
+        Gui.Separator();
+
         .drawbars[0] = Gui.CheckBox("Draw Bars (Raw)", .drawbars[0]);
         .drawbars[1] = Gui.CheckBox("Draw Bars (FFT)", .drawbars[1]);
         .drawbars[2] = Gui.CheckBox("Draw Bars (Average)", .drawbars[2]);
         .drawbars[3] = Gui.CheckBox("Draw Bars (Difference)", .drawbars[3]);
+
+        Gui.Separator();
+
+        .drawsynthesizer = Gui.CheckBox("Draw Synthesizer", .drawsynthesizer);
+
+        Gui.Separator();
 
         .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 0.001f, 10.0f);
         .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 0.1f, 3.0f);
@@ -135,6 +145,11 @@ global MakeAudioTest = function()
         else
         {
             .audio.DrawFrameDifferenceWaveform(Gfx.RED, 1.0f);
+        }
+
+        if (.drawsynthesizer)
+        {
+            .audio.DrawSynthesizer(v2(1024.0f, 256.0f), Gfx.GREEN, 1.0f);
         }
 
         .cam2d.End();
