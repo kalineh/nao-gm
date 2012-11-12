@@ -40,7 +40,7 @@ struct Note
     // duty
     // etc
 
-    static float NotePitch(int note, int octave);
+    static float NotePitch(int octave, int note);
 
     static Note Noise(int sample_start, int sample_end, float amplitude);
     static Note SineWave(int sample_start, int sample_end, float pitch, float amplitude);
@@ -68,7 +68,10 @@ class Synthesizer
 public:
     explicit Synthesizer(int frequency, int buffer_samples);
 
-    int CalculateStreamRequiredSamples();
+    int CalculateStreamRequiredSamples() const;
+    int CalculateStreamDesiredSamplesPerFrame(int frequency, int framerate) const;
+
+    float CalculateAbsoluteTime(int frequency) const;
 
     void Update(int samples);
     void Play(int samples);

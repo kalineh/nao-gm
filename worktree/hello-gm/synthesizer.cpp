@@ -56,7 +56,7 @@ FMOD_RESULT F_CALLBACK pcmreadcallback(FMOD_SOUND *sound, void *data, unsigned i
     // fallback to last update data when no samples are ready
     if (fmod_pcm_read_cursor + samples >= fmod_pcm_write_cursor)
     {
-        printf("fallback %d samples\n", samples);
+        //printf("fallback %d samples\n", samples);
         return FMOD_ERR_NOTREADY;
     }
 
@@ -68,7 +68,7 @@ FMOD_RESULT F_CALLBACK pcmreadcallback(FMOD_SOUND *sound, void *data, unsigned i
 
     fmod_pcm_read_cursor += samples;
 
-    printf("fmod read %d samples: %d\n", samples, fmod_pcm_read_cursor);
+    //printf("fmod read %d samples: %d\n", samples, fmod_pcm_read_cursor);
 
     return FMOD_OK;
 }
@@ -158,7 +158,7 @@ void FMODStream::Play(int samples)
 
     if (samples > 0)
     {
-        printf("stream write %d samples: %d\n", samples, fmod_pcm_write_cursor);
+        //printf("stream write %d samples: %d\n", samples, fmod_pcm_write_cursor);
     }
 
     if (_channel != NULL)
@@ -208,7 +208,7 @@ samples to update is HB - advance
 
 */
 
-float Note::NotePitch(int note, int octave)
+float Note::NotePitch(int octave, int note)
 {
     // TODO: fix the offset issues
 
@@ -363,16 +363,31 @@ Synthesizer::Synthesizer(int frequency, int buffer_samples)
     _stream.Init(frequency, &_buffer[0], _buffer.size());
 }
 
-int Synthesizer::CalculateStreamRequiredSamples()
+int Synthesizer::CalculateStreamRequiredSamples() const
 {
     const int desired_lead = _buffer.size() / 2;
     const int current_lead = _cursor - fmod_pcm_read_cursor;
     const int samples_needed = desired_lead - current_lead;
 
-    ASSERT(samples_needed >= 0);
+    const int clamped_samples_needed = std::max<int>(samples_needed, 0);
+
     ASSERT(current_lead >= 0);
 
-    return samples_needed;
+    return clamped_samples_needed;
+}
+
+int Synthesizer::CalculateStreamDesiredSamplesPerFrame(int frequency, int framerate) const
+{
+    const int samples_per_second = frequency;
+    const int samples_per_frame = samples_per_second / framerate;
+    
+    return samples_per_frame;
+}
+
+float Synthesizer::CalculateAbsoluteTime(int frequency) const
+{
+    const float sample_time = 1.0f / float(frequency);
+    return sample_time * float(_cursor);
 }
 
 void Synthesizer::Update(int samples)
@@ -432,9 +447,7 @@ void Synthesizer::DrawBuffer(v2 scale, v3 color, float alpha)
         const v2 a = bl + v2( step * float(i - 1), range * value0 );
         const v2 b = bl + v2( step * float(i - 0), range * value1 );
 
-        DrawLine(v2(a.x, a.y), v2(a.x, b.y));
-        DrawLine(v2(a.x, b.y), v2(b.x, b.y));
-        DrawLine(v2(b.x, b.y), v2(b.x, b.y));
+        DrawLine(a, b);
     }
 }
 

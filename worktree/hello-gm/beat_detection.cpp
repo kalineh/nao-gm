@@ -871,16 +871,45 @@ void GMAudioStream::CalcFramePitches(float threshold)
     // since we are running slightly slower because of dropped frames
     // how do we rectify this mismatch?
     //const int samples = _frequency / _framerate;
-    const int samples = _synthesizer->CalculateStreamRequiredSamples();
+
+    // samples required is the minimum to keep up with fmod
+    // but we would like to process roughly a frame worth of samples each frame
+    // to keep the playback notes being started at a good time
+    // since otherwise the synthesizer cursor will only step large amounts as fmod updates
+    const int samples_desired = _synthesizer->CalculateStreamDesiredSamplesPerFrame(_frequency, _framerate);
+    const int samples_required = _synthesizer->CalculateStreamRequiredSamples();
+    const int samples = std::max<int>(samples_desired, samples_required);
 
     static bool once = false;
     if (!once) 
     {
-        _synthesizer->SineWave(_frequency, 440.0f, 1.01f);
+        //_synthesizer->SineWave(_frequency, 440.0f, 1.01f);
         //synth->Play(samples);
         once = true;
     }
 
+    static int time = 0;
+    time++;
+
+    const float frame_samples = float(_frequency) / float(_framerate);
+
+    if (time % 30 == 0)
+    {
+        _synthesizer->SineWave(_frequency / 2, Note::NotePitch(4, (time / 30) % 12), 0.25f);
+    }
+
+    /*
+    if ((time % 4) == 0)
+        _synthesizer->SineWave(0.01f * tosec, Note::NotePitch(2, 5), 1.0f);
+    if ((time % 8) == 0)
+        _synthesizer->SineWave(0.1f * tosec, Note::NotePitch(3, 3), 1.0f);
+    if ((time % 16) == 0)
+        _synthesizer->SineWave(0.2f * tosec, Note::NotePitch(3, 4), 1.0f);
+    if ((time % 12) == 0)
+        _synthesizer->SineWave(0.1f * tosec, Note::NotePitch(3, 5), 1.0f);
+        */
+
+    printf("synth.update(): %d samples\n", samples);
     //_synthesizer->Noise(samples, 0.05f);
     //_synthesizer->SineWave(_frequency, 440.0f, 1.01f);
     _synthesizer->Play(samples);
