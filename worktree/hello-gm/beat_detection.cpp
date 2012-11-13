@@ -1205,8 +1205,9 @@ void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color,
 
 void GMAudioStream::DrawSynthesizer(v2 scale, v3 color, float alpha)
 {
-    _synthesizer->DrawBuffer(scale, color, alpha);
+    //_synthesizer->DrawBuffer(scale, color, alpha);
     _synthesizer->DrawCursor(scale, color * 0.5f, alpha);
+    _synthesizer->DrawTracker(scale, color, alpha);
 }
 
 void GMAudioStream::Subscribe()

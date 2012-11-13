@@ -461,7 +461,7 @@ void Synthesizer::DrawCursor(v2 scale, v3 color, float alpha)
     const float step = (tr.x - bl.x) / float(count);
     const float range = (tr.y - bl.y);
 
-	glColor4f( color.x, color.y, color.z, alpha );
+	glColor4f( 1.0f, 0.0f, 0.0f, alpha );
 
     int cursor_read = fmod_pcm_read_cursor % count;
     int cursor_write = fmod_pcm_write_cursor % count;
@@ -478,6 +478,8 @@ void Synthesizer::DrawCursor(v2 scale, v3 color, float alpha)
         DrawLine(v2(b.x, b.y), v2(b.x, b.y));
     }
 
+	glColor4f( 1.0f, 1.0f, 1.0f, alpha );
+
     {
         const float value0 = 0.0f;
         const float value1 = 1.0f;
@@ -488,5 +490,56 @@ void Synthesizer::DrawCursor(v2 scale, v3 color, float alpha)
         DrawLine(v2(a.x, a.y), v2(a.x, b.y));
         DrawLine(v2(a.x, b.y), v2(b.x, b.y));
         DrawLine(v2(b.x, b.y), v2(b.x, b.y));
+    }
+}
+
+void Synthesizer::DrawTracker(v2 scale, v3 color, float alpha)
+{
+    const float note_step = 1.0f / 87.0f;
+    const int count = _buffer.size();
+
+    const v2 bl = v2(0.0f, 0.0f);
+    const v2 tr = scale;
+    const float step = (tr.x - bl.x) / float(count);
+    const float range = (tr.y - bl.y);
+
+	glColor4f( color.x, color.y, color.z, alpha );
+
+    {
+        auto a = _tracker._live.begin();
+        auto b = _tracker._live.end();
+        for (; a != b; ++a)
+        {
+            const Note& note = *a;
+
+            const float value0 = FrequencyToPitch(note._pitch) * note_step;
+            const float value1 = FrequencyToPitch(note._pitch) * note_step;
+
+            const int start = note._sample_start % count;
+            const int end = note._sample_end % count;
+
+            int ia = start;
+            int ib = end;
+            int ic = start;
+            int id = end;
+
+            if (end < start)
+            {
+                ib = count;
+                ic = 0;
+            }
+            else
+            {
+                ic = id;
+            }
+
+            const v2 va = bl + v2( step * ia, range * value0 );
+            const v2 vb = bl + v2( step * ib, range * value1 );
+            const v2 vc = bl + v2( step * ic, range * value0 );
+            const v2 vd = bl + v2( step * id, range * value1 );
+            
+            DrawLine(va, vb);
+            DrawLine(vc, vd);
+        }
     }
 }

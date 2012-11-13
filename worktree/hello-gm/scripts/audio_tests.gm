@@ -40,7 +40,7 @@ global MakeAudioTest = function()
             true,  // difference
         };
 
-        .drawsynthesizer = false;
+        .drawsynthesizer = true;
 
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 
@@ -149,7 +149,7 @@ global MakeAudioTest = function()
 
         if (.drawsynthesizer)
         {
-            .audio.DrawSynthesizer(v2(1024.0f, 1024.0f), Gfx.GREEN, 1.0f);
+            .audio.DrawSynthesizer(v2(1024.0f, 512.0f), Gfx.GREEN, 1.0f);
         }
 
         .cam2d.End();

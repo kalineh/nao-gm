@@ -59,6 +59,8 @@ public:
     void Update(int sample_a, int sample_b, int frequency, float* buffer);
 
 private:
+    friend class Synthesizer;
+
     std::list<Note> _pending;
     std::vector<Note> _live;
 };
@@ -83,6 +85,7 @@ public:
 
     void DrawBuffer(v2 scale, v3 color, float alpha);
     void DrawCursor(v2 scale, v3 color, float alpha);
+    void DrawTracker(v2 scale, v3 color, float alpha);
 
 private:
     FMODStream _stream;
