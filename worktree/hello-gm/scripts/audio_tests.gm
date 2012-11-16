@@ -40,7 +40,7 @@ global MakeAudioTest = function()
             true,  // difference
         };
 
-        .drawsynthesizer = true;
+        .drawsynthesizer = false;
 
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 

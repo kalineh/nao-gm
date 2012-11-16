@@ -158,6 +158,19 @@ void Hanning(int count, float* input, float* output)
     }
 }
 
+void sincos_x86(float angle, float* sinout, float* cosout)
+{
+   _asm
+   {
+      fld DWORD PTR [angle]
+      fsincos
+      mov ebx,[cosout]
+      fstp DWORD PTR [ebx]
+      mov ebx,[sinout]
+      fstp DWORD PTR [ebx]
+   }
+}
+
 void DFT3(int count, float* input, float* out, float magnify_scale, float magnify_power)
 {
     // using a hann window cleans up our result a lot, much less random faff
@@ -184,12 +197,19 @@ void DFT3(int count, float* input, float* out, float magnify_scale, float magnif
         float real = 0.0f;
         float imag = 0.0f;
 
+        float cos = 0.0f;
+        float sin = 0.0f;
+
         for (int t = 0; t < count; ++t)
         {
             const float f = input[t];
 
-            real += f * std::cosf(a * t);
-            imag += f * std::sinf(a * t);
+            //real += f * std::cosf(a * t);
+            //imag += f * std::sinf(a * t);
+
+            sincos_x86(a * t, &sin, &cos);
+            real += f * cos;
+            real += f * sin;
         }
 
         cfft[bin] = std::complex<float>(real, imag);
@@ -208,131 +228,6 @@ void DFT3(int count, float* input, float* out, float magnify_scale, float magnif
         out[bin] = f4;
     }
 }
-
-/*
-void DFT3_test(int count, float* input, float* out)
-{
-    const float _fft_magnify_scale = 1.0f;
-    const float _fft_magnify_power = 1.0f;
-
-    // using a hann window cleans up our result a lot, much less random faff
-    Hanning(count, input, input);
-
-    // discrete fourier transform, but we are not normalizing yet
-    // F[bin] = 1/N * (f[n] * e ^ i * 2pi * bin * n/N), for each n
-    // this code is:
-    // F[bin] = (f[n] * e ^ i * 2pi * bin * n/N), for each n
-
-    static std::vector<float> in;
-    static std::vector<std::complex<float> > cfft;
-    static std::vector<float> rfft;
-
-    in.clear();
-    in.resize(count);
-
-    cfft.clear();
-    cfft.resize(count);
-
-    rfft.clear();
-    rfft.resize(count);
-
-    memset(out, 0, sizeof(out[0]) * count);
-
-    const int nyquist = count / 2;
-
-    for (int i = 0; i < count; ++i)
-    {
-        in[i] = input[i];
-    }
-
-    for (int i = 0; i < count; ++i)
-    {
-        const float a = 2.0f * PI * float(i) / float(count);
-        
-        float real = 0.0f;
-        float imag = 0.0f;
-
-        for (int t = 0; t < count; ++t)
-        {
-            const float f = in[t];
-
-            real += f * std::cosf(a * t);
-            imag += f * std::sinf(a * t);
-        }
-
-        cfft[i] = std::complex<float>(real, imag);
-    }
-
-    // compute power
-
-    for (int i = 0; i < count; ++i)
-    {
-        const std::complex<float> c = cfft[i];
-        in[i] = c.real() * c.real() + c.imag() * c.imag();
-    }
-
-    // take cube root
-
-    for (int i = 0; i < count; ++i)
-    {
-        in[i] = std::powf(in[i], 1.0f / 3.0f);
-    }
-
-    // fft again
-
-    for (int i = 0; i < count; ++i)
-    {
-        const float a = 2.0f * PI * float(i) / float(count);
-        
-        float real = 0.0f;
-        float imag = 0.0f;
-
-        for (int t = 0; t < count; ++t)
-        {
-            const float f = in[t];
-
-            real += f * std::cosf(a * t);
-            imag += f * std::sinf(a * t);
-        }
-
-        cfft[i] = std::complex<float>(real, imag);
-    }
-
-    // take real part
-
-    for (int i = 0; i < nyquist; ++i)
-    {
-        rfft[i] = cfft[i].real();
-    }
-
-    // clip at zero
-
-    for (int i = 0; i < nyquist; ++i)
-    {
-        rfft[i] = std::max<float>(rfft[i], 0.0f);
-        out[i] = rfft[i];
-    }
-
-    // subtract time-doubled signal
-
-    for (int bin = 0; bin < nyquist; ++bin)
-    {
-        if (bin % 2 == 0)
-            rfft[bin] -= out[bin / 2];
-        else
-            rfft[bin] -= ((out[bin / 2] + out[bin / 2 + 1]) / 2);
-    }
-
-    // clip at zero again
-
-    for (int bin = 0; bin < nyquist; ++bin)
-    {
-        rfft[bin] = std::max<float>(rfft[bin], 0.0f);
-        out[bin] = rfft[bin];
-    }
-
-}
-*/
 
 ALSoundProcessing::ALSoundProcessing(boost::shared_ptr<AL::ALBroker> broker, std::string name)
     : AL::ALSoundExtractor(broker, name)
