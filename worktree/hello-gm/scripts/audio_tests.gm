@@ -17,6 +17,8 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
+
+        .audio_gui = false;
         .fft_magnify_scale = 1.0f;
         .fft_magnify_power = 2.0f;
         .use_microphone = true;
@@ -24,24 +26,29 @@ global MakeAudioTest = function()
         .sine_frequency = 5;
         .sine_amplitude = 0.5f;
 
+        .tuner_gui = true;
         .tuner_mode = true;
         .tuner_threshold = 0.1f;
         .piano_playback_test = false;
-        .show_beat_estimate = false;
+
+        .beat_gui = true;
+        .beat_estimate_mode = false;
         .beat_estimate_bin = 1;
         .beat_estimate_threshold = 0.01f;
-        .beats_per_second_history = table();
-        .beats_per_second_index = 0;
+        .beat_estimated_bps = 120 / 60;
+        .beat_history_graph = LineGraph(0.0f, 300.0f, v2(256.0f, 32.0f), 60*5);
 
+        .draw_gui = false;
         .drawbars = {
             false, // raw
-            true,  // fft
-            true,  // average
-            true,  // difference
+            false,  // fft
+            false,  // average
+            false,  // difference
         };
 
         .drawsynthesizer = false;
 
+        .melody_gui = true;
         .melody_fundamental = 0;
         .melody_octave = 3;
         .melody_bpm = 120;
@@ -51,6 +58,8 @@ global MakeAudioTest = function()
         .melody_fundamental_estimated = false;
 
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
+
+        .info_gui = true;
 
         if ( !g_norobot )
         {
@@ -83,40 +92,80 @@ global MakeAudioTest = function()
 
         Gui.Separator();
 
-        .drawbars[0] = Gui.CheckBox("Draw Bars (Raw)", .drawbars[0]);
-        .drawbars[1] = Gui.CheckBox("Draw Bars (FFT)", .drawbars[1]);
-        .drawbars[2] = Gui.CheckBox("Draw Bars (Average)", .drawbars[2]);
-        .drawbars[3] = Gui.CheckBox("Draw Bars (Difference)", .drawbars[3]);
+        .draw_gui = Gui.CheckBox("> Draw", .draw_gui);
+        if (.draw_gui)
+        {
+            .drawbars[0] = Gui.CheckBox("Draw Bars (Raw)", .drawbars[0]);
+            .drawbars[1] = Gui.CheckBox("Draw Bars (FFT)", .drawbars[1]);
+            .drawbars[2] = Gui.CheckBox("Draw Bars (Average)", .drawbars[2]);
+            .drawbars[3] = Gui.CheckBox("Draw Bars (Difference)", .drawbars[3]);
+            .drawsynthesizer = Gui.CheckBox("Draw Synthesizer", .drawsynthesizer);
+        }
 
         Gui.Separator();
 
-        .drawsynthesizer = Gui.CheckBox("Draw Synthesizer", .drawsynthesizer);
-
-        .melody_fundamental = Gui.SliderInt("Melody Fundamental", .melody_fundamental, 0, 12);
-        .melody_octave = Gui.SliderInt("Melody Octave", .melody_octave, 2, 6);
-        .melody_bpm = Gui.SliderInt("Melody BPM", .melody_bpm, 60, 300);
-        .melody_measures = Gui.SliderInt("Melody Measures", .melody_measures, 1, 16);
-        .melody_beats = Gui.SliderInt("Melody Beats", .melody_beats, 1, 16);
-        .melody_beats_estimated = Gui.CheckBox("Use Estimated BPM", .melody_beats_estimated);
-        .melody_fundamental_estimated = Gui.CheckBox("Use Estimated Fundamental", .melody_fundamental_estimated);
-
-        if (Gui.Button("Play Melody (1)")) { .PlayMelody(.PlayMelody1); }
-        if (Gui.Button("Play Melody (2)")) { .PlayMelody(.PlayMelody2); }
+        .audio_gui = Gui.CheckBox("> Audio", .audio_gui);
+        if (.audio_gui)
+        {
+            .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 0.001f, 10.0f);
+            .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 0.1f, 3.0f);
+            .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
+            .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
+            .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, .audio.GetFFTWindowSize() / 2 - 1);
+            .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
+        }
 
         Gui.Separator();
 
-        .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 0.001f, 10.0f);
-        .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 0.1f, 3.0f);
-        .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
-        .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
-        .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, .audio.GetFFTWindowSize() / 2 - 1);
-        .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
-        .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
-        .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.000001f, 1.0f);
-        .piano_playback_test = Gui.CheckBox("Piano Playback Test", .piano_playback_test);
-        .show_beat_estimate = Gui.CheckBox("Beat Estimate", .show_beat_estimate);
-        .beat_estimate_bin = Gui.SliderInt("Beat Estimate Bin", .beat_estimate_bin, 1, .audio.GetFFTWindowSize() / 2 - 1);
-        .beat_estimate_threshold = Gui.SliderFloat("Beat Estimate Threshold", .beat_estimate_threshold, 0.001f, 0.1f);
+        .melody_gui = Gui.CheckBox("> Melody", .melody_gui);
+        if (.melody_gui)
+        {
+            .melody_beats_estimated = Gui.CheckBox("Use Estimated BPM", .melody_beats_estimated);
+            .melody_fundamental_estimated = Gui.CheckBox("Use Estimated Fundamental", .melody_fundamental_estimated);
+
+            .melody_fundamental = Gui.SliderInt("Melody Fundamental", .melody_fundamental, 0, 12);
+            .melody_octave = Gui.SliderInt("Melody Octave", .melody_octave, 2, 6);
+            .melody_bpm = Gui.SliderInt("Melody BPM", .melody_bpm, 60, 300);
+            .melody_measures = Gui.SliderInt("Melody Measures", .melody_measures, 1, 16);
+            .melody_beats = Gui.SliderInt("Melody Beats", .melody_beats, 1, 16);
+
+            if (Gui.Button("Play Melody (1)")) { .PlayMelody(.PlayMelody1); }
+            if (Gui.Button("Play Melody (2)")) { .PlayMelody(.PlayMelody2); }
+        }
+
+        Gui.Separator();
+
+        .tuner_gui = Gui.CheckBox("> Tuner", .tuner_gui);
+        if (.tuner_gui)
+        {
+            .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
+            .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.000001f, 1.0f);
+        }
+
+        Gui.Separator();
+
+        .beat_gui = Gui.CheckBox("> Beat", .beat_gui);
+        if (.beat_gui)
+        {
+            .beat_estimate_mode = Gui.CheckBox("Beat Estimate", .beat_estimate_mode);
+            .beat_estimate_bin = Gui.SliderInt("Beat Estimate Bin", .beat_estimate_bin, 1, .audio.GetFFTWindowSize() / 2 - 1);
+            .beat_estimate_threshold = Gui.SliderFloat("Beat Estimate Threshold", .beat_estimate_threshold, 0.001f, 0.1f);
+            .piano_playback_test = Gui.CheckBox("Piano Playback Test", .piano_playback_test);
+        }
+
+        Gui.Separator();
+
+        .info_gui = Gui.CheckBox("> Info", .info_gui);
+        if (.info_gui)
+        {
+            Gui.Print(format("Beats Per Second: %d", .beat_estimated_bps));
+            Gui.Print(format("Beats Per Minute: %d", .beat_estimated_bps * 60));
+            Gui.LineGraph(.beat_history_graph);
+            Gui.Print(format("Scale: %d", .audio.GetEstimatedScale()));
+            Gui.Print(format("Fundamental: %d", .audio.GetEstimatedFundamental()));
+
+            Gui.Separator();
+        }
 
         Gui.End();
     };
@@ -222,34 +271,16 @@ global MakeAudioTest = function()
                 //.audio.CalcFrameFFT(0);
                 .audio.CalcFrameAverageAndDifference(0);
 
-                local bps_history_length = 60 * 8;
-                local bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
-
-                .beats_per_second_history[.beats_per_second_index] = bps;
-                .beats_per_second_index += 1;
-                .beats_per_second_index %= bps_history_length;
-
-                local bpm = 0.0f;
-                for (i = 0; i < bps_history_length; i += 1)
+                if (.beat_estimate_mode)
                 {
-                    local bpsh = .beats_per_second_history[i];
-                    if ( ?bpsh )
-                    {
-                        bpm += bpsh.Float();
-                    }
-                }
-
-                if (.show_beat_estimate)
-                {
-                    print("bps:", bps, "bpm:", bpm / (bps_history_length.Float() / 60.0f));
+                    .beat_estimated_bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
+                    .beat_history_graph.PushVal( .beat_estimated_bps.Float() );
                 }
 
                 if (.melody_beats_estimated)
                 {
-                    local bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
-                    .melody_bpm = (bps * 60.0f).Int();
+                    .melody_bpm = (.beat_estimated_bps * 60.0f).Int();
                 }
-
 
                 if (.tuner_mode)
                 {
