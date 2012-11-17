@@ -22,6 +22,8 @@ namespace funk
 		void PopVal();
 		void Clear();
 
+        void SetAutoSize(bool autoSize) { m_autoSize = autoSize; }
+
 		void SetMinVal(float minVal) { m_minVal = minVal; }
 		void SetMaxVal(float maxVal) { m_maxVal = maxVal; }
 
@@ -31,6 +33,7 @@ namespace funk
 
 	private:
 
+        bool m_autoSize;
 		float m_minVal;
 		float m_maxVal;
 		v2i m_dimen;

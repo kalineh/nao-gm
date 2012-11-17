@@ -11,7 +11,7 @@ namespace funk
 {
 
 LineGraph::LineGraph( float minVal, float maxVal, v2i dimen, int numValsMaxs )
-: m_indexFront(0), m_numMaxVals(numValsMaxs), m_dimen(dimen), m_minVal(minVal), m_maxVal(maxVal)
+: m_indexFront(0), m_numMaxVals(numValsMaxs), m_dimen(dimen), m_minVal(minVal), m_maxVal(maxVal), m_autoSize(false)
 {
 	assert(m_numMaxVals > 0);
 	m_vals.reserve( numValsMaxs );
@@ -77,6 +77,12 @@ void LineGraph::PushVal( float val )
 	{
 		m_vals.push_back(val);
 	}
+
+    if (m_autoSize)
+    {
+        if (val < m_minVal) m_minVal = val;
+        if (val > m_maxVal) m_maxVal = val;
+    }
 }
 
 void LineGraph::PopVal()
@@ -131,6 +137,15 @@ GM_REG_NAMESPACE(LineGraph)
 		return GM_OK;
 	}
 
+	GM_MEMFUNC_DECL(SetAutoSize)
+	{
+		GM_CHECK_NUM_PARAMS(1);
+		GM_GET_THIS_PTR(LineGraph, ptr);
+        GM_CHECK_INT_PARAM(autoSize, 0);
+        ptr->SetAutoSize(autoSize != 0);
+		return GM_OK;
+	}
+
 	GM_GEN_MEMFUNC_VOID_V2( LineGraph, Draw )
 	GM_GEN_MEMFUNC_VOID_V2( LineGraph, DrawBG )
 	GM_GEN_MEMFUNC_VOID_FLOAT( LineGraph, PushVal )
@@ -146,6 +161,7 @@ GM_REG_MEMFUNC( LineGraph, DrawBG )
 GM_REG_MEMFUNC( LineGraph, PushVal )
 GM_REG_MEMFUNC( LineGraph, PopVal )
 GM_REG_MEMFUNC( LineGraph, Clear )
+GM_REG_MEMFUNC( LineGraph, SetAutoSize )
 GM_REG_MEMFUNC( LineGraph, SetMinVal )
 GM_REG_MEMFUNC( LineGraph, SetMaxVal )
 GM_REG_MEMFUNC( LineGraph, Dimen )

@@ -36,7 +36,8 @@ global MakeAudioTest = function()
         .beat_estimate_bin = 1;
         .beat_estimate_threshold = 0.01f;
         .beat_estimated_bps = 120 / 60;
-        .beat_history_graph = LineGraph(0.0f, 300.0f, v2(256.0f, 32.0f), 60*5);
+        .beat_history_graph = LineGraph(0.0f, 60.0f, v2(256.0f, 32.0f), 60*5);
+        .beat_history_graph.SetAutoSize(true);
 
         .draw_gui = false;
         .drawbars = {
@@ -148,12 +149,22 @@ global MakeAudioTest = function()
         if (.beat_gui)
         {
             .beat_estimate_mode = Gui.CheckBox("Beat Estimate", .beat_estimate_mode);
-            .beat_estimate_bin = Gui.SliderInt("Beat Estimate Bin", .beat_estimate_bin, 1, .audio.GetFFTWindowSize() / 2 - 1);
-            .beat_estimate_threshold = Gui.SliderFloat("Beat Estimate Threshold", .beat_estimate_threshold, 0.001f, 0.1f);
+            if (.beat_estimate_mode)
+            {
+                .beat_estimate_bin = Gui.SliderInt("Beat Estimate Bin", .beat_estimate_bin, 1, (.audio.GetFFTWindowSize() / 2 - 1) / 8);
+                .beat_estimate_threshold = Gui.SliderFloat("Beat Estimate Threshold", .beat_estimate_threshold, 0.001f, 0.1f);
+            }
             .piano_playback_test = Gui.CheckBox("Piano Playback Test", .piano_playback_test);
         }
 
         Gui.Separator();
+
+        Gui.End();
+    };
+
+    Main.InfoGui = function()
+    {
+        Gui.Begin("Audio Info", 30, g_core.screenDimen.y.Int() - 40);
 
         .info_gui = Gui.CheckBox("> Info", .info_gui);
         if (.info_gui)
@@ -233,6 +244,7 @@ global MakeAudioTest = function()
     		RegisterDraw( DrawLayers.Clear, .ClearScreen, this );
     		RegisterDraw( DrawLayers.Scene, .DrawAudio, this );
     		RegisterGui( .Gui, this );			
+    		RegisterGui( .InfoGui, this );			
 
             local pending_frames = true;
 
@@ -274,7 +286,7 @@ global MakeAudioTest = function()
                 if (.beat_estimate_mode)
                 {
                     .beat_estimated_bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
-                    .beat_history_graph.PushVal( .beat_estimated_bps.Float() );
+                    .beat_history_graph.PushVal( .beat_estimated_bps.Float() * 60.0f );
                 }
 
                 if (.melody_beats_estimated)
