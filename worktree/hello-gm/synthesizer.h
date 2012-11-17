@@ -78,8 +78,8 @@ public:
     void Update(int samples);
     void Play(int samples);
 
-    void Noise(int samples, float amplitude);
-    void SineWave(int samples, float pitch, float amplitude);
+    void Noise(int delay, int samples, float amplitude);
+    void SineWave(int delay, int samples, float pitch, float amplitude);
 
     void ReadBuffer(float* output, int samples);
 

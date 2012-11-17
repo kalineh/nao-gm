@@ -124,6 +124,8 @@ public:
 
     void ResetTimers();
 
+    void TestAddSynthNote(int delay, int samples, float pitch, float amplitude);
+
 private:
     void TimePrint(const char* format, ...);
 

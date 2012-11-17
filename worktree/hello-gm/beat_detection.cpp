@@ -790,7 +790,7 @@ void GMAudioStream::CalcFramePitches(float threshold)
 
     if (time % 30 == 0)
     {
-        _synthesizer->SineWave(_frequency / 2, Note::NotePitch(4, (time / 30) % 12), 0.25f);
+        //_synthesizer->SineWave(0, _frequency / 2, Note::NotePitch(4, (time / 30) % 12), 0.25f);
     }
 
     /*
@@ -805,8 +805,8 @@ void GMAudioStream::CalcFramePitches(float threshold)
         */
 
     printf("synth.update(): %d samples\n", samples);
-    //_synthesizer->Noise(samples, 0.05f);
-    //_synthesizer->SineWave(_frequency, 440.0f, 1.01f);
+    //_synthesizer->Noise(0, samples, 0.05f);
+    //_synthesizer->SineWave(0, _frequency, 440.0f, 1.01f);
     _synthesizer->Play(samples);
     _synthesizer->Update(samples);
 
@@ -1339,6 +1339,11 @@ void GMAudioStream::ResetTimers()
     _clock_timer.Start();
 }
 
+void GMAudioStream::TestAddSynthNote(int delay, int samples, float pitch, float amplitude)
+{
+    _synthesizer->SineWave(delay, samples, pitch, amplitude);
+}
+
 GM_REG_NAMESPACE(GMAudioStream)
 {
 	GM_MEMFUNC_DECL(CreateGMAudioStream)
@@ -1620,6 +1625,19 @@ GM_REG_NAMESPACE(GMAudioStream)
         GM_AL_EXCEPTION_WRAPPER(self->ResetTimers());
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(TestAddSynthNote)
+    {
+        GM_CHECK_NUM_PARAMS(5);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_CHECK_INT_PARAM(delay, 0);
+        GM_CHECK_INT_PARAM(samples, 1);
+        GM_CHECK_INT_PARAM(octave, 2);
+        GM_CHECK_INT_PARAM(note, 3);
+        GM_CHECK_FLOAT_PARAM(amplitude, 4);
+        GM_AL_EXCEPTION_WRAPPER(self->TestAddSynthNote(delay, samples, Note::NotePitch(octave, note), amplitude));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMAudioStream)
@@ -1651,6 +1669,7 @@ GM_REG_MEMFUNC( GMAudioStream, NoteTuner )
 GM_REG_MEMFUNC( GMAudioStream, CalcFramePitches )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEMFUNC( GMAudioStream, ResetTimers )
+GM_REG_MEMFUNC( GMAudioStream, TestAddSynthNote )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);

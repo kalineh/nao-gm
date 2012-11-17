@@ -418,14 +418,14 @@ void Synthesizer::Play(int samples)
     _stream.Play(samples);
 }
 
-void Synthesizer::Noise(int samples, float amplitude)
+void Synthesizer::Noise(int delay, int samples, float amplitude)
 {
-    _tracker.Queue(Note::Noise(_cursor, _cursor + samples, amplitude));
+    _tracker.Queue(Note::Noise(_cursor + delay, _cursor + delay + samples, amplitude));
 }
 
-void Synthesizer::SineWave(int samples, float pitch, float amplitude)
+void Synthesizer::SineWave(int delay, int samples, float pitch, float amplitude)
 {
-    _tracker.Queue(Note::SineWave(_cursor, _cursor + samples, pitch, amplitude));
+    _tracker.Queue(Note::SineWave(_cursor + delay, _cursor + delay + samples, pitch, amplitude));
 }
 
 void Synthesizer::DrawBuffer(v2 scale, v3 color, float alpha)

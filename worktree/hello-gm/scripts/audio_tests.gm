@@ -42,6 +42,10 @@ global MakeAudioTest = function()
 
         .drawsynthesizer = false;
 
+        .melody_bpm = 120;
+        .melody_measures = 4;
+        .melody_beats = 2;
+
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 
         if ( !g_norobot )
@@ -83,6 +87,13 @@ global MakeAudioTest = function()
         Gui.Separator();
 
         .drawsynthesizer = Gui.CheckBox("Draw Synthesizer", .drawsynthesizer);
+
+        .melody_bpm = Gui.SliderInt("Melody BPM", .melody_bpm, 60, 180);
+        .melody_measures = Gui.SliderInt("Melody Measures", .melody_measures, 1, 16);
+        .melody_beats = Gui.SliderInt("Melody Beats", .melody_beats, 1, 16);
+
+        if (Gui.Button("Play Melody (1)")) { .PlayMelody(.PlayMelody1); }
+        if (Gui.Button("Play Melody (2)")) { .PlayMelody(.PlayMelody2); }
 
         Gui.Separator();
 
@@ -273,6 +284,105 @@ global MakeAudioTest = function()
             }
 
             yield();
+        }
+    };
+
+    Main.PlayMelody = function(melody)
+    {
+        local root = randint(25, 61);
+        //local scale = { 0, 2, 4, 5, 7, 9, 11 }; // major
+        local scale = { 0, 2, 3, 5, 7, 8, 10 }; // minor
+        local beats_per_second = .melody_bpm / 60.0f;
+        local measures = .melody_measures;
+        local beats_per_measure = .melody_beats;
+        local samples_per_second = 44100.0f;
+        local samples_per_beat = samples_per_second / beats_per_second;
+
+        this:melody(root, scale, measures, beats_per_measure, samples_per_beat);
+    };
+
+    Main.PlayMelody1 = function(root, scale, measures, beats_per_measure, samples_per_beat)
+    {
+        local count = randint(8, 12);
+        local cursor = 0;
+        local notes = table();
+        local index = randint(0, tableCount(scale));
+
+        for (i = 0; i < count; i += 1)
+        {
+            if (randint(0, 100) < 20)
+            {
+                index = max(0, index - 2);
+            }
+
+            if (randint(0, 100) < 60)
+            {
+                index = min(tableCount(scale) - 1, index + 1);
+            }
+
+            notes[i] = root + scale[index];
+        }
+
+        for (j = 0; j < measures; j += 1)
+        {
+            for (i = 0; i < beats_per_measure; i += 1)
+            {
+                if (randint(0, 100) < 10)
+                {
+                    notes[randint(0, tableCount(notes))] = notes[randint(0, tableCount(notes))];
+                }
+
+                local note = notes[i];
+                local delay = 0;
+
+                if (randint(0, 100) < 10)
+                {
+                    delay = samples_per_beat;
+                }
+
+                local samples = samples_per_beat * 1.0f;
+                local amplitude = randfloat(0.4f, 0.6f);
+                
+                cursor += delay.Int() + samples.Int();
+
+                local octave = note / 12;
+                local note = note % 12;
+
+                .audio.TestAddSynthNote(cursor + delay.Int(), samples.Int(), octave, note, amplitude);
+            }
+        }
+    };
+
+    Main.PlayMelody2 = function(root, scale, measures, beats_per_measure, samples_per_beat)
+    {
+        local cursor = 0;
+        local loop = 4;
+        local index = 0;
+
+        for (m = 0; m < measures; m += 1)
+        {
+            index = 0;
+
+            if (randint(0, 100) < 20) { index += randint(0, 2); }
+
+            for (i = 0; i < beats_per_measure; i += 1)
+            {
+                local note = root + scale[index];
+                
+                index += 1;
+
+                if (randint(0, 100) < 10) { index -= 1; }
+
+                local samples = samples_per_beat * 1.0f;
+                local amplitude = randfloat(0.4f, 0.6f);
+
+                cursor += samples.Int();
+                
+                local octave = note / 12;
+                local note = note % 12;
+
+                .audio.TestAddSynthNote(cursor, samples.Int(), octave, note, amplitude);
+            }
         }
     };
 
