@@ -631,6 +631,7 @@ private:
     // A0 to G#6
     std::vector<float> _notes;
 
+public:
     int _estimated_scale;
     int _estimated_note;
 };
@@ -712,7 +713,7 @@ void NoteBrain::EstimateScale()
         const char* scale_names[] = { "major", "minor" };
         const char* note_names[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", };
 
-        printf("scale: %s %s\n", note_names[best_note], scale_names[best_scale]);
+        //printf("scale: %s %s\n", note_names[best_note], scale_names[best_scale]);
 
         _estimated_scale = best_scale;
         _estimated_note = best_note;
@@ -748,6 +749,9 @@ void NoteBrain::GenerateMelody()
     // take some notes from thing
 }
 
+// TODO: move to member
+static NoteBrain notebrain;
+
 void GMAudioStream::CalcFramePitches(float threshold)
 {
     // we can simply scan for each frequency we want to test
@@ -756,8 +760,6 @@ void GMAudioStream::CalcFramePitches(float threshold)
     const int W = GetFFTWindowSize();
 
     // -- synth test -- 
-
-    static NoteBrain nb;
 
     if (!_synthesizer)
         _synthesizer = new Synthesizer(_frequency, _frequency * 5);
@@ -804,7 +806,7 @@ void GMAudioStream::CalcFramePitches(float threshold)
         _synthesizer->SineWave(0.1f * tosec, Note::NotePitch(3, 5), 1.0f);
         */
 
-    printf("synth.update(): %d samples\n", samples);
+    //printf("synth.update(): %d samples\n", samples);
     //_synthesizer->Noise(0, samples, 0.05f);
     //_synthesizer->SineWave(0, _frequency, 440.0f, 1.01f);
     _synthesizer->Play(samples);
@@ -865,13 +867,13 @@ void GMAudioStream::CalcFramePitches(float threshold)
 
             _pitch[pitch] += 1;
 
-            nb.AddNote(pitch, y);
+            notebrain.AddNote(pitch, y);
         }
 
         was_rising = now_rising;
     }
 
-    nb.EstimateScale();
+    notebrain.EstimateScale();
 }
 
 void GMAudioStream::NoteTuner(float threshold)
@@ -1344,6 +1346,16 @@ void GMAudioStream::TestAddSynthNote(int delay, int samples, float pitch, float 
     _synthesizer->SineWave(delay, samples, pitch, amplitude);
 }
 
+int GMAudioStream::GetEstimatedScale()
+{
+    return notebrain._estimated_scale;
+}
+
+int GMAudioStream::GetEstimatedFundamental()
+{
+    return notebrain._estimated_note;
+}
+
 GM_REG_NAMESPACE(GMAudioStream)
 {
 	GM_MEMFUNC_DECL(CreateGMAudioStream)
@@ -1638,6 +1650,22 @@ GM_REG_NAMESPACE(GMAudioStream)
         GM_AL_EXCEPTION_WRAPPER(self->TestAddSynthNote(delay, samples, Note::NotePitch(octave, note), amplitude));
         return GM_OK;
     }
+
+    GM_MEMFUNC_DECL(GetEstimatedScale)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->GetEstimatedScale()));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(GetEstimatedFundamental)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->GetEstimatedFundamental()));
+        return GM_OK;
+    }
 }
 
 GM_REG_MEM_BEGIN(GMAudioStream)
@@ -1670,6 +1698,8 @@ GM_REG_MEMFUNC( GMAudioStream, CalcFramePitches )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEMFUNC( GMAudioStream, ResetTimers )
 GM_REG_MEMFUNC( GMAudioStream, TestAddSynthNote )
+GM_REG_MEMFUNC( GMAudioStream, GetEstimatedScale )
+GM_REG_MEMFUNC( GMAudioStream, GetEstimatedFundamental )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);

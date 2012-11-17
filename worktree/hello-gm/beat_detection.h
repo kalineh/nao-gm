@@ -126,6 +126,9 @@ public:
 
     void TestAddSynthNote(int delay, int samples, float pitch, float amplitude);
 
+    int GetEstimatedScale();
+    int GetEstimatedFundamental();
+
 private:
     void TimePrint(const char* format, ...);
 

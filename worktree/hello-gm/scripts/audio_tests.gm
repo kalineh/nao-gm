@@ -42,9 +42,13 @@ global MakeAudioTest = function()
 
         .drawsynthesizer = false;
 
+        .melody_fundamental = 0;
+        .melody_octave = 3;
         .melody_bpm = 120;
         .melody_measures = 4;
         .melody_beats = 2;
+        .melody_beats_estimated = false;
+        .melody_fundamental_estimated = false;
 
 		.piano_soundbank = MakeSoundBank(g_resourcePathPrefix + "scripts/PianoSoundBank.gm");
 
@@ -88,9 +92,13 @@ global MakeAudioTest = function()
 
         .drawsynthesizer = Gui.CheckBox("Draw Synthesizer", .drawsynthesizer);
 
-        .melody_bpm = Gui.SliderInt("Melody BPM", .melody_bpm, 60, 180);
+        .melody_fundamental = Gui.SliderInt("Melody Fundamental", .melody_fundamental, 0, 12);
+        .melody_octave = Gui.SliderInt("Melody Octave", .melody_octave, 2, 6);
+        .melody_bpm = Gui.SliderInt("Melody BPM", .melody_bpm, 60, 300);
         .melody_measures = Gui.SliderInt("Melody Measures", .melody_measures, 1, 16);
         .melody_beats = Gui.SliderInt("Melody Beats", .melody_beats, 1, 16);
+        .melody_beats_estimated = Gui.CheckBox("Use Estimated BPM", .melody_beats_estimated);
+        .melody_fundamental_estimated = Gui.CheckBox("Use Estimated Fundamental", .melody_fundamental_estimated);
 
         if (Gui.Button("Play Melody (1)")) { .PlayMelody(.PlayMelody1); }
         if (Gui.Button("Play Melody (2)")) { .PlayMelody(.PlayMelody2); }
@@ -236,10 +244,22 @@ global MakeAudioTest = function()
                     print("bps:", bps, "bpm:", bpm / (bps_history_length.Float() / 60.0f));
                 }
 
+                if (.melody_beats_estimated)
+                {
+                    local bps = .audio.CalcEstimatedBeatsPerSecond(0, .beat_estimate_bin, .beat_estimate_threshold);
+                    .melody_bpm = (bps * 60.0f).Int();
+                }
+
+
                 if (.tuner_mode)
                 {
                     //.audio.NoteTuner(.tuner_threshold);
                     .audio.CalcFramePitches(.tuner_threshold);
+
+                    if (.melody_fundamental_estimated)
+                    {
+                        .melody_fundamental = .audio.GetEstimatedFundamental();
+                    }
                 }
 
                 if (.piano_playback_test)
@@ -289,10 +309,11 @@ global MakeAudioTest = function()
 
     Main.PlayMelody = function(melody)
     {
-        local root = randint(25, 61);
+        local bpm = .melody_bpm;
+        local root = .melody_octave * 12 + .melody_fundamental;//randint(25, 61);
         //local scale = { 0, 2, 4, 5, 7, 9, 11 }; // major
         local scale = { 0, 2, 3, 5, 7, 8, 10 }; // minor
-        local beats_per_second = .melody_bpm / 60.0f;
+        local beats_per_second = bpm / 60.0f;
         local measures = .melody_measures;
         local beats_per_measure = .melody_beats;
         local samples_per_second = 44100.0f;
