@@ -17,6 +17,12 @@ global MakeAudioTest = function()
 		.cam2d.SetNearFar(v2(-1000.0f, 1000.0f ));
 
         .audio = GMAudioStream("audio", g_ip, g_port);
+        .notebrain = .audio.GetNoteBrain();
+        assert(?.notebrain);
+        //.synthesizer = .audio.GetSynthesizer();
+
+        .scale_names = { "major", "minor" };
+        .note_names = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#" };
 
         .audio_gui = false;
         .fft_magnify_scale = 1.0f;
@@ -36,8 +42,21 @@ global MakeAudioTest = function()
         .beat_estimate_bin = 1;
         .beat_estimate_threshold = 0.01f;
         .beat_estimated_bps = 120 / 60;
+
         .beat_history_graph = LineGraph(0.0f, 60.0f, v2(256.0f, 32.0f), 60*5);
         .beat_history_graph.SetAutoSize(true);
+        .fundamental_history_graph = LineGraph(0.0f, 12.0f, v2(256.0f, 32.0f), 60*5);
+        .fundamental_history_graph.SetAutoSize(true);
+        .fundamental_confidence_graphs = table();
+
+        .info_scale_confidence_scale = 0;
+        .info_scale_confidences = false;
+
+        for (i = 0; i < 12; i += 1)
+        {
+            .fundamental_confidence_graphs[i] = LineGraph(0.0f, 12.0f, v2(256.0f, 32.0f), 60*5);
+            .fundamental_confidence_graphs[i].SetAutoSize(true);
+        }
 
         .draw_gui = false;
         .drawbars = {
@@ -172,8 +191,20 @@ global MakeAudioTest = function()
             Gui.Print(format("Beats Per Second: %d", .beat_estimated_bps));
             Gui.Print(format("Beats Per Minute: %d", .beat_estimated_bps * 60));
             Gui.LineGraph(.beat_history_graph);
-            Gui.Print(format("Scale: %d", .audio.GetEstimatedScale()));
-            Gui.Print(format("Fundamental: %d", .audio.GetEstimatedFundamental()));
+            Gui.Print("Scale: " + .scale_names[.notebrain.GetBestScaleConfidence()]);
+            Gui.Print("Fundamental: " + .note_names[.notebrain.GetBestNoteConfidence()]);
+            Gui.LineGraph(.fundamental_history_graph);
+
+            .info_scale_confidences = true;
+            if (.info_scale_confidences)
+            {
+                for (i = 0; i < 12; i += 1)
+                {
+                    local graph = .fundamental_confidence_graphs[i];
+                    Gui.Print(.note_names[i] + " " + .scale_names[.info_scale]);
+                    Gui.LineGraph(graph);
+                }
+            }
 
             Gui.Separator();
         }
@@ -301,7 +332,19 @@ global MakeAudioTest = function()
 
                     if (.melody_fundamental_estimated)
                     {
-                        .melody_fundamental = .audio.GetEstimatedFundamental();
+                        .melody_fundamental = .notebrain.GetBestNoteConfidence();
+                    }
+
+                    .fundamental_history_graph.PushVal( .notebrain.GetBestNoteConfidence().Float() );
+                }
+
+                if (.info_scale_confidences)
+                {
+                    // so on the cpp side we need to track notes*octaves
+                    for (i = 0; i < 12; i += 1)
+                    {
+                        local graph = .fundamental_confidence_graphs[i];
+                        graph.PushVal(.notebrain.GetNoteConfidence(.info_scale_confidence_scale, i).Float());
                     }
                 }
 

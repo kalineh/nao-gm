@@ -298,6 +298,7 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _synthesizer(nullptr)
 {
     _clock_timer.Start();
+    _notebrain = StrongHandle<NoteBrain>(new NoteBrain());
 }
 
 GMAudioStream::~GMAudioStream()
@@ -363,6 +364,10 @@ void GMAudioStream::Update()
 
     _average_index += 1;
     _average_index %= _framerate;
+
+    _notebrain->Update();
+
+    //_synthesizer->Update();
 
     //printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
 }
@@ -566,6 +571,16 @@ int GetNoteOctave(int pitch)
     return (pitch + 3) / 12 - 2;
 }
 
+const int ScaleTypes = 2;
+const int ScaleNotes = 7;
+const int OctaveNotes = 12;
+
+static const int NoteScaleOffsets[ScaleTypes][ScaleNotes] = {
+    { 0, 2, 4, 5, 7, 9, 11 }, // major
+    { 0, 2, 3, 5, 7, 8, 10 }, // minor
+    // others
+};
+
 float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
 {
    // Find coefficients of cubic
@@ -611,42 +626,97 @@ float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
 #undef CUBIC
 }
 
-class NoteBrain
-{
-public:
-    NoteBrain();
-
-    void Update(float forget);
-    void AddNote(int note, float confidence);
-
-    void EstimateScale();
-    void GenerateMelody();
-
-    void DrawNoteConfidences(v3 color, float alpha);
-
-private:
-    float EstimateScaleConfidence(int start_note, const int* offsets);
-
-    // 0-83
-    // A0 to G#6
-    std::vector<float> _notes;
-
-public:
-    int _estimated_scale;
-    int _estimated_note;
-};
-
 NoteBrain::NoteBrain()
+    : _forget_rate(0.00001f)
 {
     _notes.resize(84);
-}
+    _notes_sorted.resize(_notes.size());
 
-void NoteBrain::Update(float forget)
-{
     for (int i = 0; i < (int)_notes.size(); ++i)
     {
-        _notes[i] = std::max<float>(_notes[i] - forget, 0.0f);
+        _notes[i].note = i;
+        _notes[i].confidence = 0.0f;
     }
+
+    _scales.resize(ScaleTypes * OctaveNotes);
+    _scales_sorted.resize(_scales.size());
+
+    for (int s = 0; s < ScaleTypes; ++s)
+    {
+        for (int n = 0; n < OctaveNotes; ++n)
+        {
+            const int index = s * OctaveNotes + n;
+
+            _scales[index].scale = s;
+            _scales[index].fundamental = n;
+            _scales[index].confidence = 0.0f;
+        }
+    }
+}
+
+void NoteBrain::SetForgetRate(float forget)
+{
+    _forget_rate = forget;
+}
+
+float NoteBrain::GetNoteConfidence(int octave, int note)
+{
+    const int index = octave * OctaveNotes + note;
+    return _notes[index].confidence;
+}
+
+float NoteBrain::GetScaleConfidence(int scale, int note)
+{
+    const int index = scale * OctaveNotes + note;
+    return _scales[index].confidence;
+}
+
+int NoteBrain::GetBestNoteConfidence()
+{
+    return _notes_sorted[0].note;
+}
+
+int NoteBrain::GetBestScaleConfidence()
+{
+    return _scales_sorted[0].scale;
+}
+
+void NoteBrain::Update()
+{
+    {
+        for (int i = 0; i < (int)_notes.size(); ++i)
+        {
+            NoteConfidence& note = _notes[i];
+            note.confidence = std::max<float>(note.confidence - _forget_rate, 0.0f);
+        }
+
+        struct {
+            bool operator() (const NoteConfidence& lhs, const NoteConfidence& rhs)
+            {
+                return lhs.confidence < rhs.confidence;
+            }
+        } sorter;
+
+        _notes_sorted.resize(_notes.size());
+        std::copy(_notes.begin(), _notes.end(), _notes_sorted.begin());
+        std::sort(_notes_sorted.begin(), _notes_sorted.end(), sorter);
+    }
+
+    CalculateScaleEstimates();
+
+    {
+        struct {
+            bool operator() (const ScaleConfidence& lhs, const ScaleConfidence& rhs)
+            {
+                return lhs.confidence < rhs.confidence;
+            }
+        } sorter;
+
+        _notes_sorted.resize(_notes.size());
+        std::copy(_scales.begin(), _scales.end(), _scales_sorted.begin());
+        std::sort(_scales_sorted.begin(), _scales_sorted.end(), sorter);
+    }
+
 }
 
 void NoteBrain::AddNote(int note, float confidence)
@@ -656,22 +726,55 @@ void NoteBrain::AddNote(int note, float confidence)
 
     if (note >= (int)_notes.size())
         return;
-
-    _notes[note] += confidence;
+    
+    _notes[note].confidence += confidence;
 }
 
+void NoteBrain::CalculateScaleEstimates()
+{
+    // evaluate all notes for all known scales
+
+    for (int s = 0; s < ScaleTypes; ++s)
+    {
+        for (int n = 0; n < OctaveNotes; ++n)
+        {
+            const float confidence = CalculateScaleEstimate(s, n);
+            const int index = OctaveNotes * s + n;
+
+            _scales[index].scale = s;
+            _scales[index].fundamental = n;
+            _scales[index].confidence = confidence;
+        }
+    }
+}
+
+float NoteBrain::CalculateScaleEstimate(int scale, int fundamental)
+{
+    // NOTE: we scan 1 less octave than we store, because the start_note will walk up to one octave extra
+    const int Octaves = 6;
+    const int OctaveNotes = 12;
+    const int ScaleNotes = 7;
+
+    // A, A#, B, C, C#, D, D#, E, F, F#, G, G#
+    float result = 0.0f;
+
+    for (int o = 0; o < Octaves; ++o)
+    {
+        for (int n = 0; n < ScaleNotes; ++n)
+        {
+            const int index = o * OctaveNotes + NoteScaleOffsets[scale][n];
+            const float value = _notes[index].confidence;
+
+            result += value;
+        }
+    }
+
+    return result;
+}
+
+/*
 void NoteBrain::EstimateScale()
 {
-    const int ScaleTypes = 2;
-    const int ScaleNotes = 7;
-    const int OctaveNotes = 12;
-
-    static const int scale_offsets[ScaleTypes][ScaleNotes] = {
-        { 0, 2, 4, 5, 7, 9, 11 }, // major
-        { 0, 2, 3, 5, 7, 8, 10 }, // minor
-        // others
-    };
-
     // A, A#, B, C, C#, D, D#, E, F, F#, G, G#
     float scale_confidence[ScaleTypes][OctaveNotes] = { 0.0f };
 
@@ -743,14 +846,32 @@ float NoteBrain::EstimateScaleConfidence(int start_note, const int* offsets)
 
     return result;
 }
+*/
 
-void NoteBrain::GenerateMelody()
+GM_REG_NAMESPACE(NoteBrain)
 {
-    // take some notes from thing
+	GM_MEMFUNC_DECL(CreateNoteBrain)
+	{
+		GM_CHECK_NUM_PARAMS(0);
+		GM_AL_EXCEPTION_WRAPPER(GM_PUSH_USER_HANDLED( NoteBrain, new NoteBrain() ));
+		return GM_OK;
+	}
+    GM_GEN_MEMFUNC_VOID_FLOAT( NoteBrain, SetForgetRate )
+    GM_GEN_MEMFUNC_FLOAT_INT_INT( NoteBrain, GetNoteConfidence )
+    GM_GEN_MEMFUNC_FLOAT_INT_INT( NoteBrain, GetScaleConfidence )
+    GM_GEN_MEMFUNC_INT_VOID( NoteBrain, GetBestNoteConfidence )
+    GM_GEN_MEMFUNC_INT_VOID( NoteBrain, GetBestScaleConfidence )
 }
 
-// TODO: move to member
-static NoteBrain notebrain;
+GM_REG_MEM_BEGIN(NoteBrain)
+GM_REG_MEMFUNC( NoteBrain, SetForgetRate )
+GM_REG_MEMFUNC( NoteBrain, GetNoteConfidence )
+GM_REG_MEMFUNC( NoteBrain, GetScaleConfidence )
+GM_REG_MEMFUNC( NoteBrain, GetBestNoteConfidence )
+GM_REG_MEMFUNC( NoteBrain, GetBestScaleConfidence )
+GM_REG_MEM_END()
+
+GM_BIND_DEFINE(NoteBrain);
 
 void GMAudioStream::CalcFramePitches(float threshold)
 {
@@ -867,13 +988,14 @@ void GMAudioStream::CalcFramePitches(float threshold)
 
             _pitch[pitch] += 1;
 
-            notebrain.AddNote(pitch, y);
+            _notebrain->AddNote(pitch, y);
         }
 
         was_rising = now_rising;
     }
 
-    notebrain.EstimateScale();
+    // TODO
+    //_notebrain->EstimateScale();
 }
 
 void GMAudioStream::NoteTuner(float threshold)
@@ -1346,14 +1468,9 @@ void GMAudioStream::TestAddSynthNote(int delay, int samples, float pitch, float 
     _synthesizer->SineWave(delay, samples, pitch, amplitude);
 }
 
-int GMAudioStream::GetEstimatedScale()
+StrongHandle<NoteBrain> GMAudioStream::GetNoteBrain()
 {
-    return notebrain._estimated_scale;
-}
-
-int GMAudioStream::GetEstimatedFundamental()
-{
-    return notebrain._estimated_note;
+    return _notebrain;
 }
 
 GM_REG_NAMESPACE(GMAudioStream)
@@ -1651,19 +1768,11 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
-    GM_MEMFUNC_DECL(GetEstimatedScale)
+    GM_MEMFUNC_DECL(GetNoteBrain)
     {
         GM_CHECK_NUM_PARAMS(0);
 		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->GetEstimatedScale()));
-        return GM_OK;
-    }
-
-    GM_MEMFUNC_DECL(GetEstimatedFundamental)
-    {
-        GM_CHECK_NUM_PARAMS(0);
-		GM_GET_THIS_PTR(GMAudioStream, self);
-        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->GetEstimatedFundamental()));
+        GM_PUSH_USER_HANDLED(NoteBrain, self->GetNoteBrain().Get());
         return GM_OK;
     }
 }
@@ -1698,8 +1807,7 @@ GM_REG_MEMFUNC( GMAudioStream, CalcFramePitches )
 GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEMFUNC( GMAudioStream, ResetTimers )
 GM_REG_MEMFUNC( GMAudioStream, TestAddSynthNote )
-GM_REG_MEMFUNC( GMAudioStream, GetEstimatedScale )
-GM_REG_MEMFUNC( GMAudioStream, GetEstimatedFundamental )
+GM_REG_MEMFUNC( GMAudioStream, GetNoteBrain )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);

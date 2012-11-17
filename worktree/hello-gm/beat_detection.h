@@ -20,6 +20,55 @@ int GetNoteOctave(int pitch);
 
 void RegisterGmAudioLib(gmMachine* a_vm);
 
+class NoteBrain
+    : public HandledObj<NoteBrain>
+{
+public:
+    GM_BIND_TYPEID(NoteBrain);
+
+    NoteBrain();
+
+    void AddNote(int note, float confidence);
+    void SetForgetRate(float forget);
+
+    void Update();
+
+    float GetNoteConfidence(int octave, int note);
+    float GetScaleConfidence(int scale, int note);
+
+    int GetBestNoteConfidence();
+    int GetBestScaleConfidence();
+
+private:
+    void CalculateScaleEstimates();
+    float CalculateScaleEstimate(int scale, int fundamental);
+
+    // 0-83
+    // A0 to G#6
+    struct NoteConfidence
+    {
+        int note;
+        float confidence;
+    };
+
+    std::vector<NoteConfidence> _notes;
+    std::vector<NoteConfidence> _notes_sorted;
+
+    float _forget_rate;
+
+    struct ScaleConfidence
+    {
+        int scale;
+        int fundamental;
+        float confidence;
+    };
+
+    std::vector<ScaleConfidence> _scales;
+    std::vector<ScaleConfidence> _scales_sorted;
+};
+
+GM_BIND_DECL(NoteBrain);
+
 class ALSoundProcessing
     : public AL::ALSoundExtractor
 {
@@ -126,8 +175,7 @@ public:
 
     void TestAddSynthNote(int delay, int samples, float pitch, float amplitude);
 
-    int GetEstimatedScale();
-    int GetEstimatedFundamental();
+    StrongHandle<NoteBrain> GetNoteBrain();
 
 private:
     void TimePrint(const char* format, ...);
@@ -174,6 +222,8 @@ private:
     std::vector< std::vector<float> > _pitch_history;
 
     Synthesizer* _synthesizer;
+
+    StrongHandle<NoteBrain> _notebrain;
 };
 
 GM_BIND_DECL(GMAudioStream);

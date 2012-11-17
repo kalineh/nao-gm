@@ -15,6 +15,7 @@ void RegisterProjectLibs(gmMachine* vm)
 	GM_BIND_INIT( GMVideoDisplay, vm );
 	GM_BIND_INIT( GMOpenCVMat, vm );
 	GM_BIND_INIT( GMAudioStream, vm );
+	GM_BIND_INIT( NoteBrain, vm );
 }
 
 int main(int argc, char** argv)

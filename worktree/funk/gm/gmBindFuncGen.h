@@ -136,6 +136,16 @@
 	return GM_OK;												\
 	_GM_GEN_MEMFUNC_END()
 
+#define GM_GEN_MEMFUNC_FLOAT_INT_INT( TYPE, MEMFUNC )	\
+	_GM_GEN_MEMFUNC_BEGIN(MEMFUNC)						\
+	GM_CHECK_NUM_PARAMS(2);								\
+	GM_CHECK_INT_PARAM( val0,	0 );					\
+	GM_CHECK_INT_PARAM( val1,	1 );					\
+	GM_GET_THIS_PTR(TYPE, ptr);							\
+	a_thread->PushFloat( (float)ptr->MEMFUNC(val0, val1) );\
+	return GM_OK;										\
+	_GM_GEN_MEMFUNC_END()
+
 #define GM_GEN_MEMFUNC_V2_VOID( TYPE, MEMFUNC )		\
 	_GM_GEN_MEMFUNC_BEGIN(MEMFUNC) \
 	GM_CHECK_NUM_PARAMS(0);										\
