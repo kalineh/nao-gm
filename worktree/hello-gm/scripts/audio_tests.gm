@@ -54,6 +54,7 @@ global MakeAudioTest = function()
         .info_scale_confidences = false;
         .info_note_confidences = false;
         .info_note_confidences_pause = false;
+        .info_note_best_notes = false;
 
         for (i = 0; i < 12; i += 1)
         {
@@ -243,6 +244,19 @@ global MakeAudioTest = function()
                         local graph = .note_confidence_graphs[i];
                         graph.PushVal(.notebrain.GetBestNoteNote(0).Float());
                     }
+                }
+            }
+
+            .info_note_best_notes = Gui.CheckBox("Best Notes", .info_note_best_notes);
+            if (.info_note_best_notes)
+            {
+                for (i = 0; i < 10; i += 1)
+                {
+                    local note = .notebrain.GetBestNoteNote(i);
+                    local fundamental = note % 12;
+                    local octave = note / 12;
+                    local confidence = .notebrain.GetBestNoteConfidence(i);
+                    Gui.Print("Note #" + i + ": " + .note_names[fundamental] + "" + octave + " @ " + confidence);
                 }
             }
 

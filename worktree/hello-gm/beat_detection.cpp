@@ -368,7 +368,26 @@ void GMAudioStream::Update()
 
     _notebrain->Update();
 
-    //_synthesizer->Update();
+    // -- synth test -- 
+
+    if (!_synthesizer)
+        _synthesizer = new Synthesizer(_frequency, _frequency * 2);
+
+    // the rate at which fmod pulls samples is higher than our update rate
+    // since we are running slightly slower because of dropped frames
+    // how do we rectify this mismatch?
+    //const int samples = _frequency / _framerate;
+
+    // samples required is the minimum to keep up with fmod
+    // but we would like to process roughly a frame worth of samples each frame
+    // to keep the playback notes being started at a good time
+    // since otherwise the synthesizer cursor will only step large amounts as fmod updates
+    const int samples_desired = _synthesizer->CalculateStreamDesiredSamplesPerFrame(_frequency, _framerate);
+    const int samples_required = _synthesizer->CalculateStreamRequiredSamples();
+    const int samples = std::max<int>(samples_desired, samples_required);
+
+    _synthesizer->Update(samples);
+    _synthesizer->Play(samples);
 
     //printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
 }
@@ -901,61 +920,6 @@ void GMAudioStream::CalcFramePitches(float threshold)
     // if we take a gaussian interpolate of the bins we can estimate the note
 
     const int W = GetFFTWindowSize();
-
-    // -- synth test -- 
-
-    if (!_synthesizer)
-        _synthesizer = new Synthesizer(_frequency, _frequency * 5);
-
-    // the rate at which fmod pulls samples is higher than our update rate
-    // since we are running slightly slower because of dropped frames
-    // how do we rectify this mismatch?
-    //const int samples = _frequency / _framerate;
-
-    // samples required is the minimum to keep up with fmod
-    // but we would like to process roughly a frame worth of samples each frame
-    // to keep the playback notes being started at a good time
-    // since otherwise the synthesizer cursor will only step large amounts as fmod updates
-    const int samples_desired = _synthesizer->CalculateStreamDesiredSamplesPerFrame(_frequency, _framerate);
-    const int samples_required = _synthesizer->CalculateStreamRequiredSamples();
-    const int samples = std::max<int>(samples_desired, samples_required);
-
-    static bool once = false;
-    if (!once) 
-    {
-        //_synthesizer->SineWave(_frequency, 440.0f, 1.01f);
-        //synth->Play(samples);
-        once = true;
-    }
-
-    static int time = 0;
-    time++;
-
-    const float frame_samples = float(_frequency) / float(_framerate);
-
-    if (time % 30 == 0)
-    {
-        //_synthesizer->SineWave(0, _frequency / 2, Note::NotePitch(4, (time / 30) % 12), 0.25f);
-    }
-
-    /*
-    if ((time % 4) == 0)
-        _synthesizer->SineWave(0.01f * tosec, Note::NotePitch(2, 5), 1.0f);
-    if ((time % 8) == 0)
-        _synthesizer->SineWave(0.1f * tosec, Note::NotePitch(3, 3), 1.0f);
-    if ((time % 16) == 0)
-        _synthesizer->SineWave(0.2f * tosec, Note::NotePitch(3, 4), 1.0f);
-    if ((time % 12) == 0)
-        _synthesizer->SineWave(0.1f * tosec, Note::NotePitch(3, 5), 1.0f);
-        */
-
-    //printf("synth.update(): %d samples\n", samples);
-    //_synthesizer->Noise(0, samples, 0.05f);
-    //_synthesizer->SineWave(0, _frequency, 440.0f, 1.01f);
-    _synthesizer->Play(samples);
-    _synthesizer->Update(samples);
-
-    // -- end synth test -- 
 
     // 5 octaves
     //_pitch.clear();
