@@ -297,9 +297,11 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _fft_magnify_scale(60.0f)
     , _fft_magnify_power(1.0f)
     , _synthesizer(nullptr)
+    , _mirror_notes_index(0)
 {
     _clock_timer.Start();
     _notebrain = StrongHandle<NoteBrain>(new NoteBrain());
+    _mirror_notes.resize(_framerate * 30, -1);
 }
 
 GMAudioStream::~GMAudioStream()
@@ -388,6 +390,8 @@ void GMAudioStream::Update()
 
     _synthesizer->Update(samples);
     _synthesizer->Play(samples);
+
+    CaptureMirrorNotes();
 
     //printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
 }
@@ -647,7 +651,7 @@ float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
 }
 
 NoteBrain::NoteBrain()
-    : _forget_rate(0.0f)
+    : _forget_rate(0.0001f)
 {
     _notes.resize(84);
     _notes_sorted.resize(_notes.size());
@@ -1465,6 +1469,82 @@ StrongHandle<NoteBrain> GMAudioStream::GetNoteBrain()
     return _notebrain;
 }
 
+void GMAudioStream::CaptureMirrorNotes()
+{
+    const int best_note_note = _notebrain->GetBestNoteNote(0);
+    const float best_note_confidence = _notebrain->GetBestNoteConfidence(0);
+
+    if (best_note_confidence > 5.0f)
+    {
+        _mirror_notes[_mirror_notes_index] = best_note_note;
+    }
+    else
+    {
+        _mirror_notes[_mirror_notes_index] = 0;
+    }
+
+    _mirror_notes_index += 1;
+    _mirror_notes_index %= _mirror_notes.size();
+}
+
+void GMAudioStream::PlaybackMirrorNotes()
+{
+    const int samples = _synthesizer->CalculateStreamDesiredSamplesPerFrame(_frequency, _framerate);
+
+    int cursor = -samples;
+
+    int i = -1;
+
+    // skip first empty notes
+    while (true)
+    {
+        i++;
+
+        if (i >= (int)_mirror_notes.size() - 1)
+            break;
+
+        if (_mirror_notes[i] != 0)
+            break;
+    }
+
+    for (; i < (int)_mirror_notes.size() - 1; ++i)
+    {
+        cursor += samples;
+
+        const int note = _mirror_notes[i];
+        if (note == 0)
+            continue;
+
+        if (note == -1)
+            break;
+
+        int note_length = samples;
+
+        while (_mirror_notes[i + 1] == note && i < (int)_mirror_notes.size() - 1)
+        {
+            note_length += samples;
+            i += 1;
+        }
+
+        const float amplitude = 0.5f;
+        const int broken_note_calculation = note + 20;
+        const float pitch = Note::NotePitch(broken_note_calculation / 12, broken_note_calculation % 12);
+
+        TestAddSynthNote(cursor, note_length, pitch, amplitude);
+
+        cursor += note_length - samples;
+    }
+}
+
+void GMAudioStream::ResetMirrorNotes()
+{
+    for (int i = 0; i < _mirror_notes.size(); ++i)
+    {
+        _mirror_notes[i] = -1;
+    }
+    _mirror_notes_index = 0;
+}
+
 GM_REG_NAMESPACE(GMAudioStream)
 {
 	GM_MEMFUNC_DECL(CreateGMAudioStream)
@@ -1767,6 +1847,9 @@ GM_REG_NAMESPACE(GMAudioStream)
         GM_PUSH_USER_HANDLED(NoteBrain, self->GetNoteBrain().Get());
         return GM_OK;
     }
+
+    GM_GEN_MEMFUNC_VOID_VOID( GMAudioStream, PlaybackMirrorNotes )
+    GM_GEN_MEMFUNC_VOID_VOID( GMAudioStream, ResetMirrorNotes )
 }
 
 GM_REG_MEM_BEGIN(GMAudioStream)
@@ -1800,6 +1883,8 @@ GM_REG_MEMFUNC( GMAudioStream, TestGetPianoNotes )
 GM_REG_MEMFUNC( GMAudioStream, ResetTimers )
 GM_REG_MEMFUNC( GMAudioStream, TestAddSynthNote )
 GM_REG_MEMFUNC( GMAudioStream, GetNoteBrain )
+GM_REG_MEMFUNC( GMAudioStream, PlaybackMirrorNotes )
+GM_REG_MEMFUNC( GMAudioStream, ResetMirrorNotes )
 GM_REG_MEM_END()
 
 GM_BIND_DEFINE(GMAudioStream);

@@ -181,6 +181,10 @@ public:
 
     StrongHandle<NoteBrain> GetNoteBrain();
 
+    void CaptureMirrorNotes();
+    void PlaybackMirrorNotes();
+    void ResetMirrorNotes();
+
 private:
     void TimePrint(const char* format, ...);
 
@@ -228,6 +232,9 @@ private:
     Synthesizer* _synthesizer;
 
     StrongHandle<NoteBrain> _notebrain;
+
+    std::vector<int> _mirror_notes;
+    int _mirror_notes_index;
 };
 
 GM_BIND_DECL(GMAudioStream);
