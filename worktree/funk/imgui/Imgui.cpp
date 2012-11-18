@@ -908,7 +908,7 @@ namespace funk
 
 		// calc value
 		int sliderVal = min + (int)(ImguiSlider(id, float(val-min)/(max-min) )*max);
-        sliderVal = std::min<int>(sliderVal, max - 1);
+        sliderVal = std::min<int>(sliderVal, max);
 		if ( ImguiIsWidgetActive(id) ) val = sliderVal;
 
 		// print text

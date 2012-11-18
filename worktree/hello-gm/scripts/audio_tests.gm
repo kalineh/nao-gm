@@ -35,6 +35,7 @@ global MakeAudioTest = function()
         .tuner_gui = true;
         .tuner_mode = true;
         .tuner_threshold = 0.1f;
+        .tuner_forget_rate = 0.01f;
         .piano_playback_test = false;
 
         .beat_gui = true;
@@ -51,17 +52,32 @@ global MakeAudioTest = function()
 
         .info_scale_confidence_scale = 0;
         .info_scale_confidences = false;
+        .info_note_confidences = false;
+        .info_note_confidences_pause = false;
 
         for (i = 0; i < 12; i += 1)
         {
-            .fundamental_confidence_graphs[i] = LineGraph(0.0f, 12.0f, v2(256.0f, 32.0f), 60*5);
+            .fundamental_confidence_graphs[i] = LineGraph(0.0f, 50.0f, v2(256.0f, 16.0f), 60*5);
             .fundamental_confidence_graphs[i].SetAutoSize(true);
         }
 
+        .note_confidence_graphs = table();
+        for (i = 0; i < 10; i += 1)
+        {
+            .note_confidence_graphs[i] = LineGraph(0.0f, 50.0f, v2(256.0f, 16.0f), 60*5);
+            .note_confidence_graphs[i].SetAutoSize(true);
+        }
+
         .draw_gui = false;
-        .drawbars = {
-            false, // raw
+        .drawwave = {
+            true,   // raw
             false,  // fft
+            false,  // average
+            false,  // difference
+        };
+        .drawbars = {
+            false,  // raw
+            true,   // fft
             false,  // average
             false,  // difference
         };
@@ -115,6 +131,10 @@ global MakeAudioTest = function()
         .draw_gui = Gui.CheckBox("> Draw", .draw_gui);
         if (.draw_gui)
         {
+            .drawwave[0] = Gui.CheckBox("Draw Wave (Raw)", .drawwave[0]);
+            .drawwave[1] = Gui.CheckBox("Draw Wave (FFT)", .drawwave[1]);
+            .drawwave[2] = Gui.CheckBox("Draw Wave (Average)", .drawwave[2]);
+            .drawwave[3] = Gui.CheckBox("Draw Wave (Difference)", .drawwave[3]);
             .drawbars[0] = Gui.CheckBox("Draw Bars (Raw)", .drawbars[0]);
             .drawbars[1] = Gui.CheckBox("Draw Bars (FFT)", .drawbars[1]);
             .drawbars[2] = Gui.CheckBox("Draw Bars (Average)", .drawbars[2]);
@@ -143,7 +163,7 @@ global MakeAudioTest = function()
             .melody_beats_estimated = Gui.CheckBox("Use Estimated BPM", .melody_beats_estimated);
             .melody_fundamental_estimated = Gui.CheckBox("Use Estimated Fundamental", .melody_fundamental_estimated);
 
-            .melody_fundamental = Gui.SliderInt("Melody Fundamental", .melody_fundamental, 0, 12);
+            .melody_fundamental = Gui.SliderInt("Melody Fundamental", .melody_fundamental, 0, 11);
             .melody_octave = Gui.SliderInt("Melody Octave", .melody_octave, 2, 6);
             .melody_bpm = Gui.SliderInt("Melody BPM", .melody_bpm, 60, 300);
             .melody_measures = Gui.SliderInt("Melody Measures", .melody_measures, 1, 16);
@@ -160,6 +180,7 @@ global MakeAudioTest = function()
         {
             .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
             .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.000001f, 1.0f);
+            .tuner_forget_rate = Gui.SliderFloat("Scale Forget Rate", .tuner_forget_rate, 0.000001f, 0.2f);
         }
 
         Gui.Separator();
@@ -191,18 +212,37 @@ global MakeAudioTest = function()
             Gui.Print(format("Beats Per Second: %d", .beat_estimated_bps));
             Gui.Print(format("Beats Per Minute: %d", .beat_estimated_bps * 60));
             Gui.LineGraph(.beat_history_graph);
-            Gui.Print("Scale: " + .scale_names[.notebrain.GetBestScaleConfidence()]);
-            Gui.Print("Fundamental: " + .note_names[.notebrain.GetBestNoteConfidence()]);
+            .info_scale_confidence_scale = Gui.SliderInt("Scale", .info_scale_confidence_scale, 0, 1);
+            Gui.Print("Scale: " + .scale_names[.notebrain.GetBestScaleScale(0)]);
+            Gui.Print("Fundamental: " + .note_names[.notebrain.GetBestScaleFundamental(0)]);
             Gui.LineGraph(.fundamental_history_graph);
 
-            .info_scale_confidences = true;
+            Gui.Separator();
+
+            .info_scale_confidences = Gui.CheckBox("Scale Confidences", .info_scale_confidences);
             if (.info_scale_confidences)
             {
                 for (i = 0; i < 12; i += 1)
                 {
                     local graph = .fundamental_confidence_graphs[i];
-                    Gui.Print(.note_names[i] + " " + .scale_names[.info_scale]);
+                    Gui.Print(.note_names[i] + " " + .scale_names[.info_scale_confidence_scale]);
                     Gui.LineGraph(graph);
+                }
+            }
+
+            Gui.Separator();
+
+            .info_note_confidences = Gui.CheckBox("Note Confidences", .info_note_confidences);
+            if (.info_note_confidences)
+            {
+                .info_note_confidences_pause = Gui.CheckBox("Pause", .info_note_confidences_pause);
+                if (!.info_note_confidences_pause)
+                {
+                    for (i = 0; i < 10; i += 1)
+                    {
+                        local graph = .note_confidence_graphs[i];
+                        graph.PushVal(.notebrain.GetBestNoteNote(0).Float());
+                    }
                 }
             }
 
@@ -221,41 +261,17 @@ global MakeAudioTest = function()
 
 		Gfx.Color(Gfx.WHITE, 1.0f);
 
-        if ( .drawbars[0] )
-        {
-            .audio.DrawFrameRawBars(0, Gfx.BLUE, 1.0f);
-        }
-        else
-        {
-            .audio.DrawFrameRawWaveform(0, Gfx.BLUE, 1.0f);
-        }
+        if (.drawwave[0]) { .audio.DrawFrameRawWaveform(0, Gfx.BLUE, 1.0f); }
+        if (.drawbars[0]) { .audio.DrawFrameRawBars(0, Gfx.BLUE, 1.0f); }
 
-        if (.drawbars[1])
-        {
-            .audio.DrawFrameFFTBars(0, Gfx.YELLOW, 0.5f);
-        }
-        else
-        {
-            .audio.DrawFrameFFTWaveform(0, Gfx.YELLOW, 0.5f);
-        }
+        if (.drawwave[1]) { .audio.DrawFrameFFTWaveform(0, Gfx.YELLOW, 0.5f); }
+        if (.drawbars[1]) { .audio.DrawFrameFFTBars(0, Gfx.YELLOW, 0.5f); }
 
-        if (.drawbars[2])
-        {
-            .audio.DrawFrameAverageBars(Gfx.WHITE, 0.3f);
-        }
-        else
-        {
-            .audio.DrawFrameAverageWaveform(Gfx.WHITE, 0.3f);
-        }
+        if (.drawwave[2]) { .audio.DrawFrameAverageWaveform(Gfx.WHITE, 0.3f); }
+        if (.drawbars[2]) { .audio.DrawFrameAverageBars(Gfx.WHITE, 0.3f); }
 
-        if (.drawbars[3])
-        {
-            .audio.DrawFrameDifferenceBars(Gfx.RED, 1.0f);
-        }
-        else
-        {
-            .audio.DrawFrameDifferenceWaveform(Gfx.RED, 1.0f);
-        }
+        if (.drawwave[3]) { .audio.DrawFrameDifferenceWaveform(Gfx.RED, 1.0f); }
+        if (.drawbars[3]) { .audio.DrawFrameDifferenceBars(Gfx.RED, 1.0f); }
 
         if (.drawsynthesizer)
         {
@@ -289,6 +305,8 @@ global MakeAudioTest = function()
                 // framerate
                 .audio.SetFFTMagnifyScale(.fft_magnify_scale);
                 .audio.SetFFTMagnifyPower(.fft_magnify_power);
+
+                .notebrain.SetForgetRate(.tuner_forget_rate);
 
                 .audio.Update();
 
@@ -330,12 +348,14 @@ global MakeAudioTest = function()
                     //.audio.NoteTuner(.tuner_threshold);
                     .audio.CalcFramePitches(.tuner_threshold);
 
+                    local best_note = .notebrain.GetBestNoteNote(0) % 12;
+
                     if (.melody_fundamental_estimated)
                     {
-                        .melody_fundamental = .notebrain.GetBestNoteConfidence();
+                        .melody_fundamental = best_note;
                     }
 
-                    .fundamental_history_graph.PushVal( .notebrain.GetBestNoteConfidence().Float() );
+                    .fundamental_history_graph.PushVal(best_note.Float());
                 }
 
                 if (.info_scale_confidences)
@@ -344,7 +364,7 @@ global MakeAudioTest = function()
                     for (i = 0; i < 12; i += 1)
                     {
                         local graph = .fundamental_confidence_graphs[i];
-                        graph.PushVal(.notebrain.GetNoteConfidence(.info_scale_confidence_scale, i).Float());
+                        graph.PushVal(.notebrain.GetScaleConfidence(.info_scale_confidence_scale, i).Float());
                     }
                 }
 

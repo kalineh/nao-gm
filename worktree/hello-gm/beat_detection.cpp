@@ -15,6 +15,7 @@
 // http://www.flipcode.com/misc/BeatDetectionAlgorithms.pdf
 
 #define PI 3.14159265358979f
+#define E 2.71828182846f
 
 class FFT
 {
@@ -209,7 +210,7 @@ void DFT3(int count, float* input, float* out, float magnify_scale, float magnif
 
             sincos_x86(a * t, &sin, &cos);
             real += f * cos;
-            real += f * sin;
+            imag += f * sin;
         }
 
         cfft[bin] = std::complex<float>(real, imag);
@@ -627,7 +628,7 @@ float CubicMaximize(float y0, float y1, float y2, float y3, float *maxyVal)
 }
 
 NoteBrain::NoteBrain()
-    : _forget_rate(0.00001f)
+    : _forget_rate(0.0f)
 {
     _notes.resize(84);
     _notes_sorted.resize(_notes.size());
@@ -671,14 +672,29 @@ float NoteBrain::GetScaleConfidence(int scale, int note)
     return _scales[index].confidence;
 }
 
-int NoteBrain::GetBestNoteConfidence()
+int NoteBrain::GetBestNoteNote(int rank)
 {
-    return _notes_sorted[0].note;
+    return _notes_sorted[rank].note;
 }
 
-int NoteBrain::GetBestScaleConfidence()
+float NoteBrain::GetBestNoteConfidence(int rank)
 {
-    return _scales_sorted[0].scale;
+    return _notes_sorted[rank].confidence;
+}
+
+int NoteBrain::GetBestScaleScale(int rank)
+{
+    return _scales_sorted[rank].scale;
+}
+
+int NoteBrain::GetBestScaleFundamental(int rank)
+{
+    return _scales_sorted[rank].fundamental;
+}
+
+float NoteBrain::GetBestScaleConfidence(int rank)
+{
+    return _scales_sorted[rank].confidence;
 }
 
 void NoteBrain::Update()
@@ -687,13 +703,13 @@ void NoteBrain::Update()
         for (int i = 0; i < (int)_notes.size(); ++i)
         {
             NoteConfidence& note = _notes[i];
-            note.confidence = std::max<float>(note.confidence - _forget_rate, 0.0f);
+            note.confidence = std::max<float>(note.confidence - note.confidence * _forget_rate, 0.0f);
         }
 
         struct {
             bool operator() (const NoteConfidence& lhs, const NoteConfidence& rhs)
             {
-                return lhs.confidence < rhs.confidence;
+                return lhs.confidence > rhs.confidence;
             }
         } sorter;
 
@@ -708,11 +724,11 @@ void NoteBrain::Update()
         struct {
             bool operator() (const ScaleConfidence& lhs, const ScaleConfidence& rhs)
             {
-                return lhs.confidence < rhs.confidence;
+                return lhs.confidence > rhs.confidence;
             }
         } sorter;
 
-        _notes_sorted.resize(_notes.size());
+        _scales_sorted.resize(_scales.size());
         std::copy(_scales.begin(), _scales.end(), _scales_sorted.begin());
         std::sort(_scales_sorted.begin(), _scales_sorted.end(), sorter);
     }
@@ -762,7 +778,7 @@ float NoteBrain::CalculateScaleEstimate(int scale, int fundamental)
     {
         for (int n = 0; n < ScaleNotes; ++n)
         {
-            const int index = o * OctaveNotes + NoteScaleOffsets[scale][n];
+            const int index = fundamental + o * OctaveNotes + NoteScaleOffsets[scale][n];
             const float value = _notes[index].confidence;
 
             result += value;
@@ -859,15 +875,21 @@ GM_REG_NAMESPACE(NoteBrain)
     GM_GEN_MEMFUNC_VOID_FLOAT( NoteBrain, SetForgetRate )
     GM_GEN_MEMFUNC_FLOAT_INT_INT( NoteBrain, GetNoteConfidence )
     GM_GEN_MEMFUNC_FLOAT_INT_INT( NoteBrain, GetScaleConfidence )
-    GM_GEN_MEMFUNC_INT_VOID( NoteBrain, GetBestNoteConfidence )
-    GM_GEN_MEMFUNC_INT_VOID( NoteBrain, GetBestScaleConfidence )
+    GM_GEN_MEMFUNC_INT_INT( NoteBrain, GetBestNoteNote )
+    GM_GEN_MEMFUNC_FLOAT_INT( NoteBrain, GetBestNoteConfidence )
+    GM_GEN_MEMFUNC_INT_INT( NoteBrain, GetBestScaleScale )
+    GM_GEN_MEMFUNC_INT_INT( NoteBrain, GetBestScaleFundamental )
+    GM_GEN_MEMFUNC_FLOAT_INT( NoteBrain, GetBestScaleConfidence )
 }
 
 GM_REG_MEM_BEGIN(NoteBrain)
 GM_REG_MEMFUNC( NoteBrain, SetForgetRate )
 GM_REG_MEMFUNC( NoteBrain, GetNoteConfidence )
 GM_REG_MEMFUNC( NoteBrain, GetScaleConfidence )
+GM_REG_MEMFUNC( NoteBrain, GetBestNoteNote )
 GM_REG_MEMFUNC( NoteBrain, GetBestNoteConfidence )
+GM_REG_MEMFUNC( NoteBrain, GetBestScaleScale )
+GM_REG_MEMFUNC( NoteBrain, GetBestScaleFundamental )
 GM_REG_MEMFUNC( NoteBrain, GetBestScaleConfidence )
 GM_REG_MEM_END()
 
@@ -1134,49 +1156,48 @@ int GMAudioStream::TestGetPianoNotes(float threshold, std::vector<int>& test_not
 
 void GMAudioStream::DrawFrameRawWaveform(int channel, v3 color, float alpha)
 {
-    DrawWaveform(_channels[channel].raw, v2(1.0f, 1.0f), color, alpha);
+    DrawWaveform(_channels[channel].raw, v2(1.0f, 1.0f), color, alpha, false);
 }
 
 void GMAudioStream::DrawFrameFFTWaveform(int channel, v3 color, float alpha)
 {
-    DrawWaveform(_channels[channel].fft, v2(2.0f, 1.0f), color, alpha);
+    DrawWaveform(_channels[channel].fft, v2(2.0f, 1.0f), color, alpha, true);
 }
 
 void GMAudioStream::DrawFrameAverageWaveform(v3 color, float alpha)
 {
-    DrawWaveform(_average_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+    DrawWaveform(_average_fft, v2(2.0f, 1.0f), color, alpha, true);
 }
 
 void GMAudioStream::DrawFrameDifferenceWaveform(v3 color, float alpha)
 {
-    DrawWaveform(_difference_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+    DrawWaveform(_difference_fft, v2(2.0f, 1.0f), color, alpha, true);
 }
 
 void GMAudioStream::DrawFrameRawBars(int channel, v3 color, float alpha)
 {
-    DrawBars(_channels[channel].raw, v2(1.0f, 1.0f), color, alpha);
+    DrawBars(_channels[channel].raw, v2(1.0f, 1.0f), color, alpha, false);
 }
 
 void GMAudioStream::DrawFrameFFTBars(int channel, v3 color, float alpha)
 {
-    const int W = GetFFTWindowSize();
-    const float scale = 1.0f / float(W);
-    DrawBars(_channels[channel].fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+    DrawBars(_channels[channel].fft, v2(2.0f, 1.0f), color, alpha, true);
 }
 
 void GMAudioStream::DrawFrameAverageBars(v3 color, float alpha)
 {
-    DrawBars(_average_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+    DrawBars(_average_fft, v2(2.0f, 1.0f), color, alpha, true);
 }
 
 void GMAudioStream::DrawFrameDifferenceBars(v3 color, float alpha)
 {
-    DrawBars(_difference_fft, v2(2.0f, 1.0f / 60.0f), color, alpha);
+    DrawBars(_difference_fft, v2(2.0f, 1.0f), color, alpha, true);
 }
 
-void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 color, float alpha)
+void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 color, float alpha, bool logarithmic)
 {
     const int count = data.size();
+    const float exponent = logarithmic ? (1.0f / E) : 1.0f;
 
     const v2 bl = v2(0.0f, 0.0f);
     const v2 tr = v2(1024.0f, 768.0f);
@@ -1190,16 +1211,19 @@ void GMAudioStream::DrawWaveform(const std::vector<float>& data, v2 scale, v3 co
     {
         const float value0 = data[i - 1];
         const float value1 = data[i - 0];
-        const v2 a = bl + v2( step * float(i - 1), range * value0 );
-        const v2 b = bl + v2( step * float(i - 0), range * value1 );
+        const float ta = std::powf( float(i - 1) / float(count), exponent );
+        const float tb = std::powf( float(i - 0) / float(count), exponent );
+        const v2 a = bl + v2( (tr.x - bl.x) * ta, range * value0 );
+        const v2 b = bl + v2( (tr.x - bl.x) * tb, range * value1 );
 
         DrawLine(a, b);
     }
 }
 
-void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color, float alpha)
+void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color, float alpha, bool logarithmic)
 {
     const int count = data.size();
+    const float exponent = logarithmic ? (1.0f / E) : 1.0f;
 
     const v2 bl = v2(0.0f, 0.0f);
     const v2 tr = v2(1024.0f, 768.0f);
@@ -1209,16 +1233,20 @@ void GMAudioStream::DrawBars(const std::vector<float>& data, v2 scale, v3 color,
 
 	glColor4f( color.x, color.y, color.z, alpha );
 
-    for (int i = 1; i < count; ++i)
+    for (int i = 2; i < count; ++i)
     {
         const float value0 = data[i - 1];
         const float value1 = data[i - 0];
-        const v2 a = bl + v2( step * float(i - 1), range * value0 );
-        const v2 b = bl + v2( step * float(i - 0), range * value1 );
+        const float ta = std::powf( float(i - 1) / float(count), exponent );
+        const float tb = std::powf( float(i - 0) / float(count), exponent );
+        const v2 a = bl + v2( (tr.x - bl.x) * ta, 0.0f );
+        const v2 b = bl + v2( (tr.x - bl.x) * tb, range * value1 );
 
-        DrawLine(v2(a.x, a.y), v2(a.x, b.y));
-        DrawLine(v2(a.x, b.y), v2(b.x, b.y));
-        DrawLine(v2(b.x, b.y), v2(b.x, b.y));
+        v3 colortweak = color * v3((i % 2) == 0 ? 1.0f : 0.9f);
+
+    	glColor4f( colortweak.x, colortweak.y, colortweak.z, alpha );
+
+        DrawRect( a, b - a );
     }
 }
 

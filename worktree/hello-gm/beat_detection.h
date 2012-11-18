@@ -36,8 +36,12 @@ public:
     float GetNoteConfidence(int octave, int note);
     float GetScaleConfidence(int scale, int note);
 
-    int GetBestNoteConfidence();
-    int GetBestScaleConfidence();
+    int GetBestNoteNote(int rank);
+    float GetBestNoteConfidence(int rank);
+
+    int GetBestScaleScale(int rank);
+    int GetBestScaleFundamental(int rank);
+    float GetBestScaleConfidence(int rank);
 
 private:
     void CalculateScaleEstimates();
@@ -180,8 +184,8 @@ public:
 private:
     void TimePrint(const char* format, ...);
 
-    void DrawWaveform(const std::vector<float>& channel, v2 scale, v3 color, float alpha);
-    void DrawBars(const std::vector<float>& channel, v2 scale, v3 color, float alpha);
+    void DrawWaveform(const std::vector<float>& channel, v2 scale, v3 color, float alpha, bool logarithmic);
+    void DrawBars(const std::vector<float>& channel, v2 scale, v3 color, float alpha, bool logarithmic);
 
     void Subscribe();
 

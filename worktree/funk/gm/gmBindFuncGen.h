@@ -126,6 +126,15 @@
 	return GM_OK;												\
 	_GM_GEN_MEMFUNC_END()
 
+#define GM_GEN_MEMFUNC_INT_INT( TYPE, MEMFUNC )	\
+	_GM_GEN_MEMFUNC_BEGIN(MEMFUNC) \
+	GM_CHECK_NUM_PARAMS(1);										\
+	GM_CHECK_INT_PARAM( v0,	0 );								\
+	GM_GET_THIS_PTR(TYPE, ptr);									\
+	a_thread->PushInt( (int)ptr->MEMFUNC(v0));				    \
+	return GM_OK;												\
+	_GM_GEN_MEMFUNC_END()
+
 #define GM_GEN_MEMFUNC_INT_INT_INT( TYPE, MEMFUNC )	\
 	_GM_GEN_MEMFUNC_BEGIN(MEMFUNC) \
 	GM_CHECK_NUM_PARAMS(2);										\
