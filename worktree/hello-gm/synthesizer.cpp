@@ -254,12 +254,14 @@ void Note::Update(int frequency, int a, int b, float* out)
     for (int i = 0; i < samples; ++i)
     {
         const int s = (a - _sample_start) + i;
+        const float x = float(s) * 1.0f / float(actual_samples);
+        const float y = (x - x * x) * 4;
 
         switch (_type)
         {
         case 0: break;
-        case 1: out[i] = GenerateNoise(frequency, s); break;
-        case 2: out[i] = GenerateSine(frequency, s); break;
+        case 1: out[i] += GenerateNoise(frequency, s) * y; break;
+        case 2: out[i] += GenerateSine(frequency, s) * y; break;
         default:
             ASSERT(false);
             break;
