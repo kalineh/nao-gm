@@ -25,7 +25,8 @@ global MakeAudioTest = function()
         .note_names = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#" };
 
         .audio_gui = false;
-        .fft_magnify_scale = 1.0f;
+        // TODO: scale will need to realtime balance based on overall nearby volume
+        .fft_magnify_scale = 2.0f;
         .fft_magnify_power = 2.0f;
         .use_microphone = true;
         .use_sine_wave = false;
@@ -172,6 +173,7 @@ global MakeAudioTest = function()
 
             if (Gui.Button("Play Melody (1)")) { .PlayMelody(.PlayMelody1); }
             if (Gui.Button("Play Melody (2)")) { .PlayMelody(.PlayMelody2); }
+            if (Gui.Button("Play Melody (3)")) { .PlayMelody(.PlayMelody3); }
         }
 
         Gui.Separator();
@@ -484,12 +486,12 @@ global MakeAudioTest = function()
                 local samples = samples_per_beat * 1.0f;
                 local amplitude = randfloat(0.4f, 0.6f);
                 
-                cursor += delay.Int() + samples.Int();
-
                 local octave = note / 12;
                 local note = note % 12;
 
                 .audio.TestAddSynthNote(cursor + delay.Int(), samples.Int(), octave, note, amplitude);
+
+                cursor += delay.Int() + samples.Int();
             }
         }
     };
@@ -517,13 +519,36 @@ global MakeAudioTest = function()
                 local samples = samples_per_beat * 1.0f;
                 local amplitude = randfloat(0.4f, 0.6f);
 
-                cursor += samples.Int();
-                
                 local octave = note / 12;
                 local note = note % 12;
 
                 .audio.TestAddSynthNote(cursor, samples.Int(), octave, note, amplitude);
+
+                cursor += samples.Int();
             }
+        }
+    };
+
+    Main.PlayMelody3 = function(root, scale, measures, beats_per_measure, samples_per_beat)
+    {
+        local cursor = 0;
+        local loop = 4;
+        local index = 0;
+        local notes = table();
+
+        for (i = 0; i < measures * beats_per_measure; i += 1)
+        {
+            local index = randint(0, 4);
+            local note = .notebrain.GetBestNoteNote(index);
+            local octave = root / 12;
+            local fundamental = note % 12;
+
+            local samples = samples_per_beat * 1.0f;
+            local amplitude = randfloat(0.4f, 0.6f);
+
+            .audio.TestAddSynthNote(cursor, samples.Int(), octave, fundamental, amplitude);
+
+            cursor += samples.Int();
         }
     };
 
