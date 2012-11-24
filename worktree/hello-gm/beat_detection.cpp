@@ -1495,6 +1495,18 @@ void GMAudioStream::PlaybackMirrorNotes()
 
     int i = -1;
 
+    // TEST
+    //for (int i = 0; i < (int)_mirror_notes.size(); ++i)
+        //_mirror_notes[i] = -1;
+
+    //for (int i = 0; i < 60; ++i)
+    //{
+        //_mirror_notes[i + 60 * 0] = 50;
+        //_mirror_notes[i + 60 * 1] = 54;
+        //_mirror_notes[i + 60 * 2] = 50;
+        //_mirror_notes[i + 60 * 3] = 54;
+    //}
+
     // skip first empty notes
     while (true)
     {
@@ -1520,7 +1532,7 @@ void GMAudioStream::PlaybackMirrorNotes()
 
         int note_length = samples;
 
-        while (_mirror_notes[i + 1] == note && i < (int)_mirror_notes.size() - 1)
+        while (i < (int)_mirror_notes.size() - 1 && _mirror_notes[i + 1] == note)
         {
             note_length += samples;
             i += 1;
@@ -1538,7 +1550,7 @@ void GMAudioStream::PlaybackMirrorNotes()
 
 void GMAudioStream::ResetMirrorNotes()
 {
-    for (int i = 0; i < _mirror_notes.size(); ++i)
+    for (int i = 0; i < (int)_mirror_notes.size(); ++i)
     {
         _mirror_notes[i] = -1;
     }

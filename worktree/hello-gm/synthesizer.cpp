@@ -254,6 +254,7 @@ void Note::Update(int frequency, int a, int b, float* out)
     for (int i = 0; i < samples; ++i)
     {
         const int s = (a - _sample_start) + i;
+
         const float x = float(s) * 1.0f / float(actual_samples);
         const float y = (x - x * x) * 4;
 
