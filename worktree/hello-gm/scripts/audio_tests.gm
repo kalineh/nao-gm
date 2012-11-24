@@ -26,6 +26,7 @@ global MakeAudioTest = function()
 
         .audio_gui = false;
         // TODO: scale will need to realtime balance based on overall nearby volume
+        .use_dft = false;
         .fft_magnify_scale = 3.0f;
         .fft_magnify_power = 3.0f;
         .use_microphone = true;
@@ -151,6 +152,7 @@ global MakeAudioTest = function()
         {
             .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 0.001f, 10.0f);
             .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 0.1f, 3.0f);
+            .use_dft = Gui.CheckBox("Use DFT", .use_dft);
             .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
             .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
             .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, .audio.GetFFTWindowSize() / 2 - 1);
@@ -347,8 +349,15 @@ global MakeAudioTest = function()
                     .audio.AddInputDataFrameRemoteNao();
                 }
 
-                .audio.CalcFrameDFT(0);
-                //.audio.CalcFrameFFT(0);
+                if (.use_dft)
+                { 
+                    .audio.CalcFrameDFT(0);
+                }
+                else
+                {
+                    .audio.CalcFrameFFT(0);
+                }
+
                 .audio.CalcFrameAverageAndDifference(0);
 
                 if (.beat_estimate_mode)

@@ -4,6 +4,7 @@
 
 #include "beat_detection.h"
 #include "synthesizer.h"
+#include "fft.h"
 
 #include <gfx/DrawPrimitives.h>
 #include <sound/SoundMngr.h>
@@ -17,138 +18,8 @@
 #define PI 3.14159265358979f
 #define E 2.71828182846f
 
-class FFT
-{
-    public:
-        typedef std::complex<float> Complex;
-        
-        /* Initializes FFT. n must be a power of 2. */
-        FFT(int n, bool inverse = false);
-
-        /* Computes Discrete Fourier Transform of given buffer. */
-        std::vector<Complex> transform(const std::vector<Complex>& buf);
-
-        static float getIntensity(Complex c);
-        static float getPhase(Complex c);
-        
-    private:
-        int n, lgN;
-        bool inverse;
-        std::vector<Complex> omega;
-        std::vector<Complex> result;
-        
-        void bitReverseCopy(const std::vector<Complex>& src,
-                std::vector<Complex>& dest) const;
-};
-
-FFT::FFT(int n, bool inverse)
-    : n(n)
-    , inverse(inverse)
-    , result(std::vector<Complex>(n))
-{
-    lgN = 0;
-    for (int i = n; i > 1; i >>= 1)
-        ++lgN;
-
-    omega.resize(lgN);
-
-    int m = 1;
-    for (int s = 0; s < lgN; ++s)
-    {
-        m <<= 1;
-        if (inverse)
-            omega[s] = exp(Complex(0.0f, 2.0f * PI / m));
-        else
-            omega[s] = exp(Complex(0.0f, -2.0f * PI / m));
-    }
-}
-
-std::vector<FFT::Complex> FFT::transform(const std::vector<Complex>& buf)
-{
-    bitReverseCopy(buf, result);
-    int m = 1;
-    for (int s = 0; s < lgN; ++s)
-    {
-        m <<= 1;
-        for (int k = 0; k < n; k += m)
-        {
-            Complex current_omega = 1;
-            for (int j = 0; j < (m >> 1); ++j)
-            {
-                Complex t = current_omega * result[k + j + (m >> 1)];
-                Complex u = result[k + j];
-                result[k + j] = u + t;
-                result[k + j + (m >> 1)] = u - t;
-                current_omega *= omega[s];
-            }
-        }
-    }
-    if (inverse == false)
-        for (int i = 0; i < n; ++i)
-            result[i] /= float(n);
-    return result;
-}
-
-float FFT::getIntensity(Complex c)
-{
-    return abs(c);
-}
-
-float FFT::getPhase(Complex c)
-{
-    return arg(c);
-}
-
-void FFT::bitReverseCopy(const std::vector<Complex>& src, std::vector<Complex>& dest)
-        const
-{
-    for (int i = 0; i < n; ++i)
-    {
-        int index = i, rev = 0;
-        for (int j = 0; j < lgN; ++j)
-        {
-            rev = (rev << 1) | (index & 1);
-            index >>= 1;
-        }
-        dest[rev] = src[i];
-    }
-}
-
-
-// good for verifying results
+// good for verifying DFT results
 // http://home.fuse.net/clymer/graphs/fourier.html
-//
-//
-void DFT4_old(int count, float* inreal, float* inimag, float* outreal, float* outimag)
-{
-    // DFT only evaluates frequencies up to N / 2
-
-    // for each candidate frequency
-    //    for each data point
-    //        sum sin/cos complex
-
-    const int n = count;
-
-    memset(outreal, 0, sizeof(float) * n);
-    memset(outimag, 0, sizeof(float) * n);
-
-    for (int i = 0; i < n / 2; ++i)
-    {
-        float real = 0.0f;
-        float imag = 0.0f;
-
-        for (int j = 0; j < n; ++j)
-        {
-            const float f = inreal[j];
-
-            real += f * std::cosf(i * j * 2 * PI / n);
-            imag += f * std::sinf(i * j * 2 * PI / n);
-        }
-
-        outreal[i] = real;
-        outimag[i] = imag;
-    }
-}
 
 void Hanning(int count, float* input, float* output)
 {
@@ -172,8 +43,59 @@ void sincos_x86(float angle, float* sinout, float* cosout)
    }
 }
 
+int roundup_pot(int value)
+{
+    value--;
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
+    value++;
+    return value;
+}
+
+// http://www.librow.com/articles/article-10
+void FFT1(int count, float* input, float* out, float magnify_scale, float magnify_power)
+{
+    Hanning(count, input, input);
+
+    static std::vector<librow::complex> buffer;
+
+    const int count_pot = roundup_pot(count);
+
+    buffer.resize(count_pot);
+    
+    int i = 0;
+    for (; i < count; ++i)
+        buffer[i] = librow::complex(input[i], 0.0f);
+    for (; i < count_pot; ++i)
+        buffer[i] = librow::complex(0.0f, 0.0f);
+
+    bool success = librow::CFFT::Inverse(&buffer[0], count_pot, false);
+    ASSERT(success);
+
+    memset(out, 0, sizeof(out[0]) * count);
+    const int nyquist = count / 2;
+
+    for (int bin = 0; bin < nyquist; ++bin)
+    {
+        const librow::complex c = buffer[bin];
+
+        const float f0 = std::sqrtf(c.norm());
+        const float f1 = f0 * magnify_scale;
+        const float f2 = std::powf(f1, magnify_power);
+        const float f3 = std::logf(f2);
+        const float f4 = std::max<float>(0.000000001f, f3);
+
+        out[bin] = f4;
+    }
+}
+
 void DFT3(int count, float* input, float* out, float magnify_scale, float magnify_power)
 {
+    // our count is frequency / framerate, so we know our 
+
     // using a hann window cleans up our result a lot, much less random faff
     Hanning(count, input, input);
 
@@ -344,7 +266,10 @@ int GMAudioStream::GetFFTWindowSize()
     // ensure frequency divides evenly into framerate
     //CHECK(((float(_frequency) / float(_framerate)) - float(_frequency / _framerate)) == 0.0f);
 
-    return _frequency / _framerate;
+    const int ideal = _frequency / _framerate;
+    const int padded = roundup_pot(ideal);
+    
+    return padded;
 }
 
 void GMAudioStream::Update()
@@ -421,6 +346,8 @@ void GMAudioStream::CalcFrameFFT(int channel)
     //std::vector<std::complex<float> > results = fft.transform(c.fft);
     //for (int i = 0; i < W; ++i)
         //c.fft[i] = results[i];
+
+    FFT1(W, &c.raw[0], &c.fft[0], _fft_magnify_scale, _fft_magnify_power);
 }
 
 void GMAudioStream::CalcFrameAverageAndDifference(int channel)
@@ -811,82 +738,6 @@ float NoteBrain::CalculateScaleEstimate(int scale, int fundamental)
     return result;
 }
 
-/*
-void NoteBrain::EstimateScale()
-{
-    // A, A#, B, C, C#, D, D#, E, F, F#, G, G#
-    float scale_confidence[ScaleTypes][OctaveNotes] = { 0.0f };
-
-    // evaluate all notes for all known scales
-
-    for (int s = 0; s < ScaleTypes; ++s)
-    {
-        for (int n = 0; n < OctaveNotes; ++n)
-        {
-            const int* scale = scale_offsets[s];
-            const float confidence = EstimateScaleConfidence(n, scale);
-            scale_confidence[s][n] = confidence;
-        }
-    }
-
-    // find best match
-
-    float best_confidence = 0.0f;
-    int best_scale = -1;
-    int best_note = -1;
-
-    for (int s = 0; s < ScaleTypes; ++s)
-    {
-        for (int n = 0; n < OctaveNotes; ++n)
-        {
-            const float confidence = scale_confidence[s][n];
-
-            if (confidence > best_confidence)
-            {
-                best_confidence = confidence;
-                best_scale = s;
-                best_note = n;
-            }
-        }
-    }
-
-    if (best_note >= 0)
-    {
-        const char* scale_names[] = { "major", "minor" };
-        const char* note_names[] = { "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", };
-
-        //printf("scale: %s %s\n", note_names[best_note], scale_names[best_scale]);
-
-        _estimated_scale = best_scale;
-        _estimated_note = best_note;
-    }
-}
-
-float NoteBrain::EstimateScaleConfidence(int start_note, const int* offsets)
-{
-    // NOTE: we scan 1 less octave than we store, because the start_note will walk up to one octave extra
-    const int Octaves = 6;
-    const int OctaveNotes = 12;
-    const int ScaleNotes = 7;
-
-    // A, A#, B, C, C#, D, D#, E, F, F#, G, G#
-    float result = 0.0f;
-
-    for (int i = 0; i < Octaves; ++i)
-    {
-        for (int n = 0; n < ScaleNotes; ++n)
-        {
-            const int index = start_note + i * OctaveNotes + offsets[n];
-            const float value = _notes[index];
-
-            result += value;
-        }
-    }
-
-    return result;
-}
-*/
-
 GM_REG_NAMESPACE(NoteBrain)
 {
 	GM_MEMFUNC_DECL(CreateNoteBrain)
@@ -961,7 +812,7 @@ void GMAudioStream::CalcFramePitches(float threshold)
 
             const float hz = maximum * _frequency / float(W);
 
-            const int pitch = int(FrequencyToPitch(hz) + 0.1f) - 20 - 1; // TODO: why is it 20 off? (-1 for 0-based index of notes)
+            const int pitch = int(FrequencyToPitch(hz) + 0.1f) - 20; // TODO: why is it 20 off? (and maybe -1 for 0-based index of notes?)
 
             // TODO: we can get negative pitch somehow here, figure out why
             //       likely some artifact of the cubic maximize
