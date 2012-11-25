@@ -151,7 +151,7 @@ global MakeAudioTest = function()
         if (.audio_gui)
         {
             .fft_magnify_scale = Gui.SliderFloat("FFT Magnify Scale", .fft_magnify_scale, 0.001f, 10.0f);
-            .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 0.1f, 3.0f);
+            .fft_magnify_power = Gui.SliderFloat("FFT Magnify Power", .fft_magnify_power, 0.1f, 8.0f);
             .use_dft = Gui.CheckBox("Use DFT", .use_dft);
             .use_microphone = Gui.CheckBox("Use Microphone", .use_microphone);
             .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
@@ -187,8 +187,8 @@ global MakeAudioTest = function()
         if (.tuner_gui)
         {
             .tuner_mode = Gui.CheckBox("Enable Tuner", .tuner_mode);
-            .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.000001f, 1.0f);
-            .tuner_forget_rate = Gui.SliderFloat("Scale Forget Rate", .tuner_forget_rate, 0.000001f, 0.2f);
+            .tuner_threshold = Gui.SliderFloat("Tuner Threshold", .tuner_threshold, 0.0001f, 1.0f);
+            .tuner_forget_rate = Gui.SliderFloat("Scale Forget Rate", .tuner_forget_rate, 0.0001f, 1.0f);
         }
 
         Gui.Separator();

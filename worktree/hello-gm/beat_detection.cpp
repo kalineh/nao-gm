@@ -682,7 +682,6 @@ void NoteBrain::Update()
         std::copy(_scales.begin(), _scales.end(), _scales_sorted.begin());
         std::sort(_scales_sorted.begin(), _scales_sorted.end(), sorter);
     }
-
 }
 
 void NoteBrain::AddNote(int note, float confidence)
@@ -692,8 +691,12 @@ void NoteBrain::AddNote(int note, float confidence)
 
     if (note >= (int)_notes.size())
         return;
+
+    if (confidence <= 0.0f)
+        return;
     
     _notes[note].confidence += confidence;
+    _notes[note].frame += confidence;
 }
 
 void NoteBrain::CalculateScaleEstimates()
@@ -769,7 +772,86 @@ GM_REG_MEM_END()
 
 GM_BIND_DEFINE(NoteBrain);
 
+float GaussianSample2(float x, float sigma)
+{
+    return std::expf(-0.5f * std::powf(x / sigma, 2.0f)) / (2.0f * PI * sigma * sigma);
+}
+
 void GMAudioStream::CalcFramePitches(float threshold)
+{
+    const int W = GetFFTWindowSize();
+
+    // 5 octaves
+    _pitch.clear();
+    _pitch.resize(87, 0.0f);
+
+    // either can use instantaneous or averages
+    std::vector<float>& src = _channels[0].fft;
+
+    // TODO: the first two bins have high values for unknown reasons
+    src[0] = 0.0f;
+    src[1] = 0.0f;
+
+    // iterate each note
+    // determine which bins to read
+    // sum weighted values
+    // add that for note pitch value
+
+    // get adjacent N bins
+    // get gaussian weight for that bin, centered around the note hz x
+    // remember that bins are /linear/, so gaussian weighting is ok
+    // just need to gaussian weight adjacent bins
+
+    // we cant use constant gaussian convolution filter because the peak is not
+    // centered around x=0
+
+    // so, for each bin value, what is it's x value in a gaussian curve centered on note at x?
+    // sum and threshold
+
+    // consider variable window size for lower bins
+
+    // offset is distance from center bin to actual hz
+    // then it is x = (binhz * step + offset) / binhz
+
+    float debug_frequencies_view[87] = { 0.0f };
+    for (int i = 0; i < 87; ++i)
+        debug_frequencies_view[i] = PitchToFrequency(float(i));
+
+    // skip first octaves because too low
+    for (int i = 12*3; i < (int)_pitch.size(); ++i)
+    {
+        const float note_hz = PitchToFrequency(float(i));
+        const float bin_step = float(_frequency) / float(W);
+
+        const int center = int(note_hz / bin_step + 0.5f);
+        const float bin_hz = float(center) * bin_step;
+        const float offset = (note_hz - bin_hz) / bin_step;
+
+        float sum = 0.0f;
+        for (int w = -2; w < 3; ++w)
+        {
+            const int bin = std::max<int>(0, std::min<int>(src.size() - 1, center + w));
+            const float weight = GaussianSample2(float(w) + offset, 1.0f);
+            const float value = src[bin] * weight;
+
+            sum += value;
+        }
+
+        if (sum < threshold)
+            continue;
+
+        _pitch[i] += sum;
+    }
+
+
+    for (int i = 0; i < (int)_pitch.size(); ++i)
+    {
+        _notebrain->AddNote(i, _pitch[i]);
+    }
+}
+
+/*
+void CalcFramePitchesOld(float threshold)
 {
     // we can simply scan for each frequency we want to test
     // if we take a gaussian interpolate of the bins we can estimate the note
@@ -838,6 +920,7 @@ void GMAudioStream::CalcFramePitches(float threshold)
     // TODO
     //_notebrain->EstimateScale();
 }
+*/
 
 void GMAudioStream::NoteTuner(float threshold)
 {

@@ -53,6 +53,7 @@ private:
     {
         int note;
         float confidence;
+        float frame;
     };
 
     std::vector<NoteConfidence> _notes;
