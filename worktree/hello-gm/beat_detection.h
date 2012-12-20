@@ -135,6 +135,7 @@ public:
     void SetFFTMagnifyPower(float power);
 
     int GetFFTWindowSize();
+    int GetFrameRate();
 
     void Update();
 
@@ -217,6 +218,8 @@ private:
     };
 
     std::vector<Channel> _channels;
+
+    bool _input_data_added_this_frame;
 
     int _average_index;
     std::vector<float> _average_fft;

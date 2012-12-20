@@ -58,8 +58,6 @@ int roundup_pot(int value)
 // http://www.librow.com/articles/article-10
 void FFT1(int count, float* input, float* out, float magnify_scale, float magnify_power)
 {
-    Hanning(count, input, input);
-
     static std::vector<librow::complex> buffer;
 
     const int count_pot = roundup_pot(count);
@@ -94,11 +92,6 @@ void FFT1(int count, float* input, float* out, float magnify_scale, float magnif
 
 void DFT3(int count, float* input, float* out, float magnify_scale, float magnify_power)
 {
-    // our count is frequency / framerate, so we know our 
-
-    // using a hann window cleans up our result a lot, much less random faff
-    Hanning(count, input, input);
-
     // discrete fourier transform, but we are not normalizing yet
     // F[bin] = 1/N * (f[n] * e ^ i * 2pi * bin * n/N), for each n
     // this code is:
@@ -210,6 +203,7 @@ GMAudioStream::GMAudioStream(const char* name, const char* ip, int port)
     , _subscriber_id(name)
     , _ip(ip)
     , _port(port)
+    , _input_data_added_this_frame(false)
     , _average_index(0)
     , _frequency(44100 / 1)
     , _framerate(60)
@@ -272,6 +266,11 @@ int GMAudioStream::GetFFTWindowSize()
     return padded;
 }
 
+int GMAudioStream::GetFrameRate()
+{
+    return _framerate;
+}
+
 void GMAudioStream::Update()
 {
     const int MaxChannels = 4;
@@ -290,10 +289,18 @@ void GMAudioStream::Update()
     _history_fft.resize(_framerate);
     _history_difference_fft.resize(_framerate);
 
-    _average_index += 1;
-    _average_index %= _framerate;
+    if (_input_data_added_this_frame)
+    {
+        _average_index += 1;
+        _average_index %= _framerate;
 
-    _notebrain->Update();
+        _notebrain->Update();
+    }
+    else
+    {
+        // must keep this in valid range whether updating or not, framerate may change
+        _average_index %= _framerate;
+    }
 
     // -- synth test -- 
 
@@ -319,6 +326,8 @@ void GMAudioStream::Update()
     CaptureMirrorNotes();
 
     //printf("Time: %.2f, %.2f, %.2f\n", GetSecondsByFrame(), GetSecondsByMicrophone(), GetSecondsBySystemClock());
+
+    _input_data_added_this_frame = false;
 }
 
 void GMAudioStream::CalcFrameDFT(int channel)
@@ -813,6 +822,10 @@ void GMAudioStream::CalcFramePitches(float threshold)
     // offset is distance from center bin to actual hz
     // then it is x = (binhz * step + offset) / binhz
 
+    // so while this is correctly giving gaussian peaks for notes of a given pitch,
+    // it gives too much weight to nearby notes making it quite fuzzy
+    // we may want to detect the peaks in this data, or just pow() it even further
+
     float debug_frequencies_view[87] = { 0.0f };
     for (int i = 0; i < 87; ++i)
         debug_frequencies_view[i] = PitchToFrequency(float(i));
@@ -827,11 +840,14 @@ void GMAudioStream::CalcFramePitches(float threshold)
         const float bin_hz = float(center) * bin_step;
         const float offset = (note_hz - bin_hz) / bin_step;
 
+        // lower is higher peak and faster falloff
+        const float sigma = 0.3f;
+
         float sum = 0.0f;
         for (int w = -2; w < 3; ++w)
         {
             const int bin = std::max<int>(0, std::min<int>(src.size() - 1, center + w));
-            const float weight = GaussianSample2(float(w) + offset, 1.0f);
+            const float weight = GaussianSample2(float(w) + offset, sigma);
             const float value = src[bin] * weight;
 
             sum += value;
@@ -1254,15 +1270,12 @@ void GMAudioStream::AddInputDataFrameMicrophone()
     // we will just deal with microphone data as though it is available
     // at our expected clock time, and ignore drift!
 
-    // init empty values
-
-    _channels[0].raw.clear();
-    _channels[0].raw.resize(W, 0.0f);
-
     // collect the last W of data
 
     if ((int)_microphone_buffer.size() >= W)
     {
+        _channels[0].raw.resize(W, 0.0f);
+
         for (int i = 0; i < W; ++i)
         {
             const int index = _microphone_buffer.size() - i - 1;
@@ -1271,6 +1284,11 @@ void GMAudioStream::AddInputDataFrameMicrophone()
 
             _channels[0].raw[i] = value;
         }
+
+        // apply windowing function
+        Hanning(W, &_channels[0].raw[0], &_channels[0].raw[0]);
+
+        _input_data_added_this_frame = true;
     }
 
     // remove the frame of buffer data
@@ -1311,6 +1329,8 @@ void GMAudioStream::AddInputDataFrameSineWave(int frequency, float amplitude)
             _channels[i].raw[j] += s;
         }
     }
+
+    _input_data_added_this_frame = true;
 }
 
 void GMAudioStream::UpdateMicrophoneBuffer()
@@ -1598,6 +1618,23 @@ GM_REG_NAMESPACE(GMAudioStream)
         return GM_OK;
     }
 
+    GM_MEMFUNC_DECL(GetFrameRate)
+    {
+        GM_CHECK_NUM_PARAMS(0);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_AL_EXCEPTION_WRAPPER(a_thread->PushInt(self->GetFrameRate()));
+        return GM_OK;
+    }
+
+    GM_MEMFUNC_DECL(SetFrameRate)
+    {
+        GM_CHECK_NUM_PARAMS(1);
+		GM_GET_THIS_PTR(GMAudioStream, self);
+        GM_CHECK_INT_PARAM(framerate, 0);
+        GM_AL_EXCEPTION_WRAPPER(self->SetFrameRate(framerate));
+        return GM_OK;
+    }
+
     GM_MEMFUNC_DECL(DrawFrameRawWaveform)
     {
         GM_CHECK_NUM_PARAMS(3);
@@ -1811,6 +1848,8 @@ GM_REG_MEMFUNC( GMAudioStream, IsMicrophoneFrameBuffered )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyScale )
 GM_REG_MEMFUNC( GMAudioStream, SetFFTMagnifyPower )
 GM_REG_MEMFUNC( GMAudioStream, GetFFTWindowSize )
+GM_REG_MEMFUNC( GMAudioStream, SetFrameRate )
+GM_REG_MEMFUNC( GMAudioStream, GetFrameRate )
 GM_REG_MEMFUNC( GMAudioStream, CalcFrameDFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcFrameFFT )
 GM_REG_MEMFUNC( GMAudioStream, CalcFrameAverageAndDifference )

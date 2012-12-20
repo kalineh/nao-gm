@@ -33,6 +33,7 @@ global MakeAudioTest = function()
         .use_sine_wave = false;
         .sine_frequency = 5;
         .sine_amplitude = 0.5f;
+        .framerate = 60;
 
         .tuner_gui = true;
         .tuner_mode = true;
@@ -157,6 +158,8 @@ global MakeAudioTest = function()
             .use_sine_wave = Gui.CheckBox("Use Sine Wave", .use_sine_wave);
             .sine_frequency = Gui.SliderInt("Sine Frequency", .sine_frequency, 1, .audio.GetFFTWindowSize() / 2 - 1);
             .sine_amplitude = Gui.SliderFloat("Sine Amplitude", .sine_amplitude, 0.0f, 2.0f);
+            .framerate = Gui.SliderInt("Frame Rate", .framerate, 1, 120);
+            if (Gui.Button("Apply Frame Rate")) { .audio.SetFrameRate(.framerate); }
         }
 
         Gui.Separator();
@@ -320,7 +323,7 @@ global MakeAudioTest = function()
             {
                 pending_frames = false;
 
-                .audio.ClearInputDataFrame();
+                //.audio.ClearInputDataFrame();
 
                 // frequency
                 // framerate
