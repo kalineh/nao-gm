@@ -210,8 +210,6 @@ samples to update is HB - advance
 
 float Note::NotePitch(int octave, int note)
 {
-    // TODO: fix the offset issues
-
     const int n = octave * 12 + note;
     const float frequency = PitchToFrequency(float(n));
 

@@ -501,12 +501,12 @@ int GMAudioStream::CalcEstimatedBeatsPerSecondAverage(int channel, int bin, floa
 
 float FrequencyToPitch(float hz)
 {
-   return 69.0f + 12.0f * (std::logf(hz / 440.0f) / std::logf(2.0f));
+   return 48.0f + 12.0f * (std::logf(hz / 440.0f) / std::logf(2.0f));
 }
 
 float PitchToFrequency(float pitch)
 {
-  return 440.0f * std::powf(2.0f, (pitch - 69.0f) / 12.0f);
+  return 440.0f * std::powf(2.0f, (pitch - 48.0f) / 12.0f);
 }
 
 char gPitchName[10];
@@ -894,7 +894,8 @@ void CalcFramePitchesOld(float threshold)
 
             const float hz = maximum * _frequency / float(W);
 
-            const int pitch = int(FrequencyToPitch(hz) + 0.1f) - 20; // TODO: why is it 20 off? (and maybe -1 for 0-based index of notes?)
+            // TODO: offset is fixed, we should need this anymore, but need to fix the 1-off if using this code again
+            //const int pitch = int(FrequencyToPitch(hz) + 0.1f) - 20; // TODO: why is it 20 off? (and maybe -1 for 0-based index of notes?)
 
             // TODO: we can get negative pitch somehow here, figure out why
             //       likely some artifact of the cubic maximize
